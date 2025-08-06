@@ -10,7 +10,7 @@ body {
     background-color: white;
     padding: 30px;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 h1 {
@@ -18,7 +18,8 @@ h1 {
     margin-bottom: 30px;
 }
 
-.input-section, .output-section {
+.input-section,
+.output-section {
     margin-bottom: 20px;
 }
 
@@ -45,15 +46,18 @@ textarea {
     color: #999;
     font-family: 'Courier New', monospace;
     font-size: 14px; /* Match textarea font size */
-    padding: 10px 5px;
-    text-align: right;
-    user-select: none;
-    line-height: 1.5; /* Match textarea line height */
-    overflow: hidden;
-    white-space: pre;
-    height: 300px; /* Match textarea height */
-}*/
+padding: 10px 5px;
+text-align: right;
+user-select: none;
+line-height: 1.5;
+/* Match textarea line height */
+overflow: hidden;
+white-space: pre;
+height: 300px;
+/* Match textarea height */
+}
 
+*/
 /*.editor-container textarea {
     border: none;
     flex: 1;
@@ -64,7 +68,7 @@ textarea {
 }*/
 
 /* Ensure the editor container takes full width and auto-height */
-  .editor-container {
+.editor-container {
     resize: both;
     overflow: auto;
     border: 1px solid #ccc;
@@ -72,14 +76,14 @@ textarea {
     min-width: 300px;
     max-height: 100vh;
     max-width: 100%;
-  }
+}
 
 /* Monaco injects styles but we help ensure visibility */
 #editor {
-  width: 100%;
-  height: 400px;
-  border: 1px solid #ccc;
-  font-family: monospace;
+    width: 100%;
+    height: 400px;
+    border: 1px solid #ccc;
+    font-family: monospace;
 }
 
 
@@ -161,7 +165,8 @@ button:disabled {
 }
 
 .output-content:not(.collapsed) {
-    max-height: 500px; /* Adjust as needed */
+    max-height: 500px;
+    /* Adjust as needed */
 }
 
 .output-text-section h3 {
@@ -176,66 +181,68 @@ button:disabled {
     margin-right: 8px;
 }
 
-.output-content:not(.collapsed) ~ h3 #outputToggle {
+.output-content:not(.collapsed)~h3 #outputToggle {
     transform: rotate(90deg);
 }
 
 .editor-help-text {
-  color: #888;
-  font-size: 13px;
-  padding-top: 12px;
-  padding-left: 4px;
-  margin-bottom: 8px;
-  font-style: italic;
+    color: #888;
+    font-size: 13px;
+    padding-top: 12px;
+    padding-left: 4px;
+    margin-bottom: 8px;
+    font-style: italic;
 }
 
 .shortcut {
-  margin-right: 20px; /* space between items */
-  white-space: nowrap; /* keep them from breaking mid-shortcut */
+    margin-right: 20px;
+    /* space between items */
+    white-space: nowrap;
+    /* keep them from breaking mid-shortcut */
 }
 
 .header-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
 }
 
 .header-bar h1 {
-  margin: 0;
-  font-size: 28px;
+    margin: 0;
+    font-size: 28px;
 }
 
 .header-bar .build {
-  font-size: 16px;
-  color: #666;
-  margin-left: 8px;
+    font-size: 16px;
+    color: #666;
+    margin-left: 8px;
 }
 
 .app-icon {
-  height: 96px;
-  width: auto;
+    height: 96px;
+    width: auto;
 }
 
 /* style for example button grid */
-  .example-buttons {
+.example-buttons {
     margin-top: 10px;
-  }
+}
 
-  .example-buttons span {
+.example-buttons span {
     display: block;
     margin-bottom: 8px;
     font-weight: bold;
-  }
+}
 
-  .button-grid {
+.button-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     max-width: 600px;
-  }
+}
 
-  .button-grid button {
+.button-grid button {
     padding: 12px;
     font-size: 14px;
     background-color: #4CAF50;
@@ -244,122 +251,249 @@ button:disabled {
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.3s ease;
-  }
+}
 
-  .button-grid button:hover {
+.button-grid button:hover {
     background-color: #45a049;
-  }
+}
 
-  .button-grid .filename-btn {
-  background-color: #ccc;       /* Grayed-out default */
-  color: #333;
-  border: none;
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.2s;
+.button-grid .filename-btn {
+    background-color: #ccc;
+    /* Grayed-out default */
+    color: #333;
+    border: none;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
 }
 
 .filename-btn.selected {
-  background-color: #4caf50;    /* Green when selected */
-  color: white;
+    background-color: #4caf50;
+    /* Green when selected */
+    color: white;
 }
 
-        /* Modal styles for prompts */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 10000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-        }
+/* Modal styles for prompts */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
 
-        .modal-content {
-            background-color: #fefefe;
-            margin: 15% auto;
-            padding: 20px;
-            border: none;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            animation: modalSlideIn 0.3s ease-out;
-        }
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+}
 
-        @keyframes modalSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-50px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
 
-        .modal h3 {
-            margin-top: 0;
-            color: #333;
-        }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 
-        .modal-buttons {
-            text-align: right;
-            margin-top: 20px;
-        }
+.modal h3 {
+    margin-top: 0;
+    color: #333;
+}
 
-        .modal-buttons button {
-            margin-left: 10px;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
+.modal-buttons {
+    text-align: right;
+    margin-top: 20px;
+}
 
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
+.modal-buttons button {
+    margin-left: 10px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
 
-        .btn-primary:hover {
-            background-color: #0056b3;
-        }
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
 
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
+.btn-primary:hover {
+    background-color: #0056b3;
+}
 
-        .btn-secondary:hover {
-            background-color: #545b62;
-        }
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
 
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
+.btn-secondary:hover {
+    background-color: #545b62;
+}
 
-        .btn-danger:hover {
-            background-color: #c82333;
-        }
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
 
-        .modal input[type="text"], .modal textarea {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            margin-top: 5px;
-            box-sizing: border-box;
-        }
+.btn-danger:hover {
+    background-color: #c82333;
+}
 
-        .modal label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
+.modal input[type="text"],
+.modal textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-top: 5px;
+    box-sizing: border-box;
+}
+
+.modal label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+/* Dark mode styles */
+body.dark-mode {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+body.dark-mode .container {
+    background-color: #2a2a2a;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .header-bar .build {
+    color: #999;
+}
+
+body.dark-mode textarea {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border-color: #444;
+}
+
+body.dark-mode #output {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+body.dark-mode .options,
+body.dark-mode .output-controls {
+    background-color: #333;
+}
+
+body.dark-mode .editor-help-text {
+    color: #aaa;
+}
+
+body.dark-mode button {
+    background-color: #0d7377;
+    border: 1px solid #0a5d61;
+}
+
+body.dark-mode button:hover {
+    background-color: #14a1a6;
+}
+
+body.dark-mode button:disabled {
+    background-color: #444;
+    border-color: #333;
+}
+
+body.dark-mode .filename-btn {
+    background-color: #444;
+    color: #999;
+}
+
+body.dark-mode .filename-btn.selected {
+    background-color: #0d7377;
+    color: white;
+}
+
+body.dark-mode .editor-container {
+    border-color: #444;
+}
+
+body.dark-mode footer {
+    border-top-color: #444;
+    color: #999;
+}
+
+body.dark-mode footer a {
+    color: #14a1a6;
+}
+
+/* Modal dark mode */
+body.dark-mode .modal-content {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+}
+
+body.dark-mode .modal-content h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .modal input[type="text"],
+body.dark-mode .modal textarea {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border-color: #444;
+}
+
+/* Modal button colors in dark mode */
+body.dark-mode .btn-primary {
+    background-color: #0d7377;
+    border: 1px solid #0a5d61;
+}
+
+body.dark-mode .btn-primary:hover {
+    background-color: #14a1a6;
+}
+
+body.dark-mode .btn-secondary {
+    background-color: #555;
+    border: 1px solid #444;
+}
+
+body.dark-mode .btn-secondary:hover {
+    background-color: #666;
+}
+
+body.dark-mode .btn-danger {
+    background-color: #aa3333;
+    border: 1px solid #882222;
+}
+
+body.dark-mode .btn-danger:hover {
+    background-color: #cc4444;
+}
