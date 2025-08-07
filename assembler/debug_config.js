@@ -257,14 +257,14 @@ function debugLog(message, level = 'info', prefix = '') {
         console.log(fullMessage);
 
         if (typeof document !== 'undefined') {
-            const outputArea = document.getElementById('output');
+            // const outputArea = document.getElementById('output');
             const messagesArea = document.getElementById('messages');
 
             // Add to output area cleanly
-            if (outputArea) {
-                outputArea.value += `[${timestamp}] ${fullMessage}\n`;
-                outputArea.scrollTop = outputArea.scrollHeight;
-            }
+            // if (outputArea) {
+            //     outputArea.value += `[${timestamp}] ${fullMessage}\n`;
+            //     outputArea.scrollTop = outputArea.scrollHeight;
+            // }
 
             // Add to messages area for important levels
             if (messagesArea && level === 'errors') {
