@@ -272,7 +272,6 @@ function debugLog(message, level = 'info', prefix = '') {
                 div.className = 'error';
                 div.textContent = `${fullMessage}`;
                 messagesArea.appendChild(div);
-                console.log('error mif');
             }
 
             if (messagesArea && level === 'success') {
@@ -280,7 +279,6 @@ function debugLog(message, level = 'info', prefix = '') {
                 div.className = 'success';
                 div.textContent = `${fullMessage}`;
                 messagesArea.appendChild(div);
-                console.log('success mif');
             }
         }
     }

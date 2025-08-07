@@ -17,7 +17,7 @@
         <script src="monaco.js"></script>
 
         <div class="header-bar">
-            <h1>FXCore Assembler <span class="build">build 05</span></h1>
+            <h1>FXCore Assembler <span class="build">build 06</span></h1>
             <img src="icon.png" alt="App Icon" class="app-icon">
         </div>
 
@@ -75,8 +75,14 @@
             <h2>Output</h2>
             <div class="output-controls">
                 <div>
+                    <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
+                    <span id="outputDirDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
+                </div><br>
+                <div>
                     <button onclick="downloadHex()" id="downloadHexBtn" disabled>Download HEX</button>
                     <button onclick="clearAssembly()">Clear Assembly</button>
+                    <button onclick="clearHardware()">Clear Hardware</button>
+                </div>
                 </div>
             </div>
 

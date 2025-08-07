@@ -301,24 +301,202 @@ async function saveSource() {
     return true; // Save completed successfully
 }
 
-// Download functions
-function downloadHex() {
-    if (!assembledData) {
-        document.getElementById('messages').innerHTML = '<div class="error">No assembled data available</div>';
-        return;
-    }
+// let outputDirectoryHandle = null;
 
-    const blob = new Blob([assembledData], {
-        type: 'text/plain'
-    });
+// async function selectOutputDirectory() {
+//     try {
+//         if ('showDirectoryPicker' in window) {
+//             outputDirectoryHandle = await window.showDirectoryPicker();
+//             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
+//             showMessage('Output directory selected successfully', 'success');
+//         } else {
+//             showMessage('Directory selection not supported in this browser', 'error');
+//         }
+//     } catch (err) {
+//         if (err.name !== 'AbortError') {
+//             showMessage('Error selecting directory: ' + err.message, 'error');
+//         }
+//     }
+// }
+
+// // Download functions
+// // function downloadHex() {
+// //     if (!assembledData) {
+// //         document.getElementById('messages').innerHTML = '<div class="error">No assembled data available</div>';
+// //         return;
+// //     }
+
+// //     const blob = new Blob([assembledData], {
+// //         type: 'text/plain'
+// //     });
+// //     const url = URL.createObjectURL(blob);
+// //     const a = document.createElement('a');
+// //     a.href = url;
+// //     a.download = 'output.hex';
+// //     document.body.appendChild(a);
+// //     a.click();
+// //     document.body.removeChild(a);
+// //     URL.revokeObjectURL(url);
+// // }
+
+// async function downloadHex() {
+//     const hex = document.getElementById('output').value;
+
+//     if (!selectedFilename) {
+//         showMessage('Please select a filename first.', 'error');
+//         return;
+//     }
+
+//     const filename = selectedFilename;
+
+//     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
+//         try {
+//             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+//                 create: true
+//             });
+//             const writable = await fileHandle.createWritable();
+//             await writable.write(hex);
+//             await writable.close();
+//             showMessage(`File saved as ${filename} in selected directory`, 'success');
+//         } catch (err) {
+//             showMessage('Error saving to directory: ' + err.message, 'error');
+//             // Fallback to regular download
+//             downloadFile(filename, hex, 'text/plain');
+//         }
+//     } else {
+//         downloadFile(filename, hex, 'text/plain');
+//     }
+// }
+
+let outputDirectoryHandle = null;
+const selectedFilename = 'output.hex'; // Hard-set filename
+
+// Use existing debugLog function instead of showMessage
+function showMessage(message, type) {
+    debugLog(message, type);
+}
+
+async function selectOutputDirectory() {
+    try {
+        if ('showDirectoryPicker' in window) {
+            outputDirectoryHandle = await window.showDirectoryPicker();
+            document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
+            showMessage('Output directory selected successfully', 'success');
+        } else {
+            showMessage('Directory selection not supported in this browser', 'error');
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            showMessage('Error selecting directory: ' + err.message, 'error');
+        }
+    }
+}
+
+// Helper function for fallback downloads
+function downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'output.hex';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+async function downloadHex() {
+    const hex = document.getElementById('output').value;
+    
+    // Check if hex content exists
+    if (!hex || hex.trim() === '') {
+        showMessage('No hex data to download', 'error');
+        return;
+    }
+    
+    const filename = selectedFilename; // Always 'output.hex'
+    
+    // Try to save to selected directory, fallback to regular download
+    if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
+        try {
+            const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+                create: true
+            });
+            const writable = await fileHandle.createWritable();
+            await writable.write(hex);
+            await writable.close();
+            showMessage(`File saved as ${filename} in selected directory`, 'success');
+        } catch (err) {
+            showMessage('Error saving to directory: ' + err.message, 'error');
+            // Fallback to regular download
+            downloadFile(filename, hex, 'text/plain');
+        }
+    } else {
+        // Regular download fallback
+        downloadFile(filename, hex, 'text/plain');
+    }
+}
+
+// Function to set the selected filename (you'll need to call this somewhere)
+function setSelectedFilename(filename) {
+    selectedFilename = filename;
+    console.log('Selected filename:', selectedFilename);
+}
+
+// Alternative: Let user input filename
+function promptForFilename() {
+    const filename = prompt('Enter filename (without extension):', 'output');
+    if (filename && filename.trim() !== '') {
+        setSelectedFilename(filename.trim());
+        return true;
+    }
+    return false;
+}
+
+// Enhanced download with filename prompt if needed
+async function downloadHexWithPrompt() {
+    const hex = document.getElementById('output').value;
+    
+    if (!hex || hex.trim() === '') {
+        showMessage('No hex data to download', 'error');
+        return;
+    }
+    
+    // If no filename selected, prompt for one
+    if (!selectedFilename) {
+        if (!promptForFilename()) {
+            showMessage('Download cancelled - no filename provided', 'warning');
+            return;
+        }
+    }
+    
+    // Now proceed with download
+    await downloadHex();
+}
+
+async function clearHardware() {
+    const emptyHex = ""; // Zero bytes - empty hex file
+    const filename = "output.hex";
+    
+    if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
+        try {
+            const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+                create: true
+            });
+            const writable = await fileHandle.createWritable();
+            await writable.write(emptyHex);
+            await writable.close();
+            showMessage(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
+        } catch (err) {
+            showMessage('Error saving empty hex to directory: ' + err.message, 'error');
+            // Fallback to regular download
+            downloadFile(filename, emptyHex, 'text/plain');
+        }
+    } else {
+        // No directory selected, fallback to regular download
+        showMessage('No output directory selected, downloading empty hex file instead', 'warning');
+        downloadFile(filename, emptyHex, 'text/plain');
+    }
 }
 
 // Toggle minimap function
