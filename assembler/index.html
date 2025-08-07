@@ -17,8 +17,25 @@
         <script src="monaco.js"></script>
 
         <div class="header-bar">
-            <h1>FXCore Assembler <span class="build">build 06</span></h1>
+            <h1>FXCore Assembler <span class="build">build 07</span></h1>
             <img src="icon.png" alt="App Icon" class="app-icon">
+        </div>
+
+        <div class="instructions-section">
+            <h3 onclick="toggleInstructions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
+                <span id="instructionsToggle">▶</span> Instructions
+            </h3>
+            <div id="instructionsContent" class="instructions-content collapsed">
+                <div class="instructions-text">
+                    <p>Enter FXCore source code into the editor area, or select a file or example.  Press the Assemble button to verify and assemble the code into a HEX file</p>
+                    
+                    <p>If connecting to a Sandbox hardware unit, use the Select Output Directory button to specify the path to your Sandbox (typically /CIRCUITPY).  Press the Download HEX button to save the result to your local machine or hardware device.  </p>
+                    
+                    <p>Press the Clear Hardware button to send a clear message to the Sandbox hardware unit and return to normal operation.</p>
+                    
+                    <p>When satisfied with your source code, press the Save Source button to download a local copy.</p>
+                </div>
+            </div>
         </div>
 
         <h2>Input Source Code</h2>

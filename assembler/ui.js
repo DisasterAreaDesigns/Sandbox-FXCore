@@ -495,3 +495,17 @@ function toggleOutput() {
         outputToggle.textContent = '▶';
     }
 }
+
+// Toggle instructions function
+function toggleInstructions() {
+    const instructionsContent = document.getElementById('instructionsContent');
+    const instructionsToggle = document.getElementById('instructionsToggle');
+
+    if (instructionsContent.classList.contains('collapsed')) {
+        instructionsContent.classList.remove('collapsed');
+        instructionsToggle.textContent = '▼';
+    } else {
+        instructionsContent.classList.add('collapsed');
+        instructionsToggle.textContent = '▶';
+    }
+}
