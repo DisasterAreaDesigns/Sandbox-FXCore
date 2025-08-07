@@ -11,7 +11,7 @@ Programming FXCore was originally accomplished using an FXCore Eval Board, which
 
 The user writes code in the editor application, then uses the programming interface in this application to send data to the Eval Board.  The FXCore accepts the new program code and then the user can either program one of the 16 internal memory slots of the FXCore or enter "run from RAM" mode which temporarily executes the program without flashing the memory.
 
-This works fine but is platform dependent and the text editor itself was not well implemented.  Initial releases of the application were also very slow when loading new code, though this was fixed later.
+This works fine but is platform dependent and the text editor lacked polish compared to other IDE packages.  Initial releases of the application were also very slow when loading new code, though this was fixed later.
 
 We persuaded Frank to write a command-line version of the assembler, so that it could be called from an external editor.  This makes the development tool set program-agnostic but still platform-dependent for Windows only.  We released a package using a portable version of the excellent open-source text editor Notepad++, integrated with syntax highlighting for FXCore ASM and a copy of the CLI assembler.  This then replaced the dedicated SpinASM IDE for offical purposes.
 
