@@ -48,6 +48,19 @@ def check_hex_file_exists():
         return False
     except:
         return False
+    """Check if the hex file exists and has content"""
+    try:
+        if HEX_FILE_PATH in os.listdir():
+            # Check file size
+            try:
+                with open(HEX_FILE_PATH, 'r') as f:
+                    content = f.read().strip()
+                    return len(content) > 0  # Return True only if file has content
+            except:
+                return False
+        return False
+    except:
+        return False
 
 def set_status_led(color):
     """Set the status LED color"""
@@ -460,7 +473,7 @@ def run_ram_execution():
     blink_status_led(BLUE, 2)
     
     # Wait for FXCore to settle
-    print("Waiting for FXCore to settle...")
+    print("Waiting for FXCore to init...")
     time.sleep(0.5)
     
     # Read and parse hex file
@@ -582,21 +595,11 @@ def main():
     running = False
     normal_commands_sent = 0
     
-    # If no hex file on startup or empty hex file, ensure normal operation by entering/exiting prog mode
-    if not check_hex_file_exists():
-        print("No output.hex found or empty file on startup - ensuring normal operation...")
-        blink_status_led(BLUE, 1)  # Brief blue blink to show activity
-        time.sleep(0.5)  # Brief settle
-        
-        # Enter programming mode, then immediately exit to ensure normal state
-        if enter_prog_mode():
-            time.sleep(0.1)
-            send_return_0()
-            time.sleep(0.1)
-            exit_prog_mode()
-            print("Returned to normal operation")
-        else:
-            print("Warning: Could not enter programming mode on startup")
+    # Always return to STATE0 on boot before programming
+    print("Ensuring STATE0 on startup...")
+    # send_return_0()
+    stop_execution()
+    time.sleep(0.1)
     
     while True:
         hex_exists = check_hex_file_exists()
@@ -631,7 +634,8 @@ def main():
             # Only send commands when first detected or if counter allows
             if normal_commands_sent < 2:
                 print(f"No output.hex or empty file - sending return to normal command ({normal_commands_sent + 1}/2)")
-                send_return_0()
+                # send_return_0()
+                stop_execution()
                 time.sleep(0.1)
                 normal_commands_sent += 1
             # After 2 commands sent, just wait quietly
@@ -653,6 +657,6 @@ if __name__ == "__main__":
         i2c.deinit()
         print("I2C bus released")
     except Exception as e:
-        print(f"Unexpected error: {e}")
         set_status_led(OFF)
+        print(f"Unexpected error: {e}")
         i2c.deinit()
