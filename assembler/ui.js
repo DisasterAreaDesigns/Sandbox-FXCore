@@ -301,93 +301,22 @@ async function saveSource() {
     return true; // Save completed successfully
 }
 
-// let outputDirectoryHandle = null;
-
-// async function selectOutputDirectory() {
-//     try {
-//         if ('showDirectoryPicker' in window) {
-//             outputDirectoryHandle = await window.showDirectoryPicker();
-//             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
-//             showMessage('Output directory selected successfully', 'success');
-//         } else {
-//             showMessage('Directory selection not supported in this browser', 'error');
-//         }
-//     } catch (err) {
-//         if (err.name !== 'AbortError') {
-//             showMessage('Error selecting directory: ' + err.message, 'error');
-//         }
-//     }
-// }
-
-// // Download functions
-// // function downloadHex() {
-// //     if (!assembledData) {
-// //         document.getElementById('messages').innerHTML = '<div class="error">No assembled data available</div>';
-// //         return;
-// //     }
-
-// //     const blob = new Blob([assembledData], {
-// //         type: 'text/plain'
-// //     });
-// //     const url = URL.createObjectURL(blob);
-// //     const a = document.createElement('a');
-// //     a.href = url;
-// //     a.download = 'output.hex';
-// //     document.body.appendChild(a);
-// //     a.click();
-// //     document.body.removeChild(a);
-// //     URL.revokeObjectURL(url);
-// // }
-
-// async function downloadHex() {
-//     const hex = document.getElementById('output').value;
-
-//     if (!selectedFilename) {
-//         showMessage('Please select a filename first.', 'error');
-//         return;
-//     }
-
-//     const filename = selectedFilename;
-
-//     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
-//         try {
-//             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
-//                 create: true
-//             });
-//             const writable = await fileHandle.createWritable();
-//             await writable.write(hex);
-//             await writable.close();
-//             showMessage(`File saved as ${filename} in selected directory`, 'success');
-//         } catch (err) {
-//             showMessage('Error saving to directory: ' + err.message, 'error');
-//             // Fallback to regular download
-//             downloadFile(filename, hex, 'text/plain');
-//         }
-//     } else {
-//         downloadFile(filename, hex, 'text/plain');
-//     }
-// }
-
 let outputDirectoryHandle = null;
 const selectedFilename = 'output.hex'; // Hard-set filename
-
-// Use existing debugLog function instead of showMessage
-function showMessage(message, type) {
-    debugLog(message, type);
-}
 
 async function selectOutputDirectory() {
     try {
         if ('showDirectoryPicker' in window) {
             outputDirectoryHandle = await window.showDirectoryPicker();
             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
-            showMessage('Output directory selected successfully', 'success');
+            document.getElementById('messages').innerHTML = '';
+            debugLog('Output directory selected successfully', 'success');
         } else {
-            showMessage('Directory selection not supported in this browser', 'error');
+            debugLog('Directory selection not supported in this browser', 'error');
         }
     } catch (err) {
         if (err.name !== 'AbortError') {
-            showMessage('Error selecting directory: ' + err.message, 'error');
+            debugLog('Error selecting directory: ' + err.message, 'error');
         }
     }
 }
@@ -425,9 +354,10 @@ async function downloadHex() {
             const writable = await fileHandle.createWritable();
             await writable.write(hex);
             await writable.close();
-            showMessage(`File saved as ${filename} in selected directory`, 'success');
+            document.getElementById('messages').innerHTML = '';
+            debugLog(`File saved as ${filename} in selected directory`, 'success');
         } catch (err) {
-            showMessage('Error saving to directory: ' + err.message, 'error');
+            debugLog('Error saving to directory: ' + err.message, 'error');
             // Fallback to regular download
             downloadFile(filename, hex, 'text/plain');
         }
@@ -486,15 +416,16 @@ async function clearHardware() {
             const writable = await fileHandle.createWritable();
             await writable.write(emptyHex);
             await writable.close();
-            showMessage(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
+            document.getElementById('messages').innerHTML = '';
+            debugLog(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
         } catch (err) {
-            showMessage('Error saving empty hex to directory: ' + err.message, 'error');
+            debugLog('Error saving empty hex to directory: ' + err.message, 'error');
             // Fallback to regular download
             downloadFile(filename, emptyHex, 'text/plain');
         }
     } else {
         // No directory selected, fallback to regular download
-        showMessage('No output directory selected, downloading empty hex file instead', 'warning');
+        debugLog('No output directory selected, downloading empty hex file instead', 'warning');
         downloadFile(filename, emptyHex, 'text/plain');
     }
 }
