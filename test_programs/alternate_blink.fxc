@@ -1,0 +1,27 @@
+.rn	ledflag r0
+;.equ	ledflag 0x0001
+
+
+
+// get sample counter
+cpy_cs	acc32, samplecnt
+andi		acc32, 0x1FFF		; flip the bit every 8192 samples, approx. 2.93Hz at 48Khz sampling
+jnz		acc32, doLED
+
+andi		ledflag, 0x0001		; is flag 0x0001?
+jz		acc32, setFlag		; if no, then set it to 0x0001
+xor		acc32, acc32		; if the flag is 1 set it to zero
+cpy_cc	ledflag, acc32
+jmp		doLED
+
+setFlag:
+xor		acc32, acc32
+ori		acc32, 0x0001		; set teh flag ot 0x0001
+cpy_cc	ledFlag, acc32
+
+doLED:
+set       	user0|0, ledflag           ; set the usr0 output per the acc32 LSB
+xori        ledflag, 0x0001
+set         user1|0, acc32
+
+

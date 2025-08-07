@@ -312,11 +312,11 @@ async function selectOutputDirectory() {
             document.getElementById('messages').innerHTML = '';
             debugLog('Output directory selected successfully', 'success');
         } else {
-            debugLog('Directory selection not supported in this browser', 'error');
+            debugLog('Directory selection not supported in this browser', 'errors');
         }
     } catch (err) {
         if (err.name !== 'AbortError') {
-            debugLog('Error selecting directory: ' + err.message, 'error');
+            debugLog('Error selecting directory: ' + err.message, 'errors');
         }
     }
 }
@@ -339,7 +339,7 @@ async function downloadHex() {
     
     // Check if hex content exists
     if (!hex || hex.trim() === '') {
-        showMessage('No hex data to download', 'error');
+        showMessage('No hex data to download', 'errors');
         return;
     }
     
@@ -357,7 +357,7 @@ async function downloadHex() {
             document.getElementById('messages').innerHTML = '';
             debugLog(`File saved as ${filename} in selected directory`, 'success');
         } catch (err) {
-            debugLog('Error saving to directory: ' + err.message, 'error');
+            debugLog('Error saving to directory: ' + err.message, 'errors');
             // Fallback to regular download
             downloadFile(filename, hex, 'text/plain');
         }
@@ -388,7 +388,7 @@ async function downloadHexWithPrompt() {
     const hex = document.getElementById('output').value;
     
     if (!hex || hex.trim() === '') {
-        showMessage('No hex data to download', 'error');
+        showMessage('No hex data to download', 'errors');
         return;
     }
     
@@ -419,7 +419,7 @@ async function clearHardware() {
             document.getElementById('messages').innerHTML = '';
             debugLog(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
         } catch (err) {
-            debugLog('Error saving empty hex to directory: ' + err.message, 'error');
+            debugLog('Error saving empty hex to directory: ' + err.message, 'errors');
             // Fallback to regular download
             downloadFile(filename, emptyHex, 'text/plain');
         }
