@@ -1,7 +1,6 @@
+; simple program that flashes both LEDs alternately
+
 .rn	ledflag r0
-;.equ	ledflag 0x0001
-
-
 
 // get sample counter
 cpy_cs	acc32, samplecnt

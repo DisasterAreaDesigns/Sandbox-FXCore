@@ -1,3 +1,5 @@
+; simpe program that turns on both LEDs
+
 ori acc32, 0xffff
 set user0|0, acc32
 set user1|0, acc32
