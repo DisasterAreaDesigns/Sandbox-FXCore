@@ -304,13 +304,36 @@ async function saveSource() {
 let outputDirectoryHandle = null;
 const selectedFilename = 'output.hex'; // Hard-set filename
 
+// async function selectOutputDirectory() {
+//     try {
+//         if ('showDirectoryPicker' in window) {
+//             outputDirectoryHandle = await window.showDirectoryPicker();
+//             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
+//             document.getElementById('messages').innerHTML = '';
+//             debugLog('Output directory selected successfully', 'success');
+//         } else {
+//             debugLog('Directory selection not supported in this browser', 'errors');
+//         }
+//     } catch (err) {
+//         if (err.name !== 'AbortError') {
+//             debugLog('Error selecting directory: ' + err.message, 'errors');
+//         }
+//     }
+// }
+
 async function selectOutputDirectory() {
     try {
         if ('showDirectoryPicker' in window) {
             outputDirectoryHandle = await window.showDirectoryPicker();
             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
             document.getElementById('messages').innerHTML = '';
+            
             debugLog('Output directory selected successfully', 'success');
+            
+            // Try to find and read the hardware identifier JSON file
+            if (outputDirectoryHandle) {
+                await readHardwareIdentifier();
+            }
         } else {
             debugLog('Directory selection not supported in this browser', 'errors');
         }
@@ -319,6 +342,99 @@ async function selectOutputDirectory() {
             debugLog('Error selecting directory: ' + err.message, 'errors');
         }
     }
+}
+
+async function readHardwareIdentifier() {
+    if (!outputDirectoryHandle) {
+        debugLog('No output directory selected', 'errors');
+        return;
+    }
+
+    try {
+        // Try to find a hardware identifier JSON file
+        const possibleFilenames = [
+            'hardware_id.json',
+            'device_info.json', 
+            'device_id.json',
+            'hardware_info.json',
+            'config.json',
+            'device.json'
+        ];
+
+        let hardwareInfo = null;
+        let foundFilename = null;
+
+        for (const filename of possibleFilenames) {
+            try {
+                const fileHandle = await outputDirectoryHandle.getFileHandle(filename);
+                const file = await fileHandle.getFile();
+                const content = await file.text();
+                
+                // Try to parse as JSON
+                const jsonData = JSON.parse(content);
+                
+                // Check if it looks like a hardware identifier file
+                if (jsonData.device_type || jsonData.firmware_version || jsonData.device_id || jsonData.hardware_info) {
+                    hardwareInfo = jsonData;
+                    foundFilename = filename;
+                    break;
+                }
+            } catch (err) {
+                // File doesn't exist or can't be read, continue to next filename
+                continue;
+            }
+        }
+
+        if (hardwareInfo) {
+            // Check if this is the expected hardware device
+            const expectedDeviceType = "FXCore Sandbox"; // Change this to match your expected device
+            
+            if (hardwareInfo.device_type === expectedDeviceType) {
+                displayHardwareInfo(hardwareInfo, foundFilename);
+            } else {
+                // Hardware device doesn't match - revert to default downloads
+                revertToDefaultDirectory();
+                debugLog('Hardware device not found, reverting to default directory', 'errors');
+                return;
+            }
+        } else {
+            // No hardware identifier found - revert to default downloads
+            revertToDefaultDirectory();
+            debugLog('Hardware device not found, reverting to default directory', 'errors');
+            return;
+        }
+        
+    } catch (err) {
+        // Error reading hardware identifier - revert to default downloads
+        revertToDefaultDirectory();
+        debugLog('Hardware device not found, reverting to default directory', 'errors');
+    }
+}
+
+function displayHardwareInfo(hardwareInfo, filename) {
+    let infoMsg = `Hardware Identifier Found (${filename}): `;
+    
+    if (hardwareInfo.device_type) {
+        infoMsg += `Device: ${hardwareInfo.device_type} `;
+    }
+    
+    if (hardwareInfo.firmware_version) {
+        infoMsg += `Firmware: ${hardwareInfo.firmware_version} `;
+    }
+    
+    if (hardwareInfo.device_id) {
+        infoMsg += `ID: ${hardwareInfo.device_id} `;
+    }
+    
+    debugLog(infoMsg, 'success');
+}
+
+function revertToDefaultDirectory() {
+    // Clear the output directory handle to revert to normal browser downloads
+    outputDirectoryHandle = null;
+    
+    // Update the UI to show no directory selected
+    document.getElementById('outputDirDisplay').textContent = 'No directory selected';
 }
 
 // Helper function for fallback downloads
@@ -334,12 +450,45 @@ function downloadFile(filename, content, mimeType) {
     URL.revokeObjectURL(url);
 }
 
+// async function downloadHex() {
+//     const hex = document.getElementById('output').value;
+    
+//     // Check if hex content exists
+//     if (!hex || hex.trim() === '') {
+//         showMessage('No hex data to download', 'errors');
+//         return;
+//     }
+    
+//     const filename = selectedFilename; // Always 'output.hex'
+    
+//     // Try to save to selected directory, fallback to regular download
+//     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
+//         try {
+//             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+//                 create: true
+//             });
+//             const writable = await fileHandle.createWritable();
+//             await writable.write(hex);
+//             await writable.close();
+//             document.getElementById('messages').innerHTML = '';
+//             debugLog(`File saved as ${filename} in selected directory`, 'success');
+//         } catch (err) {
+//             debugLog('Error saving to directory: ' + err.message, 'errors');
+//             // Fallback to regular download
+//             downloadFile(filename, hex, 'text/plain');
+//         }
+//     } else {
+//         // Regular download fallback
+//         downloadFile(filename, hex, 'text/plain');
+//     }
+// }
+
 async function downloadHex() {
     const hex = document.getElementById('output').value;
     
     // Check if hex content exists
     if (!hex || hex.trim() === '') {
-        showMessage('No hex data to download', 'errors');
+        debugLog('No hex data to download', 'errors');
         return;
     }
     
@@ -362,8 +511,9 @@ async function downloadHex() {
             downloadFile(filename, hex, 'text/plain');
         }
     } else {
-        // Regular download fallback
+        // No directory selected, use normal browser download
         downloadFile(filename, hex, 'text/plain');
+        debugLog(`File downloaded as ${filename} to default downloads folder`, 'success');
     }
 }
 
