@@ -407,22 +407,64 @@ async function readHardwareIdentifier() {
     }
 }
 
+// function displayHardwareInfo(hardwareInfo, filename) {
+//     let infoMsg = `Hardware Identifier Found (${filename}): `;
+    
+//     if (hardwareInfo.device_type) {
+//         infoMsg += `Device: ${hardwareInfo.device_type} `;
+//     }
+    
+//     if (hardwareInfo.firmware_version) {
+//         infoMsg += `Firmware: ${hardwareInfo.firmware_version} `;
+//     }
+    
+//     if (hardwareInfo.device_id) {
+//         infoMsg += `ID: ${hardwareInfo.device_id} `;
+//     }
+    
+//     debugLog(infoMsg, 'success');
+// }
+
+// Updated displayHardwareInfo function with proper HTML formatting
 function displayHardwareInfo(hardwareInfo, filename) {
-    let infoMsg = `Hardware Identifier Found (${filename}): `;
+    const messages = document.getElementById('messages');
+    const existingContent = messages.innerHTML;
+    
+    let infoHtml = '<div class="success hardware-info">';
+    infoHtml += `<strong>Hardware Identifier Found (${filename}):</strong><br>`;
     
     if (hardwareInfo.device_type) {
-        infoMsg += `Device: ${hardwareInfo.device_type} `;
+        infoHtml += `Device Type: <strong>${hardwareInfo.device_type}</strong><br>`;
     }
     
     if (hardwareInfo.firmware_version) {
-        infoMsg += `Firmware: ${hardwareInfo.firmware_version} `;
+        infoHtml += `Firmware Version: <strong>${hardwareInfo.firmware_version}</strong><br>`;
     }
     
     if (hardwareInfo.device_id) {
-        infoMsg += `ID: ${hardwareInfo.device_id} `;
+        infoHtml += `Device ID: <strong>${hardwareInfo.device_id}</strong><br>`;
     }
     
-    debugLog(infoMsg, 'success');
+    if (hardwareInfo.hardware_info) {
+        if (hardwareInfo.hardware_info.manufacturer) {
+            infoHtml += `Manufacturer: <strong>${hardwareInfo.hardware_info.manufacturer}</strong><br>`;
+        }
+        if (hardwareInfo.hardware_info.model) {
+            infoHtml += `Model: <strong>${hardwareInfo.hardware_info.model}</strong><br>`;
+        }
+        if (hardwareInfo.hardware_info.serial_number) {
+            infoHtml += `Serial Number: <strong>${hardwareInfo.hardware_info.serial_number}</strong><br>`;
+        }
+    }
+    
+    if (hardwareInfo.timestamp) {
+        const date = new Date(hardwareInfo.timestamp);
+        infoHtml += `Last Updated: <strong>${date.toLocaleString()}</strong><br>`;
+    }
+    
+    infoHtml += '</div>';
+    
+    messages.innerHTML = existingContent + infoHtml;
 }
 
 function revertToDefaultDirectory() {
