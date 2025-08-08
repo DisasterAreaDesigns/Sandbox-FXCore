@@ -112,7 +112,7 @@ window.addEventListener('beforeunload', function(e) {
     }
 });
 
-// Modified load file function with three-choice prompt
+// Modified load file function with assembly clearing
 async function loadFile() {
     if (hasEditorContent()) {
         const choice = await showThreeChoiceDialog(
@@ -141,15 +141,20 @@ async function loadFile() {
                 // Scroll to the top of the editor
                 editor.setScrollTop(0);
                 editor.setScrollLeft(0);
-
             }
+            
+            // Clear assembly output and disable download button
+            document.getElementById('output').value = '';
+            document.getElementById('messages').innerHTML = '';
+            document.getElementById('downloadHexBtn').disabled = true;
+            assembledData = null;
         };
         reader.readAsText(file);
         debugLog('File loaded', 'success');
     }
 }
 
-// Modified example loader with three-choice prompt
+// Modified example loader with assembly clearing
 async function loadExample(exampleName) {
     if (hasEditorContent()) {
         const choice = await showThreeChoiceDialog(
@@ -172,11 +177,13 @@ async function loadExample(exampleName) {
         editor.setValue(examples[exampleName]);
         editor.setScrollTop(0);
         editor.setScrollLeft(0);
+        
+        // Clear assembly output and disable download button
         document.getElementById('output').value = '';
         document.getElementById('messages').innerHTML = '';
         document.getElementById('downloadHexBtn').disabled = true;
-        // document.getElementById('downloadBinBtn').disabled = true;
         assembledData = null;
+        
         debugLog('Example loaded', 'success');
     }
 }
@@ -243,7 +250,7 @@ async function clearAssembly() {
     assembledData = null;
 }
 
-// New function to clear editor content with three-choice prompt
+// Updated clear editor function with assembly clearing
 async function clearEditor() {
     if (hasEditorContent()) {
         const choice = await showThreeChoiceDialog(
@@ -265,6 +272,12 @@ async function clearEditor() {
     if (editor) {
         editor.setValue('');
     }
+    
+    // Clear assembly output and disable download button
+    document.getElementById('output').value = '';
+    document.getElementById('messages').innerHTML = '';
+    document.getElementById('downloadHexBtn').disabled = true;
+    assembledData = null;
 }
 
 // Enhanced save source with filename prompt
