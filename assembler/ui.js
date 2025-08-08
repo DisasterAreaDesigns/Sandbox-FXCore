@@ -304,23 +304,6 @@ async function saveSource() {
 let outputDirectoryHandle = null;
 const selectedFilename = 'output.hex'; // Hard-set filename
 
-// async function selectOutputDirectory() {
-//     try {
-//         if ('showDirectoryPicker' in window) {
-//             outputDirectoryHandle = await window.showDirectoryPicker();
-//             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
-//             document.getElementById('messages').innerHTML = '';
-//             debugLog('Output directory selected successfully', 'success');
-//         } else {
-//             debugLog('Directory selection not supported in this browser', 'errors');
-//         }
-//     } catch (err) {
-//         if (err.name !== 'AbortError') {
-//             debugLog('Error selecting directory: ' + err.message, 'errors');
-//         }
-//     }
-// }
-
 async function selectOutputDirectory() {
     try {
         if ('showDirectoryPicker' in window) {
@@ -449,39 +432,6 @@ function downloadFile(filename, content, mimeType) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
-
-// async function downloadHex() {
-//     const hex = document.getElementById('output').value;
-    
-//     // Check if hex content exists
-//     if (!hex || hex.trim() === '') {
-//         showMessage('No hex data to download', 'errors');
-//         return;
-//     }
-    
-//     const filename = selectedFilename; // Always 'output.hex'
-    
-//     // Try to save to selected directory, fallback to regular download
-//     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
-//         try {
-//             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
-//                 create: true
-//             });
-//             const writable = await fileHandle.createWritable();
-//             await writable.write(hex);
-//             await writable.close();
-//             document.getElementById('messages').innerHTML = '';
-//             debugLog(`File saved as ${filename} in selected directory`, 'success');
-//         } catch (err) {
-//             debugLog('Error saving to directory: ' + err.message, 'errors');
-//             // Fallback to regular download
-//             downloadFile(filename, hex, 'text/plain');
-//         }
-//     } else {
-//         // Regular download fallback
-//         downloadFile(filename, hex, 'text/plain');
-//     }
-// }
 
 async function downloadHex() {
     const hex = document.getElementById('output').value;
