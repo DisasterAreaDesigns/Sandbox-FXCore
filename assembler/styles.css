@@ -404,6 +404,107 @@ button:disabled {
     font-weight: bold;
 }
 
+/* Messages area styling for scrollability */
+#messages {
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0;
+    background-color: #f8f8f8;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Hide messages area when empty */
+#messages:empty {
+    display: none;
+}
+
+/* Style for individual message entries */
+#messages .message {
+    margin-bottom: 5px;
+    padding: 2px 0;
+}
+
+#messages .message.error {
+    color: #d32f2f;
+}
+
+#messages .message.success {
+    color: #388e3c;
+}
+
+#messages .message.warning {
+    color: #f57c00;
+}
+
+#messages .message.info {
+    color: #1976d2;
+}
+
+/* Dark mode styles for messages */
+body.dark-mode #messages {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border-color: #444;
+}
+
+body.dark-mode #messages .message.error {
+    color: #f48fb1;
+}
+
+body.dark-mode #messages .message.success {
+    color: #81c784;
+}
+
+body.dark-mode #messages .message.warning {
+    color: #ffb74d;
+}
+
+body.dark-mode #messages .message.info {
+    color: #64b5f6;
+}
+
+/* Scrollbar styling */
+#messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+#messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+#messages::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+#messages::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Dark mode scrollbar */
+body.dark-mode #messages::-webkit-scrollbar-track {
+    background: #333;
+}
+
+body.dark-mode #messages::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+body.dark-mode #messages::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+
+
 /* Dark mode styles */
 body.dark-mode {
     background-color: #1a1a1a;

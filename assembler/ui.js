@@ -664,3 +664,56 @@ function toggleInstructions() {
         instructionsToggle.textContent = '▶';
     }
 }
+
+// async function serialConnect() {
+//     try {
+//         // Prompt user to select serial port
+//         const port = await navigator.serial.requestPort();
+//         await port.open({ baudRate: 115200 });
+//         console.log("Serial port opened.");
+
+//         const decoder = new TextDecoderStream();
+//         const inputDone = port.readable.pipeTo(decoder.writable);
+//         const inputStream = decoder.readable;
+//         const reader = inputStream.getReader();
+
+//         // Continuous read loop
+//         while (true) {
+//             const { value, done } = await reader.read();
+//             if (done) {
+//                 console.log("Serial reader closed");
+//                 break;
+//             }
+//             if (value) {
+//                 console.log("[Serial]", value.trim());
+//             }
+//         }
+//     } catch (err) {
+//         console.error("Error opening serial port:", err);
+//     }
+// }
+
+async function serialConnect() {
+    try {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        debugLog("Serial port opened", "serial");
+
+        const decoder = new TextDecoderStream();
+        port.readable.pipeTo(decoder.writable);
+        const reader = decoder.readable.getReader();
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+                debugLog("Serial reader closed", "serial");
+                break;
+            }
+            if (value) {
+                debugLog(value.trim(), "serial");
+            }
+        }
+    } catch (err) {
+        debugLog(`Error opening serial port: ${err.message}`, "serial");
+    }
+}

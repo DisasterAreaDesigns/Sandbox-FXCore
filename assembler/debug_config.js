@@ -37,7 +37,8 @@ class DebugConfig {
             errors: true,             // Always show errors
             warnings: true,           // Always show warnings
             info: true,               // Basic info messages
-            success: true,
+            success: true,            // success messages
+            serial: true,             // serial debug messages
             
             // Special categories
             all: false,               // Enable all debug output
@@ -150,6 +151,7 @@ class DebugConfig {
             info: true,
             all: false,
             success: true,
+            serial: true,
             none: false
         };
     }
@@ -173,7 +175,8 @@ class DebugConfig {
                     info: true,
                     warnings: true,
                     errors: true,
-                    success: true
+                    success: true,
+                    serial: true,
                 });
                 break;
                 
@@ -207,7 +210,7 @@ class DebugConfig {
                     registerLookup: true,
                     parsing: true,
                     expressions: true,
-                    mnemonics: true
+                    mnemonics: true,
                 });
                 break;
                 
@@ -275,6 +278,13 @@ function debugLog(message, level = 'info', prefix = '') {
             }
 
             if (messagesArea && level === 'success') {
+                const div = document.createElement('div');
+                div.className = 'success';
+                div.textContent = `${fullMessage}`;
+                messagesArea.appendChild(div);
+            }
+
+            if (messagesArea && level === 'serial') {
                 const div = document.createElement('div');
                 div.className = 'success';
                 div.textContent = `${fullMessage}`;
