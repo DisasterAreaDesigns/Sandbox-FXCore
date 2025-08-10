@@ -322,6 +322,7 @@ async function selectOutputDirectory() {
         if ('showDirectoryPicker' in window) {
             outputDirectoryHandle = await window.showDirectoryPicker();
             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
+            outputDirDisplay.style.color = '#28a745'; // Green color for connected
             document.getElementById('messages').innerHTML = '';
             
             debugLog('Output directory selected successfully', 'success');
@@ -559,29 +560,114 @@ async function downloadHexWithPrompt() {
     await downloadHex();
 }
 
-async function clearHardware() {
-    const emptyHex = ""; // Zero bytes - empty hex file
-    const filename = "output.hex";
+// async function clearHardware() {
+//     const emptyHex = ""; // Zero bytes - empty hex file
+//     const filename = "output.hex";
     
-    if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
-        try {
-            const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
-                create: true
-            });
-            const writable = await fileHandle.createWritable();
-            await writable.write(emptyHex);
-            await writable.close();
-            document.getElementById('messages').innerHTML = '';
-            debugLog(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
-        } catch (err) {
-            debugLog('Error saving empty hex to directory: ' + err.message, 'errors');
-            // Fallback to regular download
-            downloadFile(filename, emptyHex, 'text/plain');
+//     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
+//         try {
+//             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+//                 create: true
+//             });
+//             const writable = await fileHandle.createWritable();
+//             await writable.write(emptyHex);
+//             await writable.close();
+//             document.getElementById('messages').innerHTML = '';
+//             debugLog(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
+//         } catch (err) {
+//             debugLog('Error saving empty hex to directory: ' + err.message, 'errors');
+//             // Fallback to regular download
+//             downloadFile(filename, emptyHex, 'text/plain');
+//         }
+//     } else {
+//         // No directory selected, fallback to regular download
+//         debugLog('No output directory selected, downloading empty hex file instead', 'warning');
+//         downloadFile(filename, emptyHex, 'text/plain');
+//     }
+// }
+async function clearHardware() {
+    // Check if directory is selected, if not do nothing
+    if (!outputDirectoryHandle || !('showDirectoryPicker' in window)) {
+        debugLog('No output directory selected - hardware clear cancelled', 'errors');
+        return;
+    }
+    
+    const emptyHex = ""; // Zero bytes - empty hex file
+    
+    // List of hex files to create: 0.hex through F.hex plus output.hex
+    const hexFiles = [];
+    
+    // Add 0-9
+    for (let i = 0; i <= 9; i++) {
+        hexFiles.push(`${i}.hex`);
+    }
+    
+    // Add A-F
+    for (let i = 10; i <= 15; i++) {
+        hexFiles.push(`${i.toString(16).toUpperCase()}.hex`);
+    }
+    
+    // Add output.hex
+    hexFiles.push('output.hex');
+    
+    try {
+        let successCount = 0;
+        let errorCount = 0;
+        let skippedCount = 0;
+        
+        // Check each file and only create empty versions if non-zero size files exist
+        for (const filename of hexFiles) {
+            try {
+                // Check if file exists and get its size
+                let shouldClear = false;
+                try {
+                    const existingFileHandle = await outputDirectoryHandle.getFileHandle(filename);
+                    const existingFile = await existingFileHandle.getFile();
+                    
+                    // Only clear if file exists and has non-zero size
+                    if (existingFile.size > 0) {
+                        shouldClear = true;
+                    }
+                } catch (err) {
+                    // File doesn't exist, skip it
+                    skippedCount++;
+                    continue;
+                }
+                
+                if (shouldClear) {
+                    const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+                        create: true
+                    });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(emptyHex);
+                    await writable.close();
+                    successCount++;
+                } else {
+                    skippedCount++;
+                }
+                
+            } catch (err) {
+                debugLog(`Error processing ${filename}: ${err.message}`, 'errors');
+                errorCount++;
+            }
         }
-    } else {
-        // No directory selected, fallback to regular download
-        debugLog('No output directory selected, downloading empty hex file instead', 'warning');
-        downloadFile(filename, emptyHex, 'text/plain');
+        
+        // Clear messages area
+        document.getElementById('messages').innerHTML = '';
+        
+        // Report results
+        if (errorCount === 0 && successCount > 0) {
+            debugLog(`Successfully cleared ${successCount} hex files (${skippedCount} skipped) - hardware cleared`, 'success');
+        } else if (successCount > 0) {
+            debugLog(`Cleared ${successCount} hex files with ${errorCount} errors (${skippedCount} skipped) - hardware partially cleared`, 'success');
+        } else if (skippedCount > 0) {
+            debugLog(`No files needed clearing - ${skippedCount} files were empty or non-existent`, 'errors');
+        } else {
+            debugLog('No hex files found to clear', 'errors');
+        }
+        
+    } catch (err) {
+        debugLog('Error during hardware clear: ' + err.message, 'errors');
     }
 }
 
@@ -665,55 +751,92 @@ function toggleInstructions() {
     }
 }
 
+
+
 // async function serialConnect() {
 //     try {
-//         // Prompt user to select serial port
 //         const port = await navigator.serial.requestPort();
 //         await port.open({ baudRate: 115200 });
-//         console.log("Serial port opened.");
+//         debugLog("Serial port opened", "serial");
 
 //         const decoder = new TextDecoderStream();
-//         const inputDone = port.readable.pipeTo(decoder.writable);
-//         const inputStream = decoder.readable;
-//         const reader = inputStream.getReader();
+//         port.readable.pipeTo(decoder.writable);
+//         const reader = decoder.readable.getReader();
 
-//         // Continuous read loop
 //         while (true) {
 //             const { value, done } = await reader.read();
 //             if (done) {
-//                 console.log("Serial reader closed");
+//                 debugLog("Serial reader closed", "serial");
 //                 break;
 //             }
 //             if (value) {
-//                 console.log("[Serial]", value.trim());
+//                 debugLog(value.trim(), "serial");
 //             }
 //         }
 //     } catch (err) {
-//         console.error("Error opening serial port:", err);
+//         debugLog(`Error opening serial port: ${err.message}`, "serial");
 //     }
 // }
 
 async function serialConnect() {
+    console.log('Serial connect initiated');
     try {
         const port = await navigator.serial.requestPort();
         await port.open({ baudRate: 115200 });
-        debugLog("Serial port opened", "serial");
-
+        debugLog("Serial port connected", "serial");
+        
+        // Update the display - simplified
+        const portDisplay = document.getElementById('serialPortDisplay');
+        portDisplay.textContent = 'Connected';
+        portDisplay.style.color = '#28a745'; // Green color for connected
+        
         const decoder = new TextDecoderStream();
         port.readable.pipeTo(decoder.writable);
         const reader = decoder.readable.getReader();
-
+        
+        // Buffer to accumulate partial lines
+        let buffer = '';
+        
         while (true) {
             const { value, done } = await reader.read();
             if (done) {
                 debugLog("Serial reader closed", "serial");
+                // Update display when disconnected
+                portDisplay.textContent = 'Disconnected';
+                portDisplay.style.color = '#dc3545'; // Red color for disconnected
+                
+                // Process any remaining data in buffer
+                if (buffer.trim()) {
+                    debugLog(buffer.trim(), "serial");
+                }
                 break;
             }
+            
             if (value) {
-                debugLog(value.trim(), "serial");
+                // Add new data to buffer
+                buffer += value;
+                
+                // Process complete lines
+                const lines = buffer.split('\n');
+                
+                // Keep the last incomplete line in the buffer
+                buffer = lines.pop() || '';
+                
+                // Process all complete lines
+                lines.forEach(line => {
+                    const trimmedLine = line.replace(/\r$/, '').trim(); // Remove \r and whitespace
+                    if (trimmedLine) {
+                        debugLog(trimmedLine, "serial");
+                    }
+                });
             }
         }
     } catch (err) {
         debugLog(`Error opening serial port: ${err.message}`, "serial");
+        
+        // Update display on error
+        const portDisplay = document.getElementById('serialPortDisplay');
+        portDisplay.textContent = `Error: ${err.message}`;
+        portDisplay.style.color = '#dc3545'; // Red color for error
     }
 }
