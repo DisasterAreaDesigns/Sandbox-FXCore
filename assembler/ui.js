@@ -564,6 +564,9 @@ async function downloadHex() {
         debugLog('No hex data to download', 'errors');
         return;
     }
+    else {
+        debugLog('Download started', 'success');
+    }
     
     let filename;
     
