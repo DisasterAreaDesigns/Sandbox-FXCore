@@ -17,35 +17,18 @@
         <script src="monaco.js"></script>
 
         <div class="header-bar">
-            <h1>FXCore Assembler <span class="build">build 09</span></h1>
+            <h1>FXCore Assembler <span class="build">build 10</span></h1>
             <img src="icon.png" alt="App Icon" class="app-icon">
         </div>
 
-        <div class="instructions-section">
-            <h3 onclick="toggleInstructions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
-                <span id="instructionsToggle">▶</span> Instructions
-            </h3>
-            <div id="instructionsContent" class="instructions-content collapsed">
-                <div class="instructions-text">
-                    <p>Enter FXCore source code into the editor area, or select a file or example.  Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</p>
-                    
-                    <p>If connecting to a Sandbox hardware unit, use the <b>Select Output Directory</b>b button to specify the path to your Sandbox (typically /CIRCUITPY).  Press the <b>Download HEX</b> button to save the result to your local machine or hardware device.  </p>
-                    
-                    <p>Press the <b>Clear Hardware</b> button to send a clear message to the Sandbox hardware unit and return to normal operation.</p>
-                    
-                    <p>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</p>
-                </div>
-            </div>
-        </div>
-
-        <h2>Input Source Code</h2>
+        <h2>Source Input</h2>
         <div class="file-input">
             <input type="file" id="fileInput" accept=".fxc,.fxo,.asm,.txt" style="display: none;" onchange="loadFile()">
-            <button onclick="document.getElementById('fileInput').click()">Load File...</button>
-
-            <div class="example-buttons">
-                <span>Or select an example program:</span>
-                <div class="button-grid">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button onclick="document.getElementById('fileInput').click()">Load File...</button>
+                
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>Or select an example program:</span>
                     <button onclick="loadExample('fxcore_passthrough')">FXCore Pass-through</button>
                     <button onclick="loadExample('fxcore_delay')">FXCore Delay</button>
                     <button onclick="loadExample('fxcore_chorus')">FXCore Chorus</button>
@@ -56,62 +39,144 @@
         <div class="editor-container">
             <div id="editor" style="width: 100%; height: 400px;"></div>
         </div>
-        <div class="editor-help-text">
-            <label>
-                <span class="shortcut">Editor Shortcuts active when cursor is in editor window:</span>
-                <span class="shortcut">Ctrl+F / ⌘+F Find</span>
-                <span class="shortcut">Ctrl+Shift+F / ⌘+⌥+F Replace</span>
-                <span class="shortcut">F3 Find Next</span>
-            </label><br>
-            <label>
-                <span class="shortcut">Editor accepts ASCII text only</span>
-            </label>
-        </div>
 
-        <div class="options">
-            <label>
-                <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeight()"> Large editor window
-            </label>
-            <label>
-                <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> Enable dark mode
-            </label>
-            <label>
-                <input type="checkbox" id="minimapToggle" onchange="toggleMinimap()"> Show editor mini-map
-            </label>
+        <!-- Editor Options Section -->
+        <div class="editor-options-section">
+            <h3 onclick="toggleEditorOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
+                <span id="editorOptionsToggle">▶</span> Editor Options
+            </h3>
+            <div id="editorOptionsContent" class="editor-options-content collapsed">
+                <div class="editor-help-text">
+                    <label>
+                        <span class="shortcut">Editor Shortcuts active when cursor is in editor window:</span>
+                        <span class="shortcut">Ctrl+F / ⌘+F Find</span>
+                        <span class="shortcut">Ctrl+Shift+F / ⌘+⌥+F Replace</span>
+                        <span class="shortcut">F3 Find Next</span>
+                    </label><br>
+                    <label>
+                        <span class="shortcut">Editor accepts ASCII text only</span>
+                    </label>
+                </div>
+                
+                <div class="options">
+                    <label>
+                        <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeight()"> Large editor window
+                    </label>
+                    <label>
+                        <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> Enable dark mode
+                    </label>
+                    <label>
+                        <input type="checkbox" id="minimapToggle" onchange="toggleMinimap()"> Show editor mini-map
+                    </label>
+                    <label>
+                        <input type="checkbox" id="debugToggle" onchange="toggleDebugPreset()"> Show full build results
+                    </label>
+                </div>
+            </div>
         </div>
 
         <div>
             <button onclick="assembleFXCore()">Assemble</button>
-            <button onclick="clearEditor()">Clear Editor</button>
             <button onclick="saveSource()">Save Source...</button>
+            <div style="float: right;">
+                <button onclick="clearEditor()">Clear Editor</button>
+            </div>
         </div>
 
-        <div id="messages"></div>
+        <h2>Build Results</h2>
+        <div id="messages" style="display: block; min-height: 100px;"></div>
 
-        <div class="output-section">
-            <h2>Output</h2>
-            <div class="output-controls">
-                <div>
-                    <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
-                    <span id="outputDirDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
-                </div><br>
-                <div>
-                    <button onclick="serialConnect()">Select Serial Port</button>
-                    <span id="serialPortDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No port selected</span>
-                </div><br>
-                <div>
-                    <button onclick="downloadHex()" id="downloadHexBtn" disabled>Download HEX</button>
-                    <button onclick="clearAssembly()">Clear Assembly</button>
-                    <button onclick="clearHardware()">Clear Hardware</button>
+        <div class="download-buttons">
+            <!-- Button text will change dynamically based on directory selection -->
+            <button onclick="downloadHex()" id="downloadHexBtn" disabled>Download HEX</button>
+            <div style="float: right;">
+                <button onclick="clearAssembly()">Clear Results</button>
+                <button onclick="clearHardware()" id="clearHardwareBtn" disabled>Clear Hardware</button>
+            </div>
+        </div>
+
+        <!-- Hardware Options Section -->
+        <div class="hardware-options-section">
+            <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
+                <span id="hardwareOptionsToggle">▶</span> Hardware Options
+            </h3>
+            <div id="hardwareOptionsContent" class="hardware-options-content collapsed">
+                <div class="output-controls">
+                    <div>
+                        <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
+                        <span id="outputDirDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
+                    </div><br>
+                    
+                    <div>
+                        <button onclick="serialConnect()">Select Serial Port</button>
+                        <span id="serialPortDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No port selected</span>
+                    </div><br>
+                    <div>
+                        <button onclick="cycleProgramTarget()" id="programTargetBtn">Select Program Target</button>
+                        <span id="programTargetDisplay" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <div class="output-text-section">
-                <h3 onclick="toggleOutput()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
-                    <span id="outputToggle">▶</span> Assembly Output
-                </h3>
-                <div id="outputContent" class="output-content collapsed">
-                    <textarea id="output" readonly placeholder="FXCore assembly output will appear here..."></textarea>
+        <div class="output-text-section">
+            <h3 onclick="toggleOutput()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
+                <span id="outputToggle">▶</span> Assembly Output
+            </h3>
+            <div id="outputContent" class="output-content collapsed">
+                <textarea id="output" readonly placeholder="FXCore assembly output will appear here..."></textarea>
+            </div>
+        </div>
+
+        <div class="instructions-section">
+            <h3 onclick="toggleInstructions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
+                <span id="instructionsToggle">▶</span> Instructions
+            </h3>
+            <div id="instructionsContent" class="instructions-content collapsed">
+                <div class="instructions-text">
+                    <h4>Getting Started</h4>
+                    <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions.  Generated machine code may be saved locally for later use, or sent to a SandboxFX hardware target to hear the results.</p>
+                    <ul>
+                        <li><i>Enter FXCore source code into the editor area, or select a file or example.  Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
+                        <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
+                        <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
+                    </ul>
+
+                    <h4>Connecting to Hardware</h4>
+                    <p>Connect your SandboxFX pedal to your computer using a suitable USB cable.  A new removable drive labeled <b>CIRCUITPY</b> should appear.</p>
+                    <ul>
+                        <li>Open the <b>Hardware Options</b> section to <b>Select Output Directory</b> button to specify the path to your Sandbox (typically /CIRCUITPY)./i></li>
+                        <li><i>Press the <b>Download to Programmer</b> button to save the result to your local machine or hardware device.</i></li>
+                        <li><i>Use the <b>Run from RAM</b> for developing your algorithms</i></li>
+                        <li><i>Tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write</i></li>
+                        <li><i>Press the <b>Clear Hardware</b> button to send a clear message to the Sandbox hardware unit and return to normal operation.  Note that this will not erase any programs burned to the flash EEPROM of the FXCore, it only clears the state in <b>Run from RAM mode.</b></i></li>
+                    </ul>
+
+                    <h4>Troubleshooting</h4>
+                    <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting.  Scroll up to the top to see previous messages</p>
+                    <ul>
+                        <li><i>Error information not helpful</i> - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
+                        <li><i>File transfer problems</i> - ensure proper directory permissions</li>
+                        <li><i>Assembly errors</i> - check syntax and register usage</li>
+                        <li><i>Connection issues</i> - verify USB cable and folder selection</li>
+                        <li><i>Hardware update / flash errors</i> - use <b>Hardware Options - Select Serial Port</b> to view debug information from the update process</li>
+                    </ul>
+
+                    <h4>What do these Options do?</h4>
+                    <p>These are some settings that change various editor and hardware settings</p>
+                    <ul>
+                        <h3>Editor Options</h3>
+                        <li>Large editor window:  <i>Expands editor text area to show more instructions</i></li>
+                        <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
+                        <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
+                        <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
+                    </ul>
+                    <ul>
+                        <h3>Hardware Options</h3>
+                        <li>Select Output Directory:  <i>Specify the folder location of your SandboxFX hardware (typically /CIRCUITPY)</i></li>
+                        <li>Select Serial Port: <i>Open SandboxFX serial port to allow hardware debugging information</i></li>
+                        <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on SandboxFX hardware</i></li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -189,6 +254,33 @@
         // Global variables and functions to integrate FXCore with Monaco editor
         let assembledData = null;
 
+        // Toggle functions for new sections
+        function toggleEditorOptions() {
+            const editorOptionsContent = document.getElementById('editorOptionsContent');
+            const editorOptionsToggle = document.getElementById('editorOptionsToggle');
+
+            if (editorOptionsContent.classList.contains('collapsed')) {
+                editorOptionsContent.classList.remove('collapsed');
+                editorOptionsToggle.textContent = '▼';
+            } else {
+                editorOptionsContent.classList.add('collapsed');
+                editorOptionsToggle.textContent = '▶';
+            }
+        }
+
+        function toggleHardwareOptions() {
+            const hardwareOptionsContent = document.getElementById('hardwareOptionsContent');
+            const hardwareOptionsToggle = document.getElementById('hardwareOptionsToggle');
+
+            if (hardwareOptionsContent.classList.contains('collapsed')) {
+                hardwareOptionsContent.classList.remove('collapsed');
+                hardwareOptionsToggle.textContent = '▼';
+            } else {
+                hardwareOptionsContent.classList.add('collapsed');
+                hardwareOptionsToggle.textContent = '▶';
+            }
+        }
+
         // Add listener for system dark mode changes
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
             const darkModeToggle = document.getElementById('darkModeToggle');
@@ -203,8 +295,12 @@
         // Initialize the FXCore assembler when the page loads
         document.addEventListener('DOMContentLoaded', function() {
             DEBUG.reset();
-            // DEBUG.setPreset('full');
+            // DEBUG.setPreset('basic');
             DEBUG.showConfig();
+
+            updateDownloadButtonText();
+            updateProgramTargetDisplay();
+            updateClearHardwareButton(); // Add this line
 
             // Override FXCoreAssembler.logMessage to work with our DOM structure
             if (typeof FXCoreAssembler !== 'undefined') {

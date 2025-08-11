@@ -148,7 +148,7 @@ class DebugConfig {
             reservedWords: false,
             errors: true,
             warnings: true,
-            info: true,
+            info: false,
             all: false,
             success: true,
             serial: true,
@@ -244,7 +244,7 @@ const DEBUG = new DebugConfig();
 // }
 
 /**
- * Global debug logging function
+ * Global debug logging function with auto-scroll
  * @param {string} message - Message to log
  * @param {string} level - Debug level
  * @param {string} prefix - Optional prefix for the message
@@ -260,35 +260,97 @@ function debugLog(message, level = 'info', prefix = '') {
         console.log(fullMessage);
 
         if (typeof document !== 'undefined') {
-            // const outputArea = document.getElementById('output');
             const messagesArea = document.getElementById('messages');
 
-            // Add to output area cleanly
-            // if (outputArea) {
-            //     outputArea.value += `[${timestamp}] ${fullMessage}\n`;
-            //     outputArea.scrollTop = outputArea.scrollHeight;
-            // }
+            if (messagesArea) {
+                // Map debug levels to CSS classes
+                const levelClassMap = {
+                    'errors': 'error',
+                    'warnings': 'warning',
+                    'success': 'success',
+                    'serial': 'success',
+                    'info': 'info',
+                    'verbose': 'info',
+                    'showTokens': 'info',
+                    'showResolution': 'info',
+                    'showMachineCode': 'info',
+                    'showParameterDetails': 'info',
+                    'symbolTable': 'info',
+                    'registerLookup': 'info',
+                    'parsing': 'info',
+                    'expressions': 'info',
+                    'memoryAccess': 'info',
+                    'registerAccess': 'info',
+                    'mnemonics': 'info',
+                    'reservedWords': 'info'
+                };
 
-            // Add to messages area for important levels
-            if (messagesArea && level === 'errors') {
-                const div = document.createElement('div');
-                div.className = 'error';
-                div.textContent = `${fullMessage}`;
-                messagesArea.appendChild(div);
+                // Only add to messages area if we have a mapping for this level
+                if (levelClassMap[level]) {
+                    const div = document.createElement('div');
+                    div.className = `message ${levelClassMap[level]}`;
+                    div.textContent = `${fullMessage}`;
+                    messagesArea.appendChild(div);
+                    
+                    // Auto-scroll to bottom
+                    messagesArea.scrollTop = messagesArea.scrollHeight;
+
+                    // Optional: Limit number of messages to prevent memory issues
+                    const maxMessages = 100;
+                    if (messagesArea.children.length > maxMessages) {
+                        // Remove oldest messages
+                        while (messagesArea.children.length > maxMessages) {
+                            messagesArea.removeChild(messagesArea.firstChild);
+                        }
+                    }
+                }
             }
+        }
+    }
+}
 
-            if (messagesArea && level === 'success') {
-                const div = document.createElement('div');
-                div.className = 'success';
-                div.textContent = `${fullMessage}`;
-                messagesArea.appendChild(div);
-            }
+// Alternative: Helper function to reduce code duplication
+function addMessageToArea(message, className) {
+    const messagesArea = document.getElementById('messages');
+    if (messagesArea) {
+        const div = document.createElement('div');
+        div.className = `message ${className}`;
+        div.textContent = message;
+        messagesArea.appendChild(div);
+        
+        // Auto-scroll to bottom
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+        
+        // Optional: Limit number of messages
+        const maxMessages = 100;
+        if (messagesArea.children.length > maxMessages) {
+            messagesArea.removeChild(messagesArea.firstChild);
+        }
+    }
+}
 
-            if (messagesArea && level === 'serial') {
-                const div = document.createElement('div');
-                div.className = 'success';
-                div.textContent = `${fullMessage}`;
-                messagesArea.appendChild(div);
+// Simplified debugLog using the helper function
+function debugLogSimplified(message, level = 'info', prefix = '') {
+    if (DEBUG.shouldLog(level)) {
+        const prefixStr = prefix ? `[${prefix}] ` : '';
+        const levelStr = level === 'info' ? '' : `[${level.toUpperCase()}] `;
+        const fullMessage = `${levelStr}${prefixStr}${message}`;
+
+        // Always log to console
+        console.log(fullMessage);
+
+        if (typeof document !== 'undefined') {
+            // Map debug levels to CSS classes
+            const levelClassMap = {
+                'errors': 'error',
+                'warnings': 'warning', 
+                'success': 'success',
+                'serial': 'success',
+                'info': 'info'
+            };
+
+            if (levelClassMap[level]) {
+                addMessageToArea(fullMessage, levelClassMap[level]);
             }
         }
     }

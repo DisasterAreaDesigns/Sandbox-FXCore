@@ -216,17 +216,52 @@ require(['vs/editor/editor.main'], function() {
         }
     });
 
-    // Create the Monaco Editor
-    editor = monaco.editor.create(document.getElementById('editor'), {
-        language: 'fxcore',
-        theme: 'fxcoreTheme',
-        automaticLayout: true,
-        quickSuggestions: false,
-        wordBasedSuggestions: false,
-        minimap: {
-            enabled: false
-        }
-    });
+        function initializeMonacoEditor() {
+        const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
+        
+        // Create the editor with initial placeholder content
+        editor = monaco.editor.create(document.getElementById('editor'), {
+            value: placeholderText,
+            language: 'fxcore', // or whatever language you're using
+            theme: 'fxcoreTheme', // your default theme
+            readOnly: true, // Start as read-only
+            selectOnLineNumbers: true,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on'
+        });
+
+        // Add event listener to make editor editable when user clicks or starts typing
+        editor.onDidFocusEditorText(() => {
+            if (editor.getValue() === placeholderText) {
+                editor.updateOptions({ readOnly: false });
+                editor.setValue(''); // Clear placeholder text
+                editor.focus();
+            }
+        });
+
+        // Also handle when user starts typing
+        editor.onDidChangeModelContent(() => {
+            if (editor.getOption(monaco.editor.EditorOption.readOnly) && 
+                editor.getValue() !== placeholderText) {
+                editor.updateOptions({ readOnly: false });
+            }
+        });
+
+        // Function to reset to placeholder (call this when clearing editor)
+        window.resetEditorToPlaceholder = function() {
+            editor.setValue(placeholderText);
+            editor.updateOptions({ readOnly: true });
+        };
+
+        // Function to check if editor has real content (not just placeholder)
+        window.hasEditorContent = function() {
+            const value = editor.getValue().trim();
+            return value.length > 0 && value !== placeholderText;
+        };
+    }
+
+    initializeMonacoEditor(); // start up editor
 
     // Apply system dark mode preference after editor is created
     setTimeout(() => {
@@ -251,4 +286,15 @@ require(['vs/editor/editor.main'], function() {
             textArea.setAttribute('autocapitalize', 'off');
         });
     }, 500);
+
+        // Notify UI that editor is ready
+    if (typeof setEditorReady === 'function') {
+        setEditorReady(editor);
+    } else {
+        // Fallback: set a flag that UI can check
+        window.editorReady = true;
+        window.monacoEditor = editor;
+    }
+
+    console.log('Monaco Editor initialized successfully');
 });

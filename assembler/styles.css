@@ -18,6 +18,11 @@ h1 {
     margin-bottom: 30px;
 }
 
+h2 {
+    margin-top: 30px;
+    margin-bottom: 15px;
+}
+
 .input-section,
 .output-section {
     margin-bottom: 20px;
@@ -33,41 +38,7 @@ textarea {
     border-radius: 4px;
 }
 
-/*.editor-container {
-    position: relative;
-    display: flex;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    overflow: hidden;
-}*/
-
-/*.line-numbers {
-    background-color: #f8f8f8;
-    color: #999;
-    font-family: 'Courier New', monospace;
-    font-size: 14px; /* Match textarea font size */
-padding: 10px 5px;
-text-align: right;
-user-select: none;
-line-height: 1.5;
-/* Match textarea line height */
-overflow: hidden;
-white-space: pre;
-height: 300px;
-/* Match textarea height */
-}
-
-*/
-/*.editor-container textarea {
-    border: none;
-    flex: 1;
-    line-height: 1.5;
-    font-size: 14px;
-    padding: 10px;
-    margin: 0;
-}*/
-
-/* Ensure the editor container takes full width and auto-height */
+/* Editor styles */
 .editor-container {
     resize: both;
     overflow: auto;
@@ -78,32 +49,89 @@ height: 300px;
     max-width: 100%;
 }
 
-/* Monaco injects styles but we help ensure visibility */
 #editor {
     width: 100%;
     height: 400px;
     border: 1px solid #ccc;
     font-family: monospace;
+    box-sizing: border-box;
 }
 
-/* Instructions section styles */
-.instructions-section {
+/* Consistent section spacing */
+.file-input,
+.instructions-section,
+.editor-options-section, 
+.hardware-options-section,
+.output-controls,
+.output-text-section,
+.download-buttons {
     margin-bottom: 20px;
 }
 
-.instructions-content {
-    overflow: hidden;
-    transition: max-height 0.3s ease-out;
-    max-height: 1000px; /* Large enough to show all content when expanded */
+/* Button group spacing */
+.file-input + .editor-options-section,
+.editor-container + div,
+h2 + div {
+    margin-top: 20px;
 }
 
-.instructions-content.collapsed {
+/* All collapsible section headers */
+.instructions-section h3,
+.editor-options-section h3,
+.hardware-options-section h3,
+.output-text-section h3 {
+    margin-bottom: 10px;
+    margin-top: 0;
+    font-size: 16px;
+    color: #333;
+    padding: 0;
+}
+
+/* All toggle arrows */
+#instructionsToggle,
+#editorOptionsToggle,
+#hardwareOptionsToggle,
+#outputToggle {
+    display: inline-block;
+    transition: transform 0.3s ease;
+    margin-right: 8px;
+    width: 12px;
+    text-align: center;
+}
+
+/* All collapsible content areas */
+.instructions-content,
+.editor-options-content,
+.hardware-options-content,
+.output-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    max-height: 1000px;
+}
+
+/* All collapsed states */
+.instructions-content.collapsed,
+.editor-options-content.collapsed,
+.hardware-options-content.collapsed,
+.output-content.collapsed {
     max-height: 0;
-    /*transition: max-height 0.3s ease-in;*/
+}
+
+.output-content:not(.collapsed) {
+    max-height: 500px;
+}
+
+/* Boxed content areas (instructions text and output controls) */
+.instructions-text,
+.options,
+.output-controls {
+    margin: 20px 0;
+    padding: 10px 15px;
+    background-color: #f8f8f8;
+    border-radius: 4px;
 }
 
 .instructions-text {
-    padding: 10px 0;
     line-height: 1.6;
 }
 
@@ -115,7 +143,16 @@ height: 300px;
     margin-bottom: 0;
 }
 
+.options {
+    padding: 15px; /* Override for slightly more padding */
+}
 
+.options label {
+    margin-right: 20px;
+    display: inline-block;
+}
+
+/* Button styles */
 button {
     background-color: #4CAF50;
     color: white;
@@ -137,6 +174,7 @@ button:disabled {
     cursor: not-allowed;
 }
 
+/* Status message colors */
 .error {
     color: red;
     margin-top: 10px;
@@ -157,66 +195,12 @@ button:disabled {
     white-space: pre-wrap;
 }
 
-.file-input {
-    margin-bottom: 20px;
-}
-
-.options {
-    margin: 20px 0;
-    padding: 15px;
-    background-color: #f8f8f8;
-    border-radius: 4px;
-}
-
-.options label {
-    margin-right: 20px;
-    display: inline-block;
-}
-
-.output-controls {
-    margin-bottom: 20px;
-    padding: 15px;
-    background-color: #f8f8f8;
-    border-radius: 4px;
-}
-
 .output-text-section {
     margin-top: 20px;
 }
 
-.output-content {
-    transition: max-height 0.3s ease-out;
-    overflow: hidden;
-}
-
-.output-content.collapsed {
-    max-height: 0;
-}
-
-.output-content:not(.collapsed) {
-    max-height: 500px;
-    /* Adjust as needed */
-}
-
-.output-text-section h3 {
-    margin-bottom: 10px;
-    font-size: 16px;
-    color: #333;
-}
-
-#outputToggle {
-    display: inline-block;
-    transition: transform 0.3s ease;
-    margin-right: 8px;
-}
-
-.output-content:not(.collapsed)~h3 #outputToggle {
-    transform: rotate(90deg);
-}
-
 .editor-help-text {
     color: #888;
-    font-size: 13px;
     padding-top: 12px;
     padding-left: 4px;
     margin-bottom: 8px;
@@ -225,11 +209,10 @@ button:disabled {
 
 .shortcut {
     margin-right: 20px;
-    /* space between items */
     white-space: nowrap;
-    /* keep them from breaking mid-shortcut */
 }
 
+/* Header layout */
 .header-bar {
     display: flex;
     justify-content: space-between;
@@ -253,7 +236,7 @@ button:disabled {
     width: auto;
 }
 
-/* style for example button grid */
+/* Example buttons (legacy - may not be used with current layout) */
 .example-buttons {
     margin-top: 10px;
 }
@@ -286,9 +269,8 @@ button:disabled {
     background-color: #45a049;
 }
 
-.button-grid .filename-btn {
+.filename-btn {
     background-color: #ccc;
-    /* Grayed-out default */
     color: #333;
     border: none;
     padding: 8px;
@@ -300,11 +282,10 @@ button:disabled {
 
 .filename-btn.selected {
     background-color: #4caf50;
-    /* Green when selected */
     color: white;
 }
 
-/* Modal styles for prompts */
+/* Modal styles */
 .modal {
     display: none;
     position: fixed;
@@ -334,7 +315,6 @@ button:disabled {
         opacity: 0;
         transform: translateY(-50px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
@@ -360,6 +340,7 @@ button:disabled {
     font-size: 14px;
 }
 
+/* Modal button types */
 .btn-primary {
     background-color: #007bff;
     color: white;
@@ -404,9 +385,9 @@ button:disabled {
     font-weight: bold;
 }
 
-/* Messages area styling for scrollability */
+/* Messages area */
 #messages {
-    max-height: 200px;
+    height: 200px;
     overflow-y: auto;
     overflow-x: hidden;
     border: 1px solid #ddd;
@@ -419,14 +400,10 @@ button:disabled {
     line-height: 1.4;
     white-space: pre-wrap;
     word-wrap: break-word;
+    display: block;
+    box-sizing: border-box;
 }
 
-/* Hide messages area when empty */
-#messages:empty {
-    display: none;
-}
-
-/* Style for individual message entries */
 #messages .message {
     margin-bottom: 5px;
     padding: 2px 0;
@@ -448,30 +425,7 @@ button:disabled {
     color: #1976d2;
 }
 
-/* Dark mode styles for messages */
-body.dark-mode #messages {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-    border-color: #444;
-}
-
-body.dark-mode #messages .message.error {
-    color: #f48fb1;
-}
-
-body.dark-mode #messages .message.success {
-    color: #81c784;
-}
-
-body.dark-mode #messages .message.warning {
-    color: #ffb74d;
-}
-
-body.dark-mode #messages .message.info {
-    color: #64b5f6;
-}
-
-/* Scrollbar styling */
+/* Scrollbar styling for messages */
 #messages::-webkit-scrollbar {
     width: 8px;
 }
@@ -490,22 +444,7 @@ body.dark-mode #messages .message.info {
     background: #a8a8a8;
 }
 
-/* Dark mode scrollbar */
-body.dark-mode #messages::-webkit-scrollbar-track {
-    background: #333;
-}
-
-body.dark-mode #messages::-webkit-scrollbar-thumb {
-    background: #555;
-}
-
-body.dark-mode #messages::-webkit-scrollbar-thumb:hover {
-    background: #666;
-}
-
-
-
-/* Dark mode styles */
+/* ===== DARK MODE STYLES ===== */
 body.dark-mode {
     background-color: #1a1a1a;
     color: #e0e0e0;
@@ -537,8 +476,10 @@ body.dark-mode #output {
     color: #d4d4d4;
 }
 
+/* Dark mode boxed areas */
 body.dark-mode .options,
-body.dark-mode .output-controls {
+body.dark-mode .output-controls,
+body.dark-mode .instructions-text {
     background-color: #333;
 }
 
@@ -583,7 +524,7 @@ body.dark-mode footer a {
     color: #14a1a6;
 }
 
-/* Modal dark mode */
+/* Dark mode modals */
 body.dark-mode .modal-content {
     background-color: #2a2a2a;
     color: #e0e0e0;
@@ -600,7 +541,7 @@ body.dark-mode .modal textarea {
     border-color: #444;
 }
 
-/* Modal button colors in dark mode */
+/* Dark mode modal buttons */
 body.dark-mode .btn-primary {
     background-color: #0d7377;
     border: 1px solid #0a5d61;
@@ -627,3 +568,91 @@ body.dark-mode .btn-danger {
 body.dark-mode .btn-danger:hover {
     background-color: #cc4444;
 }
+
+/* Dark mode messages */
+body.dark-mode #messages {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border-color: #444;
+}
+
+body.dark-mode #messages .message.error {
+    color: #f48fb1;
+}
+
+body.dark-mode #messages .message.success {
+    color: #81c784;
+}
+
+body.dark-mode #messages .message.warning {
+    color: #ffb74d;
+}
+
+body.dark-mode #messages .message.info {
+    color: #64b5f6;
+}
+
+/* Dark mode scrollbar */
+body.dark-mode #messages::-webkit-scrollbar-track {
+    background: #333;
+}
+
+body.dark-mode #messages::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+body.dark-mode #messages::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/*.instructions-section {
+    margin: 20px 0;
+    font-family: Arial, sans-serif;
+}*/
+
+/*.instructions-content {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}*/
+
+.instructions-content.collapsed {
+    max-height: 0;
+}
+
+.instructions-content:not(.collapsed) {
+    max-height: 1500px;
+}
+
+/*.instructions-text {
+    padding: 15px;
+    line-height: 1.6;
+}*/
+
+/*.instructions-text h4 {
+    margin-top: 25px;
+    margin-bottom: 10px;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.instructions-text ul {
+    margin: 10px 0;
+    padding-left: 25px;
+}
+
+.instructions-text li {
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.instructions-text i {
+    font-style: italic;
+}
+
+.instructions-text b {
+    font-weight: bold;
+}
+*/

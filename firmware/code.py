@@ -43,7 +43,7 @@ def get_timestamp():
 
 def log_message(message):
     """Log message to results.txt with timestamp"""
-    timestamp = get_timestamp()
+    # timestamp = get_timestamp()
     #log_entry = f"[{timestamp}] {message}\n"
     log_entry = f"{message}"
     print(log_entry)  # Also print to console
@@ -55,14 +55,14 @@ def log_message(message):
     #except Exception as e:
     #    print(f"Log write failed: {e}")
 
-def clear_log():
-    """Clear the log file for new operation"""
-    try:
-        with open(LOG_FILE, 'w') as f:
-            f.write(f"FXCore Programming Log - Started at {get_timestamp()}\n")
-            f.write("=" * 50 + "\n")
-    except Exception as e:
-        print(f"Log clear failed: {e}")
+# def clear_log():
+#     """Clear the log file for new operation"""
+#     try:
+#         with open(LOG_FILE, 'w') as f:
+#             f.write(f"FXCore Programming Log - Started at {get_timestamp()}\n")
+#             f.write("=" * 50 + "\n")
+#     except Exception as e:
+#         print(f"Log clear failed: {e}")
 
 def read_fxcore_status():
     """Read the 12-byte status from FXCore and return parsed information"""

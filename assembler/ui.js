@@ -1,6 +1,10 @@
 // User prompt functions, these are things that are on the main page like buttons
-
+let outputDirectoryHandle = null;
 let modalResolve = null;
+let selectedProgram = 'ram'; // Default to RAM
+
+
+// let selectedOutputFile = null;
 
 function showConfirmDialog(title, message) {
     return new Promise((resolve) => {
@@ -100,7 +104,9 @@ window.onclick = function(event) {
 
 // Check if editor has content
 function hasEditorContent() {
-    return editor && editor.getValue().trim().length > 0;
+    const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
+    const value = editor ? editor.getValue().trim() : '';
+    return value.length > 0 && value !== placeholderText;
 }
 
 // Prompt to save before leaving page
@@ -112,7 +118,6 @@ window.addEventListener('beforeunload', function(e) {
     }
 });
 
-// Modified load file function with assembly clearing
 async function loadFile() {
     if (hasEditorContent()) {
         const choice = await showThreeChoiceDialog(
@@ -137,6 +142,7 @@ async function loadFile() {
         const reader = new FileReader();
         reader.onload = function(e) {
             if (editor) {
+                editor.updateOptions({ readOnly: false }); // Make editable
                 editor.setValue(e.target.result);
                 // Scroll to the top of the editor
                 editor.setScrollTop(0);
@@ -144,7 +150,10 @@ async function loadFile() {
             }
             
             // Clear assembly output and disable download button
-            document.getElementById('output').value = '';
+            const outputElement = document.getElementById('output');
+            if (outputElement) {
+                outputElement.value = '';
+            }
             document.getElementById('messages').innerHTML = '';
             document.getElementById('downloadHexBtn').disabled = true;
             assembledData = null;
@@ -154,7 +163,6 @@ async function loadFile() {
     }
 }
 
-// Modified example loader with assembly clearing
 async function loadExample(exampleName) {
     if (hasEditorContent()) {
         const choice = await showThreeChoiceDialog(
@@ -174,12 +182,16 @@ async function loadExample(exampleName) {
     }
 
     if (exampleName && examples[exampleName]) {
+        editor.updateOptions({ readOnly: false }); // Make editable
         editor.setValue(examples[exampleName]);
         editor.setScrollTop(0);
         editor.setScrollLeft(0);
         
         // Clear assembly output and disable download button
-        document.getElementById('output').value = '';
+        const outputElement = document.getElementById('output');
+        if (outputElement) {
+            outputElement.value = '';
+        }
         document.getElementById('messages').innerHTML = '';
         document.getElementById('downloadHexBtn').disabled = true;
         assembledData = null;
@@ -195,7 +207,9 @@ function assembleFXCore() {
     }
 
     const sourceCode = editor.getValue();
-    if (!sourceCode.trim()) {
+    const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
+    
+    if (!sourceCode.trim() || sourceCode === placeholderText) {
         debugLog('No source code to assemble', 'errors');
         return;
     }
@@ -222,7 +236,6 @@ function assembleFXCore() {
                 // Clear any prior output if needed
                 document.getElementById('output').value = '';
                 debugLog('Assembly failed', 'errors');
-
             }
         } else {
             debugLog('FXCoreAssembler class not available', 'errors');
@@ -235,8 +248,12 @@ function assembleFXCore() {
         // Show output section even on error
         const outputContent = document.getElementById('outputContent');
         const outputToggle = document.getElementById('outputToggle');
-        outputContent.classList.remove('collapsed');
-        outputToggle.textContent = '▼';
+        if (outputContent) {
+            outputContent.classList.remove('collapsed');
+        }
+        if (outputToggle) {
+            outputToggle.textContent = '▼';
+        }
 
         console.error('Assembly error:', error);
     }
@@ -250,7 +267,6 @@ async function clearAssembly() {
     assembledData = null;
 }
 
-// Updated clear editor function with assembly clearing
 async function clearEditor() {
     if (hasEditorContent()) {
         const choice = await showThreeChoiceDialog(
@@ -270,7 +286,9 @@ async function clearEditor() {
     }
 
     if (editor) {
-        editor.setValue('');
+        const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
+        editor.setValue(placeholderText);
+        editor.updateOptions({ readOnly: true });
     }
     
     // Clear assembly output and disable download button
@@ -280,7 +298,6 @@ async function clearEditor() {
     assembledData = null;
 }
 
-// Enhanced save source with filename prompt
 async function saveSource() {
     if (!editor) return false;
 
@@ -314,16 +331,50 @@ async function saveSource() {
     return true; // Save completed successfully
 }
 
-let outputDirectoryHandle = null;
-const selectedFilename = 'output.hex'; // Hard-set filename
+// Function to update the program target display
+function updateProgramTargetDisplay() {
+    const display = document.getElementById('programTargetDisplay');
+    if (selectedProgram === 'ram') {
+        display.textContent = 'Run from RAM';
+    } else {
+        display.textContent = `Program ${selectedProgram}`;
+    }
+}
+
+// Function to update download button text based on current settings
+function updateDownloadButtonText() {
+    const downloadBtn = document.getElementById('downloadHexBtn');
+    if (outputDirectoryHandle) {
+        downloadBtn.textContent = 'Download to Programmer';
+    } else {
+        downloadBtn.textContent = 'Download HEX';
+    }
+}
+
+// Function to cycle through program targets
+function cycleProgramTarget() {
+    const targets = ['ram', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
+    const currentIndex = targets.indexOf(selectedProgram);
+    const nextIndex = (currentIndex + 1) % targets.length;
+    selectedProgram = targets[nextIndex];
+    
+    updateProgramTargetDisplay();
+    updateDownloadButtonText();
+    console.log('Selected program:', selectedProgram);
+}
 
 async function selectOutputDirectory() {
     try {
         if ('showDirectoryPicker' in window) {
             outputDirectoryHandle = await window.showDirectoryPicker();
             document.getElementById('outputDirDisplay').textContent = `Selected: ${outputDirectoryHandle.name}`;
+            const outputDirDisplay = document.getElementById('outputDirDisplay');
             outputDirDisplay.style.color = '#28a745'; // Green color for connected
             document.getElementById('messages').innerHTML = '';
+            
+            // Update button text when directory is selected
+            updateDownloadButtonText();
+            updateClearHardwareButton(); // Add this line
             
             debugLog('Output directory selected successfully', 'success');
             
@@ -338,6 +389,13 @@ async function selectOutputDirectory() {
         if (err.name !== 'AbortError') {
             debugLog('Error selecting directory: ' + err.message, 'errors');
         }
+    }
+}
+
+function updateClearHardwareButton() {
+    const clearHardwareBtn = document.getElementById('clearHardwareBtn');
+    if (clearHardwareBtn) {
+        clearHardwareBtn.disabled = !outputDirectoryHandle;
     }
 }
 
@@ -408,24 +466,6 @@ async function readHardwareIdentifier() {
     }
 }
 
-// function displayHardwareInfo(hardwareInfo, filename) {
-//     let infoMsg = `Hardware Identifier Found (${filename}): `;
-    
-//     if (hardwareInfo.device_type) {
-//         infoMsg += `Device: ${hardwareInfo.device_type} `;
-//     }
-    
-//     if (hardwareInfo.firmware_version) {
-//         infoMsg += `Firmware: ${hardwareInfo.firmware_version} `;
-//     }
-    
-//     if (hardwareInfo.device_id) {
-//         infoMsg += `ID: ${hardwareInfo.device_id} `;
-//     }
-    
-//     debugLog(infoMsg, 'success');
-// }
-
 // Updated displayHardwareInfo function with proper HTML formatting
 function displayHardwareInfo(hardwareInfo, filename) {
     const messages = document.getElementById('messages');
@@ -474,6 +514,11 @@ function revertToDefaultDirectory() {
     
     // Update the UI to show no directory selected
     document.getElementById('outputDirDisplay').textContent = 'No directory selected';
+    document.getElementById('outputDirDisplay').style.color = '#666';
+    
+    // Update button text when directory is cleared
+    updateDownloadButtonText();
+    updateClearHardwareButton(); // Add this line
 }
 
 // Helper function for fallback downloads
@@ -498,9 +543,19 @@ async function downloadHex() {
         return;
     }
     
-    const filename = selectedFilename; // Always 'output.hex'
+    let filename;
     
-    // Try to save to selected directory, fallback to regular download
+    // Determine filename based on settings
+    if (selectedProgram === 'ram') {
+        filename = 'output.hex';
+    } else {
+        // Convert program number (1-16) to hex filename (0-F.hex)
+        const programNum = parseInt(selectedProgram);
+        const hexValue = (programNum - 1).toString(16).toUpperCase();
+        filename = `${hexValue}.hex`;
+    }
+    
+    // Priority 1: Download to selected directory (programmer)
     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
         try {
             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
@@ -511,80 +566,18 @@ async function downloadHex() {
             await writable.close();
             document.getElementById('messages').innerHTML = '';
             debugLog(`File saved as ${filename} in selected directory`, 'success');
+            return;
         } catch (err) {
             debugLog('Error saving to directory: ' + err.message, 'errors');
-            // Fallback to regular download
-            downloadFile(filename, hex, 'text/plain');
-        }
-    } else {
-        // No directory selected, use normal browser download
-        downloadFile(filename, hex, 'text/plain');
-        debugLog(`File downloaded as ${filename} to default downloads folder`, 'success');
-    }
-}
-
-// Function to set the selected filename (you'll need to call this somewhere)
-function setSelectedFilename(filename) {
-    selectedFilename = filename;
-    console.log('Selected filename:', selectedFilename);
-}
-
-// Alternative: Let user input filename
-function promptForFilename() {
-    const filename = prompt('Enter filename (without extension):', 'output');
-    if (filename && filename.trim() !== '') {
-        setSelectedFilename(filename.trim());
-        return true;
-    }
-    return false;
-}
-
-// Enhanced download with filename prompt if needed
-async function downloadHexWithPrompt() {
-    const hex = document.getElementById('output').value;
-    
-    if (!hex || hex.trim() === '') {
-        showMessage('No hex data to download', 'errors');
-        return;
-    }
-    
-    // If no filename selected, prompt for one
-    if (!selectedFilename) {
-        if (!promptForFilename()) {
-            showMessage('Download cancelled - no filename provided', 'warning');
-            return;
+            // Continue to fallback
         }
     }
     
-    // Now proceed with download
-    await downloadHex();
+    // Priority 2: Fallback to regular browser download
+    downloadFile(filename, hex, 'text/plain');
+    debugLog(`File downloaded as ${filename} to default downloads folder`, 'success');
 }
 
-// async function clearHardware() {
-//     const emptyHex = ""; // Zero bytes - empty hex file
-//     const filename = "output.hex";
-    
-//     if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
-//         try {
-//             const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
-//                 create: true
-//             });
-//             const writable = await fileHandle.createWritable();
-//             await writable.write(emptyHex);
-//             await writable.close();
-//             document.getElementById('messages').innerHTML = '';
-//             debugLog(`Empty ${filename} saved to selected directory - hardware cleared`, 'success');
-//         } catch (err) {
-//             debugLog('Error saving empty hex to directory: ' + err.message, 'errors');
-//             // Fallback to regular download
-//             downloadFile(filename, emptyHex, 'text/plain');
-//         }
-//     } else {
-//         // No directory selected, fallback to regular download
-//         debugLog('No output directory selected, downloading empty hex file instead', 'warning');
-//         downloadFile(filename, emptyHex, 'text/plain');
-//     }
-// }
 async function clearHardware() {
     // Check if directory is selected, if not do nothing
     if (!outputDirectoryHandle || !('showDirectoryPicker' in window)) {
@@ -697,6 +690,24 @@ function toggleDarkMode() {
     document.body.classList.toggle('dark-mode', darkModeEnabled);
 }
 
+
+function toggleDebugPreset() {
+    const debugToggle = document.getElementById('debugToggle');
+    
+    if (debugToggle && debugToggle.checked) {
+        // Enable basic debug preset
+        DEBUG.setPreset('basic');
+        console.log('Debug preset set to: basic');
+    } else {
+        // Reset to clean/minimal debug
+        DEBUG.reset();
+        console.log('Debug preset reset to: default (clean)');
+    }
+    
+    // Optional: Show the current configuration
+    DEBUG.showConfig();
+}
+
 // Apply system dark mode preference
 function applySystemDarkMode() {
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -750,33 +761,6 @@ function toggleInstructions() {
         instructionsToggle.textContent = '▶';
     }
 }
-
-
-
-// async function serialConnect() {
-//     try {
-//         const port = await navigator.serial.requestPort();
-//         await port.open({ baudRate: 115200 });
-//         debugLog("Serial port opened", "serial");
-
-//         const decoder = new TextDecoderStream();
-//         port.readable.pipeTo(decoder.writable);
-//         const reader = decoder.readable.getReader();
-
-//         while (true) {
-//             const { value, done } = await reader.read();
-//             if (done) {
-//                 debugLog("Serial reader closed", "serial");
-//                 break;
-//             }
-//             if (value) {
-//                 debugLog(value.trim(), "serial");
-//             }
-//         }
-//     } catch (err) {
-//         debugLog(`Error opening serial port: ${err.message}`, "serial");
-//     }
-// }
 
 async function serialConnect() {
     console.log('Serial connect initiated');
