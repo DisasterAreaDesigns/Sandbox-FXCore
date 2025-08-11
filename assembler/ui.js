@@ -156,6 +156,7 @@ async function loadFile() {
             }
             document.getElementById('messages').innerHTML = '';
             document.getElementById('downloadHexBtn').disabled = true;
+            document.getElementById('downloadHeaderBtn').disabled = true;
             assembledData = null;
         };
         reader.readAsText(file);
@@ -194,6 +195,7 @@ async function loadExample(exampleName) {
         }
         document.getElementById('messages').innerHTML = '';
         document.getElementById('downloadHexBtn').disabled = true;
+        document.getElementById('downloadHeaderBtn').disabled = true;
         assembledData = null;
         
         debugLog('Example loaded', 'success');
@@ -223,6 +225,7 @@ function assembleFXCore() {
             FXCoreAssembler.sourceCode = sourceCode;
             Program.filename = 'editor_source.fxc';
             FXCoreAssembler.assembledHex = null;
+            FXCoreAssembler.assembledCHeader = null; // Clear previous C header
 
             const assembleSuccess = Program.Asm_it();
 
@@ -231,10 +234,23 @@ function assembleFXCore() {
                 document.getElementById('output').value = FXCoreAssembler.assembledHex;
                 document.getElementById('downloadHexBtn').disabled = false;
 
+                // Generate C header from the Intel HEX data
+                const cHeaderData = generateCHeaderFromHex(FXCoreAssembler.assembledHex);
+                if (cHeaderData) {
+                    FXCoreAssembler.assembledCHeader = cHeaderData;
+                    window.assembledCHeader = cHeaderData; // Also store globally
+                    document.getElementById('downloadHeaderBtn').disabled = false;
+                    debugLog('C header generated successfully', 'success');
+                } else {
+                    debugLog('Failed to generate C header', 'errors');
+                    document.getElementById('downloadHeaderBtn').disabled = true;
+                }
+
                 debugLog('Assembly completed successfully', 'success');
             } else {
                 // Clear any prior output if needed
                 document.getElementById('output').value = '';
+                document.getElementById('downloadHeaderBtn').disabled = true;
                 debugLog('Assembly failed', 'errors');
             }
         } else {
@@ -259,12 +275,18 @@ function assembleFXCore() {
     }
 }
 
-// Modified clear assembly with prompt (only clears output, not editor)
 async function clearAssembly() {
     document.getElementById('output').value = '';
     document.getElementById('messages').innerHTML = '';
     document.getElementById('downloadHexBtn').disabled = true;
+    document.getElementById('downloadHeaderBtn').disabled = true; // Add this line
     assembledData = null;
+    
+    // Clear C header data
+    if (typeof FXCoreAssembler !== 'undefined') {
+        FXCoreAssembler.assembledCHeader = null;
+    }
+    window.assembledCHeader = null;
 }
 
 async function clearEditor() {
@@ -576,6 +598,165 @@ async function downloadHex() {
     // Priority 2: Fallback to regular browser download
     downloadFile(filename, hex, 'text/plain');
     debugLog(`File downloaded as ${filename} to default downloads folder`, 'success');
+}
+
+// Download C header file
+async function downloadCHeader() {
+    // Check if we have assembled C header data
+    const headerData = window.assembledCHeader || (typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.assembledCHeader : null);
+    
+    if (!headerData) {
+        debugLog(`No C header data available - please assemble first`, `errors`);
+        return;
+    }
+
+    const filename = await showInputDialog(
+        'Save C Header File',
+        'Enter filename:',
+        'Enter filename (e.g., my_program.h)',
+        'fxcore_program.h'
+    );
+
+    if (!filename) return; // User cancelled
+
+    try {
+        // Get the base name and replace the placeholder
+        const baseName = filename.replace(/\.[^/.]+$/, ""); // Remove extension
+        const finalHeader = headerData.replace(/program_name/g, baseName);
+
+        // Create and download file
+        const blob = new Blob([finalHeader], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        debugLog(`C header file ${filename} downloaded successfully`, 'success');
+    } catch (error) {
+        debugLog(`Error downloading C header: ${error.message}`, 'errors');
+    }
+}
+
+function generateCHeaderFromHex(hexData) {
+    try {
+        const lines = hexData.split('\n').filter(line => line.trim().startsWith(':'));
+        let mregData = [];
+        let cregData = [];
+        let sfrData = [];
+        let programData = [];
+        
+        for (const line of lines) {
+            if (line.length < 11) continue;
+            
+            const byteCount = parseInt(line.substring(1, 3), 16);
+            const address = parseInt(line.substring(3, 7), 16);
+            const recordType = parseInt(line.substring(7, 9), 16);
+            
+            if (recordType === 0x00) { // Data record
+                const data = [];
+                for (let i = 0; i < byteCount; i++) {
+                    const bytePos = 9 + (i * 2);
+                    if (bytePos + 1 < line.length) {
+                        const byte = parseInt(line.substring(bytePos, bytePos + 2), 16);
+                        data.push(byte);
+                    }
+                }
+                
+                // Just append the data based on address - don't overthink it
+                if (address === 0x0000) {
+                    mregData = mregData.concat(data);
+                } else if (address >= 0x0040 && address < 0x0800) {
+                    mregData = mregData.concat(data);
+                } else if (address >= 0x0800 && address < 0x1000) {
+                    cregData = cregData.concat(data);
+                } else if (address >= 0x1000 && address < 0x1800) {
+                    sfrData = sfrData.concat(data);
+                } else if (address >= 0x1800) {
+                    programData = programData.concat(data);
+                }
+            }
+        }
+        
+        return generateCArrays('program_name', mregData, cregData, sfrData, programData);
+        
+    } catch (error) {
+        console.error('Error generating C header from hex:', error);
+        return null;
+    }
+}
+
+// Generate C header arrays
+function generateCArrays(baseName, mregData, cregData, sfrData, programData) {
+    const mregSize = mregData.length;
+    const cregSize = cregData.length;
+    const sfrSize = sfrData.length;
+    const prgSize = programData.length;
+    
+    let header = `//Sizes of arrays, order is MREG, CREG, SFRs and program data\n`;
+    header += `uint16_t ${baseName}_size[] = {\n`;
+    header += `0x${mregSize.toString(16).padStart(4, '0').toUpperCase()}, `;
+    header += `0x${cregSize.toString(16).toUpperCase()}, `;
+    header += `0x${sfrSize.toString(16).toUpperCase()}, `;
+    header += `0x${prgSize.toString(16).padStart(4, '0').toUpperCase()}\n`;
+    header += `};\n`;
+
+    // Add MREG array
+    header += `const uint8_t ${baseName}_mreg[] = {\n`;
+    for (let i = 0; i < mregSize; i += 4) {
+        const remaining = Math.min(4, mregSize - i);
+        for (let j = 0; j < remaining; j++) {
+            header += `0x${mregData[i + j].toString(16).padStart(2, '0').toUpperCase()}`;
+            if (j < remaining - 1) header += ', ';
+        }
+        if (i + 4 < mregSize) header += ', ';
+        header += '\n';
+    }
+    header += `};\n`;
+
+    // Add CREG array
+    header += `const uint8_t ${baseName}_creg[] = {\n`;
+    for (let i = 0; i < cregSize; i += 4) {
+        const remaining = Math.min(4, cregSize - i);
+        for (let j = 0; j < remaining; j++) {
+            header += `0x${cregData[i + j].toString(16).padStart(2, '0').toUpperCase()}`;
+            if (j < remaining - 1) header += ', ';
+        }
+        if (i + 4 < cregSize) header += ', ';
+        header += '\n';
+    }
+    header += `};\n`;
+
+    // Add SFR array
+    header += `const uint8_t ${baseName}_sfr[] = {\n`;
+    for (let i = 0; i < sfrSize; i += 4) {
+        const remaining = Math.min(4, sfrSize - i);
+        for (let j = 0; j < remaining; j++) {
+            header += `0x${sfrData[i + j].toString(16).padStart(2, '0').toUpperCase()}`;
+            if (j < remaining - 1) header += ', ';
+        }
+        if (i + 4 < sfrSize) header += ', ';
+        header += '\n';
+    }
+    header += `};\n`;
+
+    // Add program data array
+    header += `const uint8_t ${baseName}_prg[] = {\n`;
+    for (let i = 0; i < prgSize; i += 4) {
+        const remaining = Math.min(4, prgSize - i);
+        for (let j = 0; j < remaining; j++) {
+            header += `0x${programData[i + j].toString(16).padStart(2, '0').toUpperCase()}`;
+            if (j < remaining - 1) header += ', ';
+        }
+        if (i + 4 < prgSize) header += ', ';
+        header += '\n';
+    }
+    header += `};\n`;
+    
+    return header;
 }
 
 async function clearHardware() {

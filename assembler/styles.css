@@ -444,7 +444,17 @@ button:disabled {
     background: #a8a8a8;
 }
 
+.instructions-content.collapsed {
+    max-height: 0;
+}
+
+.instructions-content:not(.collapsed) {
+    max-height: 1500px;
+}
+
 /* ===== DARK MODE STYLES ===== */
+/* IMPORTANT: Dark mode only changes colors, NOT spacing/margins/padding */
+
 body.dark-mode {
     background-color: #1a1a1a;
     color: #e0e0e0;
@@ -458,6 +468,13 @@ body.dark-mode .container {
 body.dark-mode h1,
 body.dark-mode h2,
 body.dark-mode h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .instructions-section h3,
+body.dark-mode .editor-options-section h3,
+body.dark-mode .hardware-options-section h3,
+body.dark-mode .output-text-section h3 {
     color: #e0e0e0;
 }
 
@@ -476,7 +493,7 @@ body.dark-mode #output {
     color: #d4d4d4;
 }
 
-/* Dark mode boxed areas */
+/* Dark mode boxed areas - only change colors, not spacing */
 body.dark-mode .options,
 body.dark-mode .output-controls,
 body.dark-mode .instructions-text {
@@ -604,55 +621,3 @@ body.dark-mode #messages::-webkit-scrollbar-thumb {
 body.dark-mode #messages::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
-
-/*.instructions-section {
-    margin: 20px 0;
-    font-family: Arial, sans-serif;
-}*/
-
-/*.instructions-content {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: #f9f9f9;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out;
-}*/
-
-.instructions-content.collapsed {
-    max-height: 0;
-}
-
-.instructions-content:not(.collapsed) {
-    max-height: 1500px;
-}
-
-/*.instructions-text {
-    padding: 15px;
-    line-height: 1.6;
-}*/
-
-/*.instructions-text h4 {
-    margin-top: 25px;
-    margin-bottom: 10px;
-    color: #333;
-    font-size: 1.1em;
-}
-
-.instructions-text ul {
-    margin: 10px 0;
-    padding-left: 25px;
-}
-
-.instructions-text li {
-    margin: 8px 0;
-    line-height: 1.5;
-}
-
-.instructions-text i {
-    font-style: italic;
-}
-
-.instructions-text b {
-    font-weight: bold;
-}
-*/

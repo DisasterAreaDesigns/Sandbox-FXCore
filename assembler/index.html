@@ -89,6 +89,7 @@
         <div class="download-buttons">
             <!-- Button text will change dynamically based on directory selection -->
             <button onclick="downloadHex()" id="downloadHexBtn" disabled>Download HEX</button>
+            <button onclick="downloadCHeader()" id="downloadHeaderBtn" disabled>Download C Headers</button>
             <div style="float: right;">
                 <button onclick="clearAssembly()">Clear Results</button>
                 <button onclick="clearHardware()" id="clearHardwareBtn" disabled>Clear Hardware</button>
@@ -139,6 +140,7 @@
                     <ul>
                         <li><i>Enter FXCore source code into the editor area, or select a file or example.  Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
                         <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
+                        <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with SandboxFX hardware</i></li>
                         <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
                     </ul>
 
