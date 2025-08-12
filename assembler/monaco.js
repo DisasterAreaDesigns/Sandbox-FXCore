@@ -287,6 +287,29 @@ require(['vs/editor/editor.main'], function() {
         });
     }, 500);
 
+    // Enable drag-and-drop file loading into Monaco
+    document.getElementById('editor').addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    document.getElementById('editor').addEventListener('drop', (e) => {
+        e.preventDefault();
+        
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const content = evt.target.result;
+            editor.setValue(content);
+            editor.updateOptions({ readOnly: false }); // Make sure it's editable after drop
+            editor.focus();
+        };
+        reader.readAsText(file);
+    });
+
+
         // Notify UI that editor is ready
     if (typeof setEditorReady === 'function') {
         setEditorReady(editor);
