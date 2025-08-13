@@ -41,7 +41,7 @@ textarea {
 /* Editor styles */
 .editor-container {
     resize: both;
-    overflow: auto;
+    overflow: hidden;
     border: 1px solid #ccc;
     min-height: 200px;
     min-width: 300px;
