@@ -225,6 +225,9 @@ require(['vs/editor/editor.main'], function() {
             language: 'fxcore', // or whatever language you're using
             theme: 'fxcoreTheme', // your default theme
             readOnly: true, // Start as read-only
+            automaticLayout: true,
+            quickSuggestions: false,
+            wordBasedSuggestions: false,
             selectOnLineNumbers: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
