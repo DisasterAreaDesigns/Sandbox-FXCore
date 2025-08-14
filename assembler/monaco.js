@@ -1,6 +1,12 @@
 // Monaco Editor Setup for FXCore Assembler
 let editor; // global editor instance
 
+// Change tracking variables
+let originalContent = '';
+let hasUnsavedChanges = false;
+let currentFilename = '';
+let currentFilePath = '';
+
 // Configure Monaco Editor paths
 require.config({
     paths: {
@@ -216,7 +222,39 @@ require(['vs/editor/editor.main'], function() {
         }
     });
 
-        function initializeMonacoEditor() {
+    // Change tracking functions
+    function updateChangeState() {
+        const currentContent = editor.getValue();
+        const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
+        
+        // Don't track changes for placeholder text or empty content
+        if (currentContent === placeholderText || currentContent.trim() === '') {
+            hasUnsavedChanges = false;
+            if (currentContent === placeholderText) {
+                originalContent = placeholderText;
+            }
+        } else {
+            hasUnsavedChanges = (originalContent !== currentContent);
+        }
+        
+        // Update UI indicators
+        updateUIChangeIndicators();
+    }
+
+    function updateUIChangeIndicators() {
+        // Update page title
+        const baseTitle = 'FXCore Assembler';
+        document.title = hasUnsavedChanges ? `${baseTitle} *` : baseTitle;
+        
+        // Update save button appearance if it exists
+        const saveBtn = document.querySelector('button[onclick="saveSource()"]');
+        if (saveBtn) {
+            saveBtn.style.opacity = hasUnsavedChanges ? '1' : '0.6';
+            saveBtn.style.fontWeight = hasUnsavedChanges ? 'bold' : 'normal';
+        }
+    }
+
+    function initializeMonacoEditor() {
         const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
         
         // Create the editor with initial placeholder content
@@ -234,11 +272,21 @@ require(['vs/editor/editor.main'], function() {
             wordWrap: 'on'
         });
 
+        // Initialize change tracking
+        originalContent = placeholderText;
+        hasUnsavedChanges = false;
+
+        // Add change detection event listener
+        editor.onDidChangeModelContent(() => {
+            updateChangeState();
+        });
+
         // Add event listener to make editor editable when user clicks or starts typing
         editor.onDidFocusEditorText(() => {
             if (editor.getValue() === placeholderText) {
                 editor.updateOptions({ readOnly: false });
                 editor.setValue(''); // Clear placeholder text
+                originalContent = ''; // Reset original content
                 editor.focus();
             }
         });
@@ -251,10 +299,50 @@ require(['vs/editor/editor.main'], function() {
             }
         });
 
-        // Function to reset to placeholder (call this when clearing editor)
+        window.setCurrentFile = function(filename, filepath = '') {
+            currentFilename = filename || '';
+            currentFilePath = filepath || '';
+            console.log('Current file set to:', filename, 'at path:', filepath);
+        };
+
+        window.getCurrentFilename = function() {
+            return currentFilename;
+        };
+
+        window.getCurrentFilePath = function() {
+            return currentFilePath;
+        };
+
+        window.clearCurrentFile = function() {
+            currentFilename = '';
+            currentFilePath = '';
+        };
+
+        window.setEditorContent = function(content, filename = '', filepath = '') {
+            editor.updateOptions({ readOnly: false });
+            editor.setValue(content);
+            originalContent = content;
+            hasUnsavedChanges = false;
+            
+            // Set the filename info
+            currentFilename = filename;
+            currentFilePath = filepath;
+            
+            updateUIChangeIndicators();
+        };
+
+        // Modify the resetEditorToPlaceholder function
         window.resetEditorToPlaceholder = function() {
             editor.setValue(placeholderText);
             editor.updateOptions({ readOnly: true });
+            originalContent = placeholderText;
+            hasUnsavedChanges = false;
+            
+            // Clear filename info
+            currentFilename = '';
+            currentFilePath = '';
+            
+            updateUIChangeIndicators();
         };
 
         // Function to check if editor has real content (not just placeholder)
@@ -262,6 +350,27 @@ require(['vs/editor/editor.main'], function() {
             const value = editor.getValue().trim();
             return value.length > 0 && value !== placeholderText;
         };
+
+        // Expose change tracking functions globally
+        window.updateOriginalContent = function() {
+            originalContent = editor.getValue();
+            hasUnsavedChanges = false;
+            updateUIChangeIndicators();
+        };
+
+        window.hasUnsavedChanges = function() {
+            return hasUnsavedChanges;
+        };
+
+        // window.setEditorContent = function(content) {
+        //     editor.updateOptions({ readOnly: false });
+        //     editor.setValue(content);
+        //     originalContent = content;
+        //     hasUnsavedChanges = false;
+        //     updateUIChangeIndicators();
+        // };
+
+        window.updateUIChangeIndicators = updateUIChangeIndicators;
     }
 
     initializeMonacoEditor(); // start up editor
@@ -305,15 +414,14 @@ require(['vs/editor/editor.main'], function() {
         const reader = new FileReader();
         reader.onload = function(evt) {
             const content = evt.target.result;
-            editor.setValue(content);
-            editor.updateOptions({ readOnly: false }); // Make sure it's editable after drop
+            // Pass the filename to track it
+            window.setEditorContent(content, file.name, '');
             editor.focus();
         };
         reader.readAsText(file);
     });
 
-
-        // Notify UI that editor is ready
+    // Notify UI that editor is ready
     if (typeof setEditorReady === 'function') {
         setEditorReady(editor);
     } else {

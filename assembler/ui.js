@@ -4,8 +4,6 @@ let modalResolve = null;
 let selectedProgram = 'ram'; // Default to RAM
 
 
-// let selectedOutputFile = null;
-
 function showConfirmDialog(title, message) {
     return new Promise((resolve) => {
         document.getElementById('confirmTitle').textContent = title;
@@ -102,70 +100,42 @@ window.onclick = function(event) {
     }
 };
 
-// Check if editor has content
 function hasEditorContent() {
     const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
     const value = editor ? editor.getValue().trim() : '';
     return value.length > 0 && value !== placeholderText;
-}
-
-// Prompt to save before leaving page
-window.addEventListener('beforeunload', function(e) {
-    if (hasEditorContent()) {
-        e.preventDefault();
-        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-        return e.returnValue;
     }
-});
 
 async function loadFile() {
-    if (hasEditorContent()) {
+    // Check for unsaved changes FIRST, before opening file picker
+    if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
         const choice = await showThreeChoiceDialog(
             'Unsaved Changes',
             'You have unsaved changes in the editor. What would you like to do before loading a new file?'
         );
 
         if (choice === 'cancel') {
-            return; // User cancelled
+            return; // User cancelled - don't open file picker
         } else if (choice === 'save') {
             const saveResult = await saveSource();
             if (saveResult === false) {
-                return; // User cancelled the save dialog
+                return; // User cancelled the save dialog - don't open file picker
             }
         }
-        // If choice === 'discard', just proceed with loading
+        // If choice === 'discard', proceed with opening file picker
     }
 
+    // NOW open the file picker after handling unsaved changes
     const fileInput = document.getElementById('fileInput');
-    const file = fileInput.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            if (editor) {
-                editor.updateOptions({ readOnly: false }); // Make editable
-                editor.setValue(e.target.result);
-                // Scroll to the top of the editor
-                editor.setScrollTop(0);
-                editor.setScrollLeft(0);
-            }
-            
-            // Clear assembly output and disable download button
-            const outputElement = document.getElementById('output');
-            if (outputElement) {
-                outputElement.value = '';
-            }
-            document.getElementById('messages').innerHTML = '';
-            document.getElementById('downloadHexBtn').disabled = true;
-            document.getElementById('downloadHeaderBtn').disabled = true;
-            assembledData = null;
-        };
-        reader.readAsText(file);
-        debugLog('File loaded', 'success');
+    if (fileInput) {
+        fileInput.value = ''; // Clear any previous selection
+        fileInput.click(); // Open the file picker
     }
 }
 
 async function loadExample(exampleName) {
-    if (hasEditorContent()) {
+    // Use the new change detection function
+    if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
         const choice = await showThreeChoiceDialog(
             'Unsaved Changes',
             'You have unsaved changes in the editor. What would you like to do before loading an example?'
@@ -183,8 +153,14 @@ async function loadExample(exampleName) {
     }
 
     if (exampleName && examples[exampleName]) {
-        editor.updateOptions({ readOnly: false }); // Make editable
-        editor.setValue(examples[exampleName]);
+        if (window.setEditorContent) {
+            // Mark as example with descriptive filename
+            const exampleFilename = `example_${exampleName}.fxc`;
+            window.setEditorContent(examples[exampleName], exampleFilename, '');
+        } else {
+            editor.updateOptions({ readOnly: false }); // Fallback
+            editor.setValue(examples[exampleName]);
+        }
         editor.setScrollTop(0);
         editor.setScrollLeft(0);
         
@@ -198,7 +174,7 @@ async function loadExample(exampleName) {
         document.getElementById('downloadHeaderBtn').disabled = true;
         assembledData = null;
         
-        debugLog('Example loaded', 'success');
+        debugLog('Example loaded: ' + exampleName, 'success');
     }
 }
 
@@ -290,7 +266,8 @@ async function clearAssembly() {
 }
 
 async function clearEditor() {
-    if (hasEditorContent()) {
+    // Use the new change detection function
+    if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
         const choice = await showThreeChoiceDialog(
             'Unsaved Changes',
             'You have unsaved changes in the editor. What would you like to do before clearing?'
@@ -307,10 +284,15 @@ async function clearEditor() {
         // If choice === 'discard', just proceed with clearing
     }
 
-    if (editor) {
-        const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
-        editor.setValue(placeholderText);
-        editor.updateOptions({ readOnly: true });
+    if (window.resetEditorToPlaceholder) {
+        window.resetEditorToPlaceholder(); // Use the new function
+    } else {
+        // Fallback
+        if (editor) {
+            const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
+            editor.setValue(placeholderText);
+            editor.updateOptions({ readOnly: true });
+        }
     }
     
     // Clear assembly output and disable download button
@@ -328,29 +310,140 @@ async function saveSource() {
         return false;
     }
 
-    const filename = await showInputDialog(
-        'Save Source Code',
-        'Enter filename:',
-        'Enter filename (e.g., my_program.fxc)',
-        'fxcore_source.fxc'
-    );
-
-    if (!filename) return false; // User cancelled
+    // Get current filename and determine default
+    let defaultFilename = 'fxcore_source.fxc'; // fallback default
+    
+    if (window.getCurrentFilename) {
+        const currentName = window.getCurrentFilename();
+        if (currentName) {
+            // Use the current filename if we have one
+            defaultFilename = currentName;
+        }
+    }
 
     const sourceCode = editor.getValue();
+    
+    // Try to use File System Access API first
+    if ('showSaveFilePicker' in window) {
+        try {
+            const fileHandle = await window.showSaveFilePicker({
+                suggestedName: defaultFilename,
+                types: [{
+                    description: 'FXCore Assembly files',
+                    accept: {
+                        'text/plain': ['.fxc', '.asm', '.txt']
+                    }
+                }]
+            });
+            
+            const writable = await fileHandle.createWritable();
+            await writable.write(sourceCode);
+            await writable.close();
+            
+            // Update the current filename to the saved name
+            if (window.setCurrentFile) {
+                window.setCurrentFile(fileHandle.name, '');
+            }
+            
+            // Mark content as saved
+            if (window.updateOriginalContent) {
+                window.updateOriginalContent();
+            }
+            
+            debugLog('File saved: ' + fileHandle.name, 'success');
+            return true;
+            
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                return false; // User cancelled
+            } else {
+                debugLog('Error saving with file picker: ' + err.message, 'errors');
+                // Fall back to blob download
+            }
+        }
+    }
+    
+    // Fallback for browsers that don't support File System Access API
+    // Show a message about the limitation
+    const browserSupported = await showConfirmDialog(
+        'Save File', 
+        'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+    );
+    
+    if (!browserSupported) return false;
+    
+    // Fallback to blob download
     const blob = new Blob([sourceCode], {
         type: 'text/plain'
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = defaultFilename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
+    // Update the current filename
+    if (window.setCurrentFile) {
+        window.setCurrentFile(defaultFilename, '');
+    }
+
+    // Mark content as saved - this resets the unsaved changes flag
+    if (window.updateOriginalContent) {
+        window.updateOriginalContent();
+    }
+
+    debugLog('File downloaded: ' + defaultFilename, 'success');
     return true; // Save completed successfully
+}
+
+function updateFileInfo() {
+    if (window.getCurrentFilename) {
+        const filename = window.getCurrentFilename();
+        const filepath = window.getCurrentFilePath();
+        
+        // You can add a UI element to show current file
+        const fileInfoElement = document.getElementById('currentFileInfo');
+        if (fileInfoElement) {
+            if (filename) {
+                fileInfoElement.textContent = `File: ${filename}`;
+                fileInfoElement.style.display = 'block';
+            } else {
+                fileInfoElement.style.display = 'none';
+            }
+        }
+    }
+}
+
+window.addEventListener('beforeunload', function(e) {
+    // Use the new change detection function
+    if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+    }
+});
+
+// helper for editor updates
+function updateSaveButtonAppearance() {
+    const saveBtn = document.querySelector('button[onclick="saveSource()"]');
+    if (saveBtn && window.hasUnsavedChanges) {
+        const hasChanges = window.hasUnsavedChanges();
+        saveBtn.style.opacity = hasChanges ? '1' : '0.6';
+        saveBtn.style.fontWeight = hasChanges ? 'bold' : 'normal';
+    }
+}
+
+// set up change detect on page load
+function initializeChangeDetection() {
+    // Set up periodic check for UI updates (optional)
+    setInterval(() => {
+        if (window.updateUIChangeIndicators) {
+            window.updateUIChangeIndicators();
+        }
+    }, 1000); // Check every second
 }
 
 // Function to update the program target display
@@ -1007,4 +1100,33 @@ async function serialConnect() {
         portDisplay.textContent = `Error: ${err.message}`;
         portDisplay.style.color = '#dc3545'; // Red color for error
     }
+}
+
+async function handleFileInputChange() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        if (editor && window.setEditorContent) {
+            window.setEditorContent(e.target.result, file.name, 'Browser Upload');
+            // Scroll to the top of the editor
+            editor.setScrollTop(0);
+            editor.setScrollLeft(0);
+        }
+        
+        // Clear assembly output and disable download button
+        const outputElement = document.getElementById('output');
+        if (outputElement) {
+            outputElement.value = '';
+        }
+        document.getElementById('messages').innerHTML = '';
+        document.getElementById('downloadHexBtn').disabled = true;
+        document.getElementById('downloadHeaderBtn').disabled = true;
+        assembledData = null;
+    };
+    reader.readAsText(file);
+    debugLog('File loaded: ' + file.name, 'success');
 }

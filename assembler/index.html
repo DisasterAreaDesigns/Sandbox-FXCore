@@ -17,15 +17,15 @@
         <script src="monaco.js"></script>
 
         <div class="header-bar">
-            <h1>Sandbox FXCore Editor <span class="build">build 11</span></h1>
+            <h1>Sandbox FXCore Editor <span class="build">build 12</span></h1>
             <img src="icon.png" alt="App Icon" class="app-icon">
         </div>
 
         <h2>Source Input</h2>
         <div class="file-input">
-            <input type="file" id="fileInput" accept=".fxc,.fxo,.asm,.txt" style="display: none;" onchange="loadFile()">
+            <input type="file" id="fileInput" accept=".fxc,.fxo,.asm,.txt" style="display: none;" onchange="handleFileInputChange()">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <button onclick="document.getElementById('fileInput').click()">Load File...</button>
+                <button onclick="loadFile()">Load File...</button>
                 
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span>Or select an example program:</span>
@@ -302,7 +302,9 @@
 
             updateDownloadButtonText();
             updateProgramTargetDisplay();
-            updateClearHardwareButton(); // Add this line
+            updateClearHardwareButton();
+            initializeChangeDetection();
+
 
             // Override FXCoreAssembler.logMessage to work with our DOM structure
             if (typeof FXCoreAssembler !== 'undefined') {
