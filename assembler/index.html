@@ -100,6 +100,7 @@
         <div class="hardware-options-section">
             <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
                 <span id="hardwareOptionsToggle">▶</span> Hardware Options
+                <span id="hardwareConnectionStatus" style="font-weight: normal; color: #666; margin-left: 10px; font-size: 0.9em;">No connection</span>
             </h3>
             <div id="hardwareOptionsContent" class="hardware-options-content collapsed">
                 <div class="output-controls">
@@ -311,6 +312,7 @@
                 document.getElementById("FXCorePrgButton").disabled = true;
                 document.getElementById("FXCoreConnectButton").disabled = false;
                 document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
+                updateHardwareConnectionStatus(); // update text on main page
             }
         });
 

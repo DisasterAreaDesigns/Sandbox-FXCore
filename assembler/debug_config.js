@@ -250,58 +250,54 @@ const DEBUG = new DebugConfig();
  * @param {string} prefix - Optional prefix for the message
  */
 function debugLog(message, level = 'info', prefix = '') {
-    if (DEBUG.shouldLog(level)) {
-        const prefixStr = prefix ? `[${prefix}] ` : '';
-        const levelStr = level === 'info' ? '' : `[${level.toUpperCase()}] `;
-        const fullMessage = `${levelStr}${prefixStr}${message}`;
-        const timestamp = new Date().toLocaleTimeString();
-
-        // Always log to console
-        console.log(fullMessage);
-
-        if (typeof document !== 'undefined') {
-            const messagesArea = document.getElementById('messages');
-
-            if (messagesArea) {
-                // Map debug levels to CSS classes
-                const levelClassMap = {
-                    'errors': 'error',
-                    'warnings': 'warning',
-                    'success': 'success',
-                    'serial': 'success',
-                    'info': 'info',
-                    'verbose': 'info',
-                    'showTokens': 'info',
-                    'showResolution': 'info',
-                    'showMachineCode': 'info',
-                    'showParameterDetails': 'info',
-                    'symbolTable': 'info',
-                    'registerLookup': 'info',
-                    'parsing': 'info',
-                    'expressions': 'info',
-                    'memoryAccess': 'info',
-                    'registerAccess': 'info',
-                    'mnemonics': 'info',
-                    'reservedWords': 'info'
-                };
-
-                // Only add to messages area if we have a mapping for this level
-                if (levelClassMap[level]) {
-                    const div = document.createElement('div');
-                    div.className = `message ${levelClassMap[level]}`;
-                    div.textContent = `${fullMessage}`;
-                    messagesArea.appendChild(div);
-                    
-                    // Auto-scroll to bottom
-                    messagesArea.scrollTop = messagesArea.scrollHeight;
-
-                    // Optional: Limit number of messages to prevent memory issues
-                    const maxMessages = 100;
-                    if (messagesArea.children.length > maxMessages) {
-                        // Remove oldest messages
-                        while (messagesArea.children.length > maxMessages) {
-                            messagesArea.removeChild(messagesArea.firstChild);
-                        }
+    const prefixStr = prefix ? `[${prefix}] ` : '';
+    const levelStr = level === 'info' ? '' : `[${level.toUpperCase()}] `;
+    const fullMessage = `${levelStr}${prefixStr}${message}`;
+    const timestamp = new Date().toLocaleTimeString();
+    
+    // Always log to console regardless of level
+    console.log(fullMessage);
+    
+    // Only add to messages area if debug level should be shown AND we have DOM access
+    if (DEBUG.shouldLog(level) && typeof document !== 'undefined') {
+        const messagesArea = document.getElementById('messages');
+        if (messagesArea) {
+            // Map debug levels to CSS classes
+            const levelClassMap = {
+                'errors': 'error',
+                'warnings': 'warning',
+                'success': 'success',
+                'serial': 'success',
+                'info': 'info',
+                'verbose': 'info',
+                'showTokens': 'info',
+                'showResolution': 'info',
+                'showMachineCode': 'info',
+                'showParameterDetails': 'info',
+                'symbolTable': 'info',
+                'registerLookup': 'info',
+                'parsing': 'info',
+                'expressions': 'info',
+                'memoryAccess': 'info',
+                'registerAccess': 'info',
+                'mnemonics': 'info',
+                'reservedWords': 'info'
+            };
+            // Only add to messages area if we have a mapping for this level
+            if (levelClassMap[level]) {
+                const div = document.createElement('div');
+                div.className = `message ${levelClassMap[level]}`;
+                div.textContent = `${fullMessage}`;
+                messagesArea.appendChild(div);
+                
+                // Auto-scroll to bottom
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+                // Optional: Limit number of messages to prevent memory issues
+                const maxMessages = 100;
+                if (messagesArea.children.length > maxMessages) {
+                    // Remove oldest messages
+                    while (messagesArea.children.length > maxMessages) {
+                        messagesArea.removeChild(messagesArea.firstChild);
                     }
                 }
             }

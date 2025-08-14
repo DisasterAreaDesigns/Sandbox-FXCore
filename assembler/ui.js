@@ -424,6 +424,17 @@ window.addEventListener('beforeunload', function(e) {
         e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
         return e.returnValue;
     }
+
+        if (FXCoreTargets.device && FXCoreTargets.device.opened) {
+        try {
+            // Don't use await here - beforeunload must be synchronous
+            FXCoreTargets.device.close(); // Call without await
+            FXCoreTargets.device = null;
+            console.log('Device cleanup initiated before page unload');
+        } catch (error) {
+            console.error('Error closing device before unload:', error);
+        }
+    }
 });
 
 // helper for editor updates
@@ -489,7 +500,8 @@ async function selectOutputDirectory() {
             
             // Update button text when directory is selected
             updateDownloadButtonText();
-            updateClearHardwareButton(); // Add this line
+            updateClearHardwareButton();
+            updateHardwareConnectionStatus();
             
             debugLog('Output directory selected successfully', 'success');
             
@@ -633,7 +645,9 @@ function revertToDefaultDirectory() {
     
     // Update button text when directory is cleared
     updateDownloadButtonText();
-    updateClearHardwareButton(); // Add this line
+    updateClearHardwareButton();
+    updateHardwareConnectionStatus();
+
 }
 
 // Helper function for fallback downloads
@@ -1144,4 +1158,29 @@ function cycleHWMode() {
         document.getElementById('FileModeDiv').style.display = 'block';
         document.getElementById('HidModeDiv').style.display = 'none';
     }
+    updateHardwareConnectionStatus();
+}
+
+// update hardware connection on main page
+
+function updateHardwareConnectionStatus() {
+    const statusElement = document.getElementById('hardwareConnectionStatus');
+    if (!statusElement) return;
+
+    let statusText = 'No connection';
+    let statusColor = '#666';
+
+    // Check file mode connection (output directory)
+    if (selectedHW === 'file' && outputDirectoryHandle) {
+        statusText = 'File connected';
+        statusColor = '#28a745'; // Green
+    }
+    // Check HID mode connection
+    else if (selectedHW === 'hid' && FXCoreTargets.device && FXCoreTargets.device.opened) {
+        statusText = 'HID connected';
+        statusColor = '#28a745'; // Green
+    }
+
+    statusElement.textContent = statusText;
+    statusElement.style.color = statusColor;
 }
