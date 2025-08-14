@@ -2,7 +2,7 @@
 let outputDirectoryHandle = null;
 let modalResolve = null;
 let selectedProgram = 'ram'; // Default to RAM
-
+let selectedHW = 'file';
 
 function showConfirmDialog(title, message) {
     return new Promise((resolve) => {
@@ -1129,4 +1129,19 @@ async function handleFileInputChange() {
     };
     reader.readAsText(file);
     debugLog('File loaded: ' + file.name, 'success');
+}
+
+// switch between hardware modes
+function cycleHWMode() {
+    if (selectedHW === 'file') {
+        selectedHW = 'hid';
+        document.getElementById('HWModeDisplay').textContent = 'HID mode';
+        document.getElementById('FileModeDiv').style.display = 'none';
+        document.getElementById('HidModeDiv').style.display = 'block';
+    } else {
+        selectedHW = 'file';
+        document.getElementById('HWModeDisplay').textContent = 'File mode';
+        document.getElementById('FileModeDiv').style.display = 'block';
+        document.getElementById('HidModeDiv').style.display = 'none';
+    }
 }
