@@ -7,6 +7,7 @@
     <title>Sandbox FXCore Editor</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,0,1;wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -16,10 +17,13 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
         <script src="monaco.js"></script>
 
-        <div class="header-bar">
-            <h1>Sandbox FXCore Editor <span class="build">build 13</span></h1>
-            <img src="icon.png" alt="App Icon" class="app-icon">
+    <div class="header-bar">
+        <div class="header-content">
+            <h1>Sandbox FXCore Editor</h1>
+            <span class="build">build 13</span>
         </div>
+        <img src="icon.png" alt="App Icon" class="app-icon">
+    </div>
 
         <h2>Source Input</h2>
         <div class="file-input">
@@ -329,7 +333,7 @@
                 // document.getElementById("FXCoreExitRFRButton").disabled = true;
                 // document.getElementById("FXCorePrgButton").disabled = true;
                 // document.getElementById("FXCoreConnectButton").disabled = false;
-                document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
+                // document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
                 isRunningFromRAM = false; // Reset state on disconnect
                 updateHardwareConnectionStatus(); // update text on main page
                 updateBuildResultsButtons(); // update main buttons
