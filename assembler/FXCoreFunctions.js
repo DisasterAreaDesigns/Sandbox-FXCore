@@ -209,7 +209,7 @@ async function exit_rfr() {
         return false;
     }
 
-    new Promise(resolve => setTimeout(resolve, 100));
+    let timeout = await FT260Wrapper.sleep(100);
 
     let rtnCmd = new Uint8Array([
         ((0x5AA5) >> 8) & 0xFF,
@@ -223,7 +223,7 @@ async function exit_rfr() {
         return false;
     }
 
-    new Promise(resolve => setTimeout(resolve, 100));
+    timeout = await FT260Wrapper.sleep(100);
 
     document.getElementById("FXCoreRFRButton").disabled = false;
     document.getElementById("FXCoreExitRFRButton").disabled = true;
