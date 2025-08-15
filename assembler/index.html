@@ -89,18 +89,7 @@
         <h2>Build Results</h2>
         <div id="messages" style="display: block; min-height: 100px;"></div>
 
-        <div class="download-buttons">
-            <!-- Dynamic buttons that change based on mode -->
-            <button onclick="downloadHex()" id="downloadHexBtn" disabled>Run from RAM</button>
-            <button onclick="exitRunFromRam()" id="exitRamBtn" disabled style="display: inline-block;">Exit Run from RAM</button>
-            <div style="float: right;">
-                <button onclick="toggleConnection()" id="connectBtn">Connect</button>
-                <button onclick="clearHardware()" id="clearHardwareBtn" disabled style="display: none;">Clear Hardware</button>
-                <button onclick="clearAssembly()" id="clearResultsBtn">Clear Results</button>
-            </div>
-        </div>
-
-        <!-- Hardware Options Section -->
+<!-- Hardware Options Section -->
         <div class="hardware-options-section">
             <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
                 <span id="hardwareOptionsToggle">▶</span> Hardware Options
@@ -167,6 +156,19 @@
                 </div>
             </div>
         </div>
+        
+        <div class="download-buttons">
+            <!-- Dynamic buttons that change based on mode -->
+            <button onclick="downloadHex()" id="downloadHexBtn" disabled>Run from RAM</button>
+            <button onclick="exitRunFromRam()" id="exitRamBtn" disabled style="display: inline-block;">Exit Run from RAM</button>
+            <div style="float: right;">
+                <button onclick="toggleConnection()" id="connectBtn">Connect</button>
+                <button onclick="clearHardware()" id="clearHardwareBtn" disabled style="display: none;">Clear Hardware</button>
+                <button onclick="clearAssembly()" id="clearResultsBtn">Clear Results</button>
+            </div>
+        </div>
+
+        
 
         <div class="output-text-section">
             <h3 onclick="toggleOutput()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
