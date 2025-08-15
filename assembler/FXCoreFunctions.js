@@ -14,10 +14,10 @@ async function connectDevice() {
             debugLog('Device connected!', 'success');
             FT260Wrapper.ft260HidAddInputReportListener(FXCoreTargets.device);
             await FT260Wrapper.ft260HidI2cMasterInit(FXCoreTargets.device, 100);
-            document.getElementById("FXCoreRFRButton").disabled = false;
-            document.getElementById("FXCorePrgButton").disabled = false;
-            document.getElementById("FXCoreConnectButton").disabled = true;
-            document.getElementById('HidDeviceDisplay').textContent = FXCoreTargets.device.productName;
+            // document.getElementById("FXCoreRFRButton").disabled = false;
+            // document.getElementById("FXCorePrgButton").disabled = false;
+            // document.getElementById("FXCoreConnectButton").disabled = true;
+            // document.getElementById('HidDeviceDisplay').textContent = FXCoreTargets.device.productName;
         } else {
             debugLog('Failed to connect to device', 'errors');
         }
@@ -33,10 +33,10 @@ async function disconnectDevice() {
         try {
             await FT260Wrapper.ft260HidClose(FXCoreTargets.device);
             debugLog('HID Device closed', 'success');
-            document.getElementById("FXCoreRFRButton").disabled = true;
-            document.getElementById("FXCorePrgButton").disabled = true;
-            document.getElementById("FXCoreConnectButton").disabled = false;
-            document.getElementById('HidDeviceDisplay').textContent = ' ';
+            // document.getElementById("FXCoreRFRButton").disabled = true;
+            // document.getElementById("FXCorePrgButton").disabled = true;
+            // document.getElementById("FXCoreConnectButton").disabled = false;
+            // document.getElementById('HidDeviceDisplay').textContent = ' ';
         } catch (error) {
             debugLog('Error closing HID device', 'errors');
         }
@@ -160,9 +160,9 @@ async function run_from_ram(action) {
                 return false;
             }
             debugLog('Sent run from ram command', 'success');
-            document.getElementById("FXCoreRFRButton").disabled = true;
-            document.getElementById("FXCoreExitRFRButton").disabled = false;
-            document.getElementById("FXCorePrgButton").disabled = true;
+            // document.getElementById("FXCoreRFRButton").disabled = true;
+            // document.getElementById("FXCoreExitRFRButton").disabled = false;
+            // document.getElementById("FXCorePrgButton").disabled = true;
             await programmer.sleep(100);
             return true;
         } else {
@@ -223,11 +223,15 @@ async function exit_rfr() {
         return false;
     }
 
+<<<<<<< Updated upstream
     timeout = await FT260Wrapper.sleep(100);
+=======
+    let timeout = await FT260Wrapper.sleep(100);
+>>>>>>> Stashed changes
 
-    document.getElementById("FXCoreRFRButton").disabled = false;
-    document.getElementById("FXCoreExitRFRButton").disabled = true;
-    document.getElementById("FXCorePrgButton").disabled = false;
+    // document.getElementById("FXCoreRFRButton").disabled = false;
+    // document.getElementById("FXCoreExitRFRButton").disabled = true;
+    // document.getElementById("FXCorePrgButton").disabled = false;
 
 
     return;

@@ -28,12 +28,12 @@ class FXCoreProgrammer {
         await this.sleep(50);
 
         if (result.status !== FT260Wrapper.STATUS.FT260_OK) {
-            console.error(`Error sending ${sectionName} download command:`, result.status);
+            debugLog(`Error sending ${sectionName} download command: ${result.status}`, 'errors');
             return false;
         }
 
         if (result.bytesWritten !== 2) {
-            console.error(`${sectionName} download command: bytes written != bytes sent`);
+            debugLog(`${sectionName} download command: bytes written != bytes sent`, 'errors');
             return false;
         }
 
@@ -46,16 +46,16 @@ class FXCoreProgrammer {
         await this.sleep(50);
 
         if (result.status !== FT260Wrapper.STATUS.FT260_OK) {
-            console.error(`Error sending ${sectionName}:`, result.status);
+            debugLog(`Error sending ${sectionName}: ${result.status}`, 'errors');
             return false;
         }
 
         if (result.bytesWritten !== dataLength) {
-            console.error(`${sectionName}: bytes written (${result.bytesWritten}) != bytes sent (${dataLength})`);
+            debugLog(`${sectionName}: bytes written (${result.bytesWritten}) != bytes sent (${dataLength})`, 'errors');
             return false;
         }
 
-        console.log(`${sectionName} sent successfully (${dataLength} bytes)`);
+        debugLog(`${sectionName} sent successfully (${dataLength} bytes)`, 'showMachineCode');
         return true;
     }
 
@@ -70,11 +70,11 @@ class FXCoreProgrammer {
         let startPtr = 0;
 
         
-        console.log(`Writing ${bytesToWrite} bytes`);
+        debugLog(`Writing ${bytesToWrite} bytes`, 'showMachineCode');
 
         // Small write - single transaction
         if (bytesToWrite <= MAX_TRANS_LEN) {
-            console.log(`Small write only ${bytesToWrite} bytes`);
+            debugLog(`Small write only ${bytesToWrite} bytes`, 'showMachineCode');
 
             let result = await FT260Wrapper.ft260HidI2cWrite(
                 device, deviceAddress,
@@ -86,7 +86,7 @@ class FXCoreProgrammer {
             return(result);
         } else {
             // Big write - multiple transactions
-            console.log(`Big write ${bytesToWrite} bytes, sending first packet with I2C START`);
+            debugLog(`Big write ${bytesToWrite} bytes, sending first packet with I2C START`, 'showMachineCode');
 
             // Send first packet with START
             let result = await FT260Wrapper.ft260HidI2cWrite(
@@ -105,11 +105,11 @@ class FXCoreProgrammer {
             bytesWritten += result.bytesWritten;
             startPtr = MAX_TRANS_LEN;
 
-            console.log(`Big write continues for ${bytesToWriteRemaining} bytes`);
+            debugLog(`Big write continues for ${bytesToWriteRemaining} bytes`, 'showMachineCode');
 
             // Send middle packets with no I2C condition
             while (bytesToWriteRemaining > MAX_TRANS_LEN) {
-                console.log(`Big write sending packet ${MAX_TRANS_LEN} bytes`);
+                debugLog(`Big write sending packet ${MAX_TRANS_LEN} bytes`, 'showMachineCode');
 
                 const chunk = buffer.slice(startPtr, startPtr + MAX_TRANS_LEN);
                 result = await FT260Wrapper.ft260HidI2cWrite(
@@ -130,7 +130,7 @@ class FXCoreProgrammer {
             }
 
             // Send final packet with STOP
-            console.log(`Sending remaining ${bytesToWriteRemaining} bytes`);
+            debugLog(`Sending remaining ${bytesToWriteRemaining} bytes`, 'showMachineCode');
 
             const finalChunk = buffer.slice(startPtr, startPtr + bytesToWriteRemaining);
             result = await FT260Wrapper.ft260HidI2cWrite(
@@ -159,7 +159,7 @@ class FXCoreProgrammer {
             const statusResult = await FT260Wrapper.ft260HidI2cMasterGetStatus(device, this.isLinux);
             
             if (statusResult.status !== FT260Wrapper.STATUS.FT260_OK) {
-                console.error('Error getting I2C interface status');
+                debugLog('Error getting I2C interface status', 'errors');
                 return false;
             }
 
@@ -170,13 +170,13 @@ class FXCoreProgrammer {
                 // Check for error conditions
                 if ((i2cStatus & 0x01) === 0 && (i2cStatus & 0x02) !== 0) {
                     if ((i2cStatus & 0x04) !== 0) {
-                        console.log('Slave address was not acknowledged');
+                        debugLog('Slave address was not acknowledged', 'errors');
                         return false;
                     } else if ((i2cStatus & 0x08) !== 0) {
-                        console.log('Data was not acknowledged');
+                        debugLog('Data was not acknowledged', 'errors');
                         return false;
                     } else if ((i2cStatus & 0x10) !== 0) {
-                        console.log('Arbitration was lost');
+                        debugLog('Arbitration was lost', 'errors');
                         return false;
                     }
                 }
@@ -187,7 +187,7 @@ class FXCoreProgrammer {
             watchdog++;
         }
 
-        console.log('Timeout waiting for response from FXCore');
+        debugLog('Timeout waiting for response from FXCore', 'errors');
         return false;
     }
 

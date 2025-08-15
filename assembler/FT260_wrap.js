@@ -166,25 +166,24 @@ class FT260Wrapper {
      * @param {number} bytesToWrite - Number of bytes to write
      * @returns {Promise<{status: number, bytesWritten: number}>}
      */
-    static async ft260HidI2cWrite(device, i2cAddr, flag, data, bytesToWrite) {
-        try {
-            // Sanity check
-            if (bytesToWrite > 60) {
-                return {
-                    status: FT260Wrapper.STATUS.FT260_BUFFER_SIZE_ERROR,
-                    bytesWritten: 0
-                };
-            }
+static async ft260HidI2cWrite(device, i2cAddr, flag, data, bytesToWrite) {
+    try {
+        // Sanity check
+        if (bytesToWrite > 60) {
+            return {
+                status: FT260Wrapper.STATUS.FT260_BUFFER_SIZE_ERROR,
+                bytesWritten: 0
+            };
+        }
 
-            // Calculate report ID offset
+        // Check if this is the actual FT260 device that needs variable report ID
+        if ((device.vendorId === 0x0403) && (device.productId === 0x71D8)) {
+            // debugLog('FT260 detected, using variable reports', 'showMachineCode');
+            // Use original variable-sized approach for this specific device
             const x = Math.floor((bytesToWrite - 1) / 4);
             const reportData = new Uint8Array(bytesToWrite + 4);
             
-            if((device.vendorId === 0x0403) && (device.productId === 0x71D8)) {
-                reportData[0] = 0xD0 + x;
-            } else {
-                reportData[0] = 0xD0;
-            }
+            reportData[0] = 0xD0 + x;
             reportData[1] = i2cAddr;            // I2C address
             reportData[2] = flag;               // I2C flags
             reportData[3] = bytesToWrite;       // Number of bytes
@@ -193,21 +192,34 @@ class FT260Wrapper {
             for (let i = 0; i < bytesToWrite; i++) {
                 reportData[4 + i] = data[i];
             }
-
             await device.sendReport(reportData[0], reportData.slice(1));
+        } else {
+            // debugLog('Other device detected, using fixed reports', 'showMachineCode');
+            // Use fixed 63-byte HID report for all other devices
+            const hidReportData = new Uint8Array(63);
+            hidReportData[0] = i2cAddr;            // I2C address
+            hidReportData[1] = flag;               // I2C flags
+            hidReportData[2] = bytesToWrite;       // Number of bytes
             
-            return {
-                status: FT260Wrapper.STATUS.FT260_OK,
-                bytesWritten: bytesToWrite
-            };
-        } catch (error) {
-            console.error('I2C Write error:', error);
-            return {
-                status: FT260Wrapper.STATUS.FT260_IO_ERROR,
-                bytesWritten: 0
-            };
+            // Copy data
+            for (let i = 0; i < bytesToWrite; i++) {
+                hidReportData[3 + i] = data[i];
+            }
+            await device.sendReport(0xD0, hidReportData);
         }
+        
+        return {
+            status: FT260Wrapper.STATUS.FT260_OK,
+            bytesWritten: bytesToWrite
+        };
+    } catch (error) {
+        debugLog('I2C Write error: ' + error.message, 'errors');
+        return {
+            status: FT260Wrapper.STATUS.FT260_IO_ERROR,
+            bytesWritten: 0
+        };
     }
+}
 
     /**
      * Read data from I2C device
@@ -240,7 +252,7 @@ class FT260Wrapper {
             return;
             
         } catch (error) {
-            console.error('I2C Read error:', error);
+            debugLog('I2C Read error: ' + error.message, 'errors');
             return {
                 status: FT260Wrapper.STATUS.FT260_I2C_READ_FAIL,
                 data: new Uint8Array(0),
@@ -256,7 +268,7 @@ class FT260Wrapper {
         device.addEventListener("inputreport", event => {
             const { data, device, reportId } = event; // data
 
-            console.log(`Received ReportID: 0x` + reportId.toString(16));
+            debugLog(`Received ReportID: 0x` + reportId.toString(16), 'showMachineCode');
             FT260Wrapper.rec_id = reportId;
             let value = data.getUint8(0);
             // Get the underlying ArrayBuffer
@@ -300,7 +312,7 @@ class FT260Wrapper {
 
             return FT260Wrapper.STATUS.FT260_OK;
         } catch (error) {
-            console.error('I2C Master Init error:', error);
+            debugLog('I2C Master Init error: ' + error.message, 'errors');
             return FT260Wrapper.STATUS.FT260_IO_ERROR;
         }
     }
@@ -327,7 +339,7 @@ class FT260Wrapper {
                 i2cStatus: i2cStatus
             };
         } catch (error) {
-            console.error('I2C Get Status error:', error);
+            debugLog('I2C Get Status error: ' + error.message, 'errors');
             return {
                 status: FT260Wrapper.STATUS.FT260_IO_ERROR,
                 i2cStatus: 0
@@ -345,7 +357,7 @@ class FT260Wrapper {
             await device.close();
             return FT260Wrapper.STATUS.FT260_OK;
         } catch (error) {
-            console.error('Device close error:', error);
+            debugLog('Device close error: ' + error.message, 'errors');
             return FT260Wrapper.STATUS.FT260_DEVICE_CLOSE_FAIL;
         }
     }
@@ -382,7 +394,7 @@ class FT260Wrapper {
                                 // Look for feature report 0xC0 which is the I2C status report, if it esxists this is the correct HID device.
                                 // We need to do this as the FT260 can return 2 different HID devices so we need to connect to the correct one
                                 if (report.reportId === 0xC0) {
-                                    console.log(`device located: ${device.productName}`);
+                                    debugLog(`device located: ${device.productName}`, 'showMachineCode');
                                     return device;
                                 } // if
                             } // for
@@ -395,7 +407,7 @@ class FT260Wrapper {
             return null;
             //return devices.length > 0 ? devices[0] : null;
         } catch (error) {
-            console.error('Device request error:', error);
+            debugLog('Device request error: ' + error.message, 'errors');
             return null;
         }
     }
@@ -412,7 +424,7 @@ class FT260Wrapper {
             }
             return FT260Wrapper.STATUS.FT260_OK;
         } catch (error) {
-            console.error('Device open error:', error);
+            debugLog('Device open error: ' + error.message, 'errors');
             return FT260Wrapper.STATUS.FT260_DEVICE_OPEN_FAIL;
         }
     }

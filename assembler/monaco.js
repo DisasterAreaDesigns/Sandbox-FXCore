@@ -246,12 +246,12 @@ require(['vs/editor/editor.main'], function() {
         const baseTitle = 'FXCore Assembler';
         document.title = hasUnsavedChanges ? `${baseTitle} *` : baseTitle;
         
-        // Update save button appearance if it exists
-        const saveBtn = document.querySelector('button[onclick="saveSource()"]');
-        if (saveBtn) {
-            saveBtn.style.opacity = hasUnsavedChanges ? '1' : '0.6';
-            saveBtn.style.fontWeight = hasUnsavedChanges ? 'bold' : 'normal';
-        }
+        // // Update save button appearance if it exists
+        // const saveBtn = document.querySelector('button[onclick="saveSource()"]');
+        // if (saveBtn) {
+        //     saveBtn.style.opacity = hasUnsavedChanges ? '1' : '0.6';
+        //     saveBtn.style.fontWeight = hasUnsavedChanges ? 'bold' : 'normal';
+        // }
     }
 
     function initializeMonacoEditor() {

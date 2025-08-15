@@ -17,7 +17,7 @@
         <script src="monaco.js"></script>
 
         <div class="header-bar">
-            <h1>Sandbox FXCore Editor <span class="build">build 12</span></h1>
+            <h1>Sandbox FXCore Editor <span class="build">build 13</span></h1>
             <img src="icon.png" alt="App Icon" class="app-icon">
         </div>
 
@@ -29,9 +29,10 @@
                 
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span>Or select an example program:</span>
-                    <button onclick="loadExample('fxcore_passthrough')">FXCore Pass-through</button>
-                    <button onclick="loadExample('fxcore_delay')">FXCore Delay</button>
-                    <button onclick="loadExample('fxcore_chorus')">FXCore Chorus</button>
+                    <button onclick="loadExample('fxcore_passthrough')">Pass-through</button>
+                    <button onclick="loadExample('fxcore_blink')">LED Blink</button>
+                    <button onclick="loadExample('fxcore_delay')">Delay</button>
+                    <button onclick="loadExample('fxcore_chorus')">Chorus</button>
                 </div>
             </div>
         </div>
@@ -77,6 +78,8 @@
 
         <div>
             <button onclick="assembleFXCore()">Assemble</button>
+            <button onclick="downloadPlainHex()" id="downloadPlainHexBtn" disabled>Download HEX</button>
+            <button onclick="downloadCHeader()" id="downloadCHeaderBtn" disabled>Download C Headers</button>
             <button onclick="saveSource()">Save Source...</button>
             <div style="float: right;">
                 <button onclick="clearEditor()">Clear Editor</button>
@@ -87,12 +90,13 @@
         <div id="messages" style="display: block; min-height: 100px;"></div>
 
         <div class="download-buttons">
-            <!-- Button text will change dynamically based on directory selection -->
-            <button onclick="downloadHex()" id="downloadHexBtn" disabled>Download HEX</button>
-            <button onclick="downloadCHeader()" id="downloadHeaderBtn" disabled>Download C Headers</button>
+            <!-- Dynamic buttons that change based on mode -->
+            <button onclick="downloadHex()" id="downloadHexBtn" disabled>Run from RAM</button>
+            <button onclick="exitRunFromRam()" id="exitRamBtn" disabled style="display: inline-block;">Exit Run from RAM</button>
             <div style="float: right;">
-                <button onclick="clearAssembly()">Clear Results</button>
-                <button onclick="clearHardware()" id="clearHardwareBtn" disabled>Clear Hardware</button>
+                <button onclick="toggleConnection()" id="connectBtn">Connect</button>
+                <button onclick="clearHardware()" id="clearHardwareBtn" disabled style="display: none;">Clear Hardware</button>
+                <button onclick="clearAssembly()" id="clearResultsBtn">Clear Results</button>
             </div>
         </div>
 
@@ -106,9 +110,9 @@
                 <div class="output-controls">
                     <div>
                         <button onclick="cycleHWMode()" id="HWModeBtn">Select Hardware Mode</button>
-                        <span id="HWModeDisplay" style="margin-left: 10px; color: #666; font-style: italic;">File mode</span>
+                        <span id="HWModeDisplay" style="margin-left: 10px; color: #666; font-style: italic;">HID mode</span>
                     </div><br />
-                    <div id="FileModeDiv" style="display: block;">
+                    <div id="FileModeDiv" style="display: none;">
                         <div>
                             <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
                             <span id="outputDirDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
@@ -120,20 +124,25 @@
                         <div>
                             <button onclick="cycleProgramTarget()" id="programTargetBtn">Select Program Target</button>
                             <span id="programTargetDisplay" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
-                        </div><br />
+                        </div>
                     </div>
-                    <div id="HidModeDiv" style="display: none;">
+                    <div id="HidModeDiv" style="display: block;">
                         <div>
-                            <button id="FXCoreConnectButton" onclick="connectDevice()">Connect To HID device</button>
+                            <label>FXCore address (hex WITH leading 0x):</label>
+                            <input type="text" id="FXcoreAddr" size="8" value="0x30" style="margin-left: 10px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </div><br />
+                        <div>
+                            <button onclick="cycleProgramTarget()" id="programTargetBtnHid">Select Program Target</button>
+                            <span id="programTargetDisplayHid" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
+                        </div>
+<!--                         <div style="display: none;">
+                            <button id="FXCoreConnectButton" onclick="toggleConnection()">Connect To HID device</button>
                             <span id="HidDeviceDisplay" style="margin-left: 10px; color: #666; font-style: italic;">Select HID Device</span>
                         </div><br />
-                        <div>
-                            <label>FXCore address &lpar; hex WITH leading 0x &rpar;:</label><input type="text" id="FXcoreAddr" size="3" value="0x30">
-                        </div><br />
-                        <div>
+                        <div style="display: none;">
                             <button id="FXCoreRFRButton" disabled onclick="run_from_ram(0)">Run from RAM</button>&nbsp;&nbsp;&nbsp;&nbsp;<button id="FXCoreExitRFRButton" disabled onclick="exit_rfr()">Exit run from RAM</button><br />
                         </div><br />
-                        <div>
+                        <div style="display: none;">
                             <button id="FXCorePrgButton" disabled onclick="run_from_ram(1)">Program location</button>
                             <select id="FXcorePrgNum">
                                 <option value="0" selected >0</option>
@@ -153,7 +162,7 @@
                                 <option value="14">14</option>
                                 <option value="15">15</option>
                             </select>
-                        </div><br />
+                        </div><br /> -->
                     </div>
                 </div>
             </div>
@@ -301,30 +310,58 @@
 
         FXCoreTargets.FXCore_I2C = 0x30; // default FXCore device address, can be changed in above text input
         
+        // watch for board connection
+        navigator.hid.addEventListener('connect', (event) => {
+            console.log(`HID device connected`);
+            updateBuildResultsButtons();
+            updateHardwareConnectionStatus();
+        });
+
         // watch for board disconnection
         navigator.hid.addEventListener('disconnect', (event) => {
             const device = event.device;
             if (device === FXCoreTargets.device) {
                 console.log(`FXCore device disconnected`);
                 FXCoreTargets.device = null;
-                document.getElementById("FXCoreRFRButton").disabled = true;
-                document.getElementById("FXCoreExitRFRButton").disabled = true;
-                document.getElementById("FXCorePrgButton").disabled = true;
-                document.getElementById("FXCoreConnectButton").disabled = false;
+                // document.getElementById("FXCoreRFRButton").disabled = true;
+                // document.getElementById("FXCoreExitRFRButton").disabled = true;
+                // document.getElementById("FXCorePrgButton").disabled = true;
+                // document.getElementById("FXCoreConnectButton").disabled = false;
                 document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
+                isRunningFromRAM = false; // Reset state on disconnect
                 updateHardwareConnectionStatus(); // update text on main page
+                updateBuildResultsButtons(); // update main buttons
             }
         });
 
-        // when user changes FXCore address update it
-        document.getElementById('FXcoreAddr').addEventListener('change', function(event) {
-            FXCoreTargets.FXCore_I2C = document.getElementById('FXcoreAddr').value;
-        });
+        // // when user changes FXCore address update it
+        // document.getElementById('FXcoreAddr').addEventListener('change', function(event) {
+        //     FXCoreTargets.FXCore_I2C = document.getElementById('FXcoreAddr').value;
+        //     updateHardwareConnectionStatus(); // Update status when address changes
+        // });
 
-        // when user changes program slot to program update it
-        document.getElementById('FXcorePrgNum').addEventListener('change', function(event) {
-            FXCoreTargets.FXCore_Prg = document.getElementById('FXcorePrgNum').value;
-        });FXCoreTargets.FXCore_Prg = 0; // default program slot
+        // // when user changes program slot to program update it
+        // document.getElementById('FXcorePrgNum').addEventListener('change', function(event) {
+        //     FXCoreTargets.FXCore_Prg = document.getElementById('FXcorePrgNum').value;
+        // });
+        // FXCoreTargets.FXCore_Prg = 0; // default program slot
+
+        // Sync both program target displays
+        function syncProgramTargetDisplays() {
+            const display1 = document.getElementById('programTargetDisplay');
+            const display2 = document.getElementById('programTargetDisplayHid');
+            const text = selectedProgram === 'ram' ? 'Run from RAM' : `Program ${selectedProgram}`;
+            
+            if (display1) display1.textContent = text;
+            if (display2) display2.textContent = text;
+        }
+
+        // Override the cycleProgramTarget to sync both displays
+        const originalCycleProgramTarget = window.cycleProgramTarget;
+        window.cycleProgramTarget = function() {
+            originalCycleProgramTarget();
+            syncProgramTargetDisplays();
+        };
 
         // Toggle functions for new sections
         function toggleEditorOptions() {
@@ -370,11 +407,20 @@
             // DEBUG.setPreset('basic');
             DEBUG.showConfig();
 
+            // Initialize with HID mode by default
+            selectedHW = 'hid';
+            document.getElementById('HWModeDisplay').textContent = 'HID mode';
+            document.getElementById('FileModeDiv').style.display = 'none';
+            document.getElementById('HidModeDiv').style.display = 'block';
+
             updateDownloadButtonText();
             updateProgramTargetDisplay();
             updateClearHardwareButton();
+            updateBuildResultsButtons(); // Initialize button states
+            updatePlainHexButton(); // Initialize plain HEX button state
+            updateHardwareConnectionStatus();
             initializeChangeDetection();
-
+            syncProgramTargetDisplays(); // Sync both displays on load
 
             // Override FXCoreAssembler.logMessage to work with our DOM structure
             if (typeof FXCoreAssembler !== 'undefined') {

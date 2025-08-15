@@ -40,7 +40,7 @@ textarea {
 
 /* Editor styles */
 .editor-container {
-    resize: both;
+    resize: none;
     overflow: hidden;
     border: 1px solid #ccc;
     min-height: 200px;

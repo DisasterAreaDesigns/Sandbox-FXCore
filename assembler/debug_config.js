@@ -255,8 +255,12 @@ function debugLog(message, level = 'info', prefix = '') {
     const fullMessage = `${levelStr}${prefixStr}${message}`;
     const timestamp = new Date().toLocaleTimeString();
     
-    // Always log to console regardless of level
-    console.log(fullMessage);
+    // Use console.error for 'errors' level, console.log for everything else
+    if (level === 'errors') {
+        console.error(fullMessage);
+    } else {
+        console.log(fullMessage);
+    }
     
     // Only add to messages area if debug level should be shown AND we have DOM access
     if (DEBUG.shouldLog(level) && typeof document !== 'undefined') {

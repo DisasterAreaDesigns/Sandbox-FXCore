@@ -2,7 +2,7 @@
 let outputDirectoryHandle = null;
 let modalResolve = null;
 let selectedProgram = 'ram'; // Default to RAM
-let selectedHW = 'file';
+let selectedHW = 'hid'; // Changed to start in HID mode by default
 
 function showConfirmDialog(title, message) {
     return new Promise((resolve) => {
@@ -104,7 +104,7 @@ function hasEditorContent() {
     const placeholderText = "; Enter your FXCore assembly code here, load a file, or select an example";
     const value = editor ? editor.getValue().trim() : '';
     return value.length > 0 && value !== placeholderText;
-    }
+}
 
 async function loadFile() {
     // Check for unsaved changes FIRST, before opening file picker
@@ -170,9 +170,16 @@ async function loadExample(exampleName) {
             outputElement.value = '';
         }
         document.getElementById('messages').innerHTML = '';
-        document.getElementById('downloadHexBtn').disabled = true;
-        document.getElementById('downloadHeaderBtn').disabled = true;
         assembledData = null;
+        
+        // Clear C header data
+        if (typeof FXCoreAssembler !== 'undefined') {
+            FXCoreAssembler.assembledCHeader = null;
+        }
+        window.assembledCHeader = null;
+        
+        updateBuildResultsButtons(); // Update buttons after clearing assembly
+        updatePlainHexButton(); // Update the plain HEX download button
         
         debugLog('Example loaded: ' + exampleName, 'success');
     }
@@ -208,34 +215,49 @@ function assembleFXCore() {
             if (assembleSuccess && FXCoreAssembler.assembledHex) {
                 assembledData = FXCoreAssembler.assembledHex;
                 document.getElementById('output').value = FXCoreAssembler.assembledHex;
-                document.getElementById('downloadHexBtn').disabled = false;
 
                 // Generate C header from the Intel HEX data
                 const cHeaderData = generateCHeaderFromHex(FXCoreAssembler.assembledHex);
                 if (cHeaderData) {
                     FXCoreAssembler.assembledCHeader = cHeaderData;
                     window.assembledCHeader = cHeaderData; // Also store globally
-                    document.getElementById('downloadHeaderBtn').disabled = false;
                     debugLog('C header generated successfully', 'success');
                 } else {
                     debugLog('Failed to generate C header', 'errors');
-                    document.getElementById('downloadHeaderBtn').disabled = true;
                 }
 
                 debugLog('Assembly completed successfully', 'success');
             } else {
                 // Clear any prior output if needed
                 document.getElementById('output').value = '';
-                document.getElementById('downloadHeaderBtn').disabled = true;
+                assembledData = null;
+                
+                // Clear C header data on failed assembly
+                if (typeof FXCoreAssembler !== 'undefined') {
+                    FXCoreAssembler.assembledCHeader = null;
+                }
+                window.assembledCHeader = null;
+                
                 debugLog('Assembly failed', 'errors');
             }
         } else {
             debugLog('FXCoreAssembler class not available', 'errors');
         }
 
+        // Update buttons after assembly
+        updateBuildResultsButtons();
+        updatePlainHexButton(); // Update the plain HEX download button
+
     } catch (error) {
         debugLog('Assembly error: ' + error.message, 'errors');
         debugLog('FXCoreAssembler class not found', 'errors');
+
+        // Clear data on error
+        assembledData = null;
+        if (typeof FXCoreAssembler !== 'undefined') {
+            FXCoreAssembler.assembledCHeader = null;
+        }
+        window.assembledCHeader = null;
 
         // Show output section even on error
         const outputContent = document.getElementById('outputContent');
@@ -247,6 +269,10 @@ function assembleFXCore() {
             outputToggle.textContent = '▼';
         }
 
+        // Update buttons after error
+        updateBuildResultsButtons();
+        updatePlainHexButton();
+
         console.error('Assembly error:', error);
     }
 }
@@ -254,8 +280,6 @@ function assembleFXCore() {
 async function clearAssembly() {
     document.getElementById('output').value = '';
     document.getElementById('messages').innerHTML = '';
-    document.getElementById('downloadHexBtn').disabled = true;
-    document.getElementById('downloadHeaderBtn').disabled = true; // Add this line
     assembledData = null;
     
     // Clear C header data
@@ -263,6 +287,10 @@ async function clearAssembly() {
         FXCoreAssembler.assembledCHeader = null;
     }
     window.assembledCHeader = null;
+
+    // Update buttons after clearing
+    updateBuildResultsButtons();
+    updatePlainHexButton(); // Update the plain HEX download button
 }
 
 async function clearEditor() {
@@ -298,8 +326,17 @@ async function clearEditor() {
     // Clear assembly output and disable download button
     document.getElementById('output').value = '';
     document.getElementById('messages').innerHTML = '';
-    document.getElementById('downloadHexBtn').disabled = true;
     assembledData = null;
+
+    // Clear C header data
+    if (typeof FXCoreAssembler !== 'undefined') {
+        FXCoreAssembler.assembledCHeader = null;
+    }
+    window.assembledCHeader = null;
+
+    // Update buttons after clearing
+    updateBuildResultsButtons();
+    updatePlainHexButton(); // Update the plain HEX download button
 }
 
 async function saveSource() {
@@ -465,15 +502,20 @@ function updateProgramTargetDisplay() {
     } else {
         display.textContent = `Program ${selectedProgram}`;
     }
+    
+    // Update build results buttons when program target changes
+    updateBuildResultsButtons();
 }
 
 // Function to update download button text based on current settings
 function updateDownloadButtonText() {
     const downloadBtn = document.getElementById('downloadHexBtn');
-    if (outputDirectoryHandle) {
-        downloadBtn.textContent = 'Download to Programmer';
-    } else {
-        downloadBtn.textContent = 'Download HEX';
+    if (downloadBtn) {
+        if (outputDirectoryHandle) {
+            downloadBtn.textContent = 'Download to Programmer';
+        } else {
+            downloadBtn.textContent = 'Download HEX';
+        }
     }
 }
 
@@ -486,7 +528,101 @@ function cycleProgramTarget() {
     
     updateProgramTargetDisplay();
     updateDownloadButtonText();
+    updateBuildResultsButtons(); // Update button text immediately when target changes
+    updateHardwareConnectionStatus(); // Update detailed status
     console.log('Selected program:', selectedProgram);
+}
+
+// Track run from RAM state
+let isRunningFromRAM = false;
+
+// New function to update build results buttons based on mode and state
+function updateBuildResultsButtons() {
+    const downloadHexBtn = document.getElementById('downloadHexBtn');
+    const clearResultsBtn = document.getElementById('clearResultsBtn');
+    const connectBtn = document.getElementById('connectBtn');
+    const exitRamBtn = document.getElementById('exitRamBtn');
+    
+    const hasAssembledData = assembledData && assembledData.trim() !== '';
+    const isConnected = FXCoreTargets.device && FXCoreTargets.device.opened;
+    const isDirectorySelected = outputDirectoryHandle !== null;
+    
+    if (selectedHW === 'hid') {
+        // HID Mode buttons
+        if (downloadHexBtn) {
+            if (selectedProgram === 'ram') {
+                downloadHexBtn.textContent = 'Run from RAM';
+                // Grayed out if disconnected, no assembly, or running from RAM
+                downloadHexBtn.disabled = !isConnected || !hasAssembledData || isRunningFromRAM;
+                downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
+            } else {
+                downloadHexBtn.textContent = `Program Slot ${selectedProgram}`;
+                // Grayed out if disconnected or no assembly
+                downloadHexBtn.disabled = !isConnected || !hasAssembledData;
+                downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
+            }
+        }
+        
+        // Exit RAM button - present in RAM target, grayed out if not running from RAM
+        if (exitRamBtn) {
+            if (selectedProgram === 'ram') {
+                exitRamBtn.style.display = 'inline-block';
+                exitRamBtn.disabled = !isRunningFromRAM;
+                exitRamBtn.style.opacity = isRunningFromRAM ? '1' : '0.6';
+            } else {
+                exitRamBtn.style.display = 'none';
+            }
+        }
+        
+        // Connect/Disconnect button - present in HID mode, alternates between states
+        if (connectBtn) {
+            connectBtn.style.display = 'inline-block';
+            connectBtn.textContent = isConnected ? 'Disconnect' : 'Connect';
+            connectBtn.disabled = false;
+        }
+        
+    } else {
+        // File Mode buttons
+        if (downloadHexBtn) {
+            if (selectedProgram === 'ram') {
+                downloadHexBtn.textContent = 'Run from RAM';
+                // Grayed out if no directory selected, no assembled data, or running from RAM
+                downloadHexBtn.disabled = !isDirectorySelected || !hasAssembledData || isRunningFromRAM;
+                downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
+            } else {
+                downloadHexBtn.textContent = `Program Slot ${selectedProgram}`;
+                // Grayed out if no directory selected or no assembled data
+                downloadHexBtn.disabled = !isDirectorySelected || !hasAssembledData;
+                downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
+            }
+        }
+        
+        // Exit RAM button becomes Clear Hardware button for program slots in file mode
+        if (exitRamBtn) {
+            if (selectedProgram === 'ram') {
+                exitRamBtn.style.display = 'inline-block';
+                exitRamBtn.textContent = 'Exit Run from RAM';
+                exitRamBtn.disabled = !isRunningFromRAM;
+                exitRamBtn.style.opacity = isRunningFromRAM ? '1' : '0.6';
+            } else {
+                exitRamBtn.style.display = 'inline-block';
+                exitRamBtn.textContent = 'Clear Hardware';
+                exitRamBtn.disabled = !isDirectorySelected;
+                exitRamBtn.style.opacity = isDirectorySelected ? '1' : '0.6';
+            }
+        }
+        
+        // Hide connect button in file mode
+        if (connectBtn) {
+            connectBtn.style.display = 'none';
+        }
+    }
+    
+    // Clear Results button - present in both modes
+    if (clearResultsBtn) {
+        clearResultsBtn.disabled = false;
+        clearResultsBtn.style.opacity = '1';
+    }
 }
 
 async function selectOutputDirectory() {
@@ -501,6 +637,7 @@ async function selectOutputDirectory() {
             // Update button text when directory is selected
             updateDownloadButtonText();
             updateClearHardwareButton();
+            updateBuildResultsButtons(); // Update buttons after directory selection
             updateHardwareConnectionStatus();
             
             debugLog('Output directory selected successfully', 'success');
@@ -646,8 +783,8 @@ function revertToDefaultDirectory() {
     // Update button text when directory is cleared
     updateDownloadButtonText();
     updateClearHardwareButton();
+    updateBuildResultsButtons(); // Update buttons after directory cleared
     updateHardwareConnectionStatus();
-
 }
 
 // Helper function for fallback downloads
@@ -675,6 +812,69 @@ async function downloadHex() {
         debugLog('Download started', 'success');
     }
     
+    // In HID mode, handle differently
+    if (selectedHW === 'hid') {
+        const isConnected = FXCoreTargets.device && FXCoreTargets.device.opened;
+        if (!isConnected) {
+            debugLog('No HID device connected', 'errors');
+            return;
+        }
+        
+        // Call appropriate HID function based on program target
+        if (selectedProgram === 'ram') {
+            // Call run from RAM function and update state
+            if (typeof run_from_ram !== 'undefined') {
+                run_from_ram(0);
+                isRunningFromRAM = true; // Set state
+                updateBuildResultsButtons(); // Update button states
+            } else {
+                debugLog('Run from RAM function not available', 'errors');
+            }
+        } else {
+            // Call program slot function
+            if (typeof run_from_ram !== 'undefined') {
+                run_from_ram(1);
+            } else {
+                debugLog('Program slot function not available', 'errors');
+            }
+        }
+        return;
+    }
+    
+    // File mode logic
+    const isDirectorySelected = outputDirectoryHandle !== null;
+    
+    if (isDirectorySelected) {
+        if (selectedProgram === 'ram') {
+            // Save to directory as hex file for RAM target
+            let filename = 'output.hex';
+            
+            try {
+                const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+                    create: true
+                });
+                const writable = await fileHandle.createWritable();
+                await writable.write(hex);
+                await writable.close();
+                document.getElementById('messages').innerHTML = '';
+                
+                // Set running from RAM state in file mode
+                isRunningFromRAM = true;
+                updateBuildResultsButtons(); // Update button states
+                
+                debugLog(`File saved as ${filename} in selected directory`, 'success');
+                return;
+            } catch (err) {
+                debugLog('Error saving to directory: ' + err.message, 'errors');
+            }
+        } else {
+            // Clear hardware when program slot selected in file mode
+            await clearHardware();
+            return;
+        }
+    }
+    
+    // No directory selected - fallback to file download
     let filename;
     
     // Determine filename based on settings
@@ -687,68 +887,178 @@ async function downloadHex() {
         filename = `${hexValue}.hex`;
     }
     
-    // Priority 1: Download to selected directory (programmer)
-    if (outputDirectoryHandle && 'showDirectoryPicker' in window) {
-        try {
-            const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
-                create: true
-            });
-            const writable = await fileHandle.createWritable();
-            await writable.write(hex);
-            await writable.close();
-            document.getElementById('messages').innerHTML = '';
-            debugLog(`File saved as ${filename} in selected directory`, 'success');
-            return;
-        } catch (err) {
-            debugLog('Error saving to directory: ' + err.message, 'errors');
-            // Continue to fallback
-        }
-    }
-    
-    // Priority 2: Fallback to regular browser download
+    // Fallback to regular browser download
     downloadFile(filename, hex, 'text/plain');
     debugLog(`File downloaded as ${filename} to default downloads folder`, 'success');
 }
 
-// Download C header file
-async function downloadCHeader() {
-    // Check if we have assembled C header data
-    const headerData = window.assembledCHeader || (typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.assembledCHeader : null);
+// Download plain HEX file (always available when assembly data exists)
+async function downloadPlainHex() {
+    const hex = document.getElementById('output').value;
     
-    if (!headerData) {
-        debugLog(`No C header data available - please assemble first`, `errors`);
+    // Check if hex content exists
+    if (!hex || hex.trim() === '') {
+        debugLog('No hex data to download', 'errors');
         return;
     }
 
-    const filename = await showInputDialog(
-        'Save C Header File',
-        'Enter filename:',
-        'Enter filename (e.g., my_program.h)',
-        'fxcore_program.h'
-    );
-
-    if (!filename) return; // User cancelled
-
-    try {
-        // Get the base name and replace the placeholder
-        const baseName = filename.replace(/\.[^/.]+$/, ""); // Remove extension
-        const finalHeader = headerData.replace(/program_name/g, baseName);
-
-        // Create and download file
-        const blob = new Blob([finalHeader], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        debugLog(`C header file ${filename} downloaded successfully`, 'success');
-    } catch (error) {
-        debugLog(`Error downloading C header: ${error.message}`, 'errors');
+    if (!hasEditorContent()) {
+        await showConfirmDialog('Download HEX', 'There is no content to download.');
+        return false;
     }
+    
+    debugLog('Download started', 'success');
+    
+    let defaultFilename;
+    
+    // Determine filename based on settings
+    if (selectedProgram === 'ram') {
+        defaultFilename = 'output.hex';
+    } else {
+        // Convert program number (1-16) to hex filename (0-F.hex)
+        const programNum = parseInt(selectedProgram);
+        const hexValue = (programNum - 1).toString(16).toUpperCase();
+        defaultFilename = `${hexValue}.hex`;
+    }
+    
+    // Try to use File System Access API first
+    if ('showSaveFilePicker' in window) {
+        try {
+            const fileHandle = await window.showSaveFilePicker({
+                suggestedName: defaultFilename,
+                types: [{
+                    description: 'Intel HEX files',
+                    accept: {
+                        'application/octet-stream': ['.hex']
+                    }
+                }]
+            });
+            
+            const writable = await fileHandle.createWritable();
+            await writable.write(hex);
+            await writable.close();
+            
+            debugLog('HEX file saved: ' + fileHandle.name, 'success');
+            return true;
+            
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                return false; // User cancelled
+            } else {
+                debugLog('Error saving with file picker: ' + err.message, 'errors');
+                // Fall back to blob download
+            }
+        }
+    }
+    
+    // Fallback for browsers that don't support File System Access API
+    const browserSupported = await showConfirmDialog(
+        'Download HEX File', 
+        'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+    );
+    
+    if (!browserSupported) return false;
+    
+    // Always download as file (no hardware interaction)
+    downloadFile(defaultFilename, hex, 'application/octet-stream');
+    debugLog(`File downloaded as ${defaultFilename} to default downloads folder`, 'success');
+    return true;
+}
+
+// Update plain HEX download button state
+function updatePlainHexButton() {
+    const downloadPlainHexBtn = document.getElementById('downloadPlainHexBtn');
+    const downloadCHeaderBtn = document.getElementById('downloadCHeaderBtn');
+    
+    const hasAssembledData = assembledData && assembledData.trim() !== '';
+    
+    if (downloadPlainHexBtn) {
+        downloadPlainHexBtn.disabled = !hasAssembledData;
+        downloadPlainHexBtn.style.opacity = hasAssembledData ? '1' : '0.6';
+    }
+    
+    if (downloadCHeaderBtn) {
+        downloadCHeaderBtn.disabled = !hasAssembledData;
+        downloadCHeaderBtn.style.opacity = hasAssembledData ? '1' : '0.6';
+    }
+}
+
+// Download C header file
+async function downloadCHeader() {
+   // Check if we have assembled C header data
+   const headerData = window.assembledCHeader || (typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.assembledCHeader : null);
+   
+   if (!headerData) {
+       debugLog(`No C header data available - please assemble first`, `errors`);
+       return false;
+   }
+
+   // Try to use File System Access API first
+   if ('showSaveFilePicker' in window) {
+       try {
+           const fileHandle = await window.showSaveFilePicker({
+               suggestedName: 'fxcore_program.h',
+               types: [{
+                   description: 'C Header files',
+                   accept: {
+                       'text/plain': ['.h']
+                   }
+               }]
+           });
+           
+           // Get the base name and replace the placeholder
+           const baseName = fileHandle.name.replace(/\.[^/.]+$/, ""); // Remove extension
+           const finalHeader = headerData.replace(/program_name/g, baseName);
+           
+           const writable = await fileHandle.createWritable();
+           await writable.write(finalHeader);
+           await writable.close();
+           
+           debugLog('C header file saved: ' + fileHandle.name, 'success');
+           return true;
+           
+       } catch (err) {
+           if (err.name === 'AbortError') {
+               return false; // User cancelled
+           } else {
+               debugLog('Error saving with file picker: ' + err.message, 'errors');
+               // Fall back to input dialog
+           }
+       }
+   }
+
+   // Fallback: use input dialog for filename
+   const filename = await showInputDialog(
+       'Save C Header File',
+       'Enter filename:',
+       'Enter filename (e.g., my_program.h)',
+       'fxcore_program.h'
+   );
+
+   if (!filename) return false; // User cancelled
+
+   try {
+       // Get the base name and replace the placeholder
+       const baseName = filename.replace(/\.[^/.]+$/, ""); // Remove extension
+       const finalHeader = headerData.replace(/program_name/g, baseName);
+
+       // Fallback to blob download
+       const blob = new Blob([finalHeader], { type: 'text/plain' });
+       const url = URL.createObjectURL(blob);
+       const a = document.createElement('a');
+       a.href = url;
+       a.download = filename;
+       document.body.appendChild(a);
+       a.click();
+       document.body.removeChild(a);
+       URL.revokeObjectURL(url);
+
+       debugLog(`C header file ${filename} downloaded successfully`, 'success');
+       return true;
+   } catch (error) {
+       debugLog(`Error downloading C header: ${error.message}`, 'errors');
+       return false;
+   }
 }
 
 function generateCHeaderFromHex(hexData) {
@@ -869,6 +1179,55 @@ function generateCArrays(baseName, mregData, cregData, sfrData, programData) {
     return header;
 }
 
+// HID mode functions
+async function toggleConnection() {
+    const isConnected = FXCoreTargets.device && FXCoreTargets.device.opened;
+    
+    if (isConnected) {
+        // Disconnect - call the original disconnect function
+        await disconnectDevice();
+        isRunningFromRAM = false; // Reset state on disconnect
+    } else {
+        // Connect - call the original connect function  
+        await connectDevice();
+    }
+    
+    // Update our buttons after connection change
+    updateBuildResultsButtons();
+    updateHardwareConnectionStatus();
+}
+
+// Exit run from RAM function
+async function exitRunFromRam() {
+    if (selectedHW === 'hid') {
+        const isConnected = FXCoreTargets.device && FXCoreTargets.device.opened;
+        if (!isConnected) {
+            debugLog('No HID device connected', 'errors');
+            return;
+        }
+        
+        if (typeof exit_rfr !== 'undefined') {
+            exit_rfr();
+            isRunningFromRAM = false; // Reset state
+            updateBuildResultsButtons(); // Update button states
+        } else {
+            debugLog('Exit run from RAM function not available', 'errors');
+        }
+    } else {
+        // File mode behavior depends on program target
+        if (selectedProgram === 'ram') {
+            // For RAM target, this acts as Exit Run from RAM
+            isRunningFromRAM = false; // Reset state
+            await clearHardware(); // also clear hardwar
+            updateBuildResultsButtons(); // Update button states
+            debugLog('Exited run from RAM mode', 'success');
+        } else {
+            // For program slots, this acts as Clear Hardware
+            await clearHardware();
+        }
+    }
+}
+
 async function clearHardware() {
     // Check if directory is selected, if not do nothing
     if (!outputDirectoryHandle || !('showDirectoryPicker' in window)) {
@@ -980,7 +1339,6 @@ function toggleDarkMode() {
     // Toggle body class for page theme
     document.body.classList.toggle('dark-mode', darkModeEnabled);
 }
-
 
 function toggleDebugPreset() {
     const debugToggle = document.getElementById('debugToggle');
@@ -1137,9 +1495,16 @@ async function handleFileInputChange() {
             outputElement.value = '';
         }
         document.getElementById('messages').innerHTML = '';
-        document.getElementById('downloadHexBtn').disabled = true;
-        document.getElementById('downloadHeaderBtn').disabled = true;
         assembledData = null;
+        
+        // Clear C header data
+        if (typeof FXCoreAssembler !== 'undefined') {
+            FXCoreAssembler.assembledCHeader = null;
+        }
+        window.assembledCHeader = null;
+        
+        updateBuildResultsButtons(); // Update buttons after clearing assembly
+        updatePlainHexButton(); // Update the plain HEX download button
     };
     reader.readAsText(file);
     debugLog('File loaded: ' + file.name, 'success');
@@ -1158,11 +1523,15 @@ function cycleHWMode() {
         document.getElementById('FileModeDiv').style.display = 'block';
         document.getElementById('HidModeDiv').style.display = 'none';
     }
+    
+    // Reset running state when switching modes
+    isRunningFromRAM = false;
+    
     updateHardwareConnectionStatus();
+    updateBuildResultsButtons(); // Update buttons when mode changes
 }
 
 // update hardware connection on main page
-
 function updateHardwareConnectionStatus() {
     const statusElement = document.getElementById('hardwareConnectionStatus');
     if (!statusElement) return;
@@ -1171,14 +1540,29 @@ function updateHardwareConnectionStatus() {
     let statusColor = '#666';
 
     // Check file mode connection (output directory)
-    if (selectedHW === 'file' && outputDirectoryHandle) {
-        statusText = 'File connected';
-        statusColor = '#28a745'; // Green
+    if (selectedHW === 'file') {
+        if (outputDirectoryHandle) {
+            const serialConnected = document.getElementById('serialPortDisplay').textContent.includes('Connected');
+            const targetText = selectedProgram === 'ram' ? 'Run from RAM' : `Program Slot ${selectedProgram}`;
+            statusText = `File: ${outputDirectoryHandle.name}${serialConnected ? ', Serial connected' : ''}; Target: ${targetText}`;
+            statusColor = '#28a745'; // Green
+        } else {
+            const targetText = selectedProgram === 'ram' ? 'Run from RAM' : `Program Slot ${selectedProgram}`;
+            statusText = `File: No directory; Target: ${targetText}`;
+        }
     }
     // Check HID mode connection
-    else if (selectedHW === 'hid' && FXCoreTargets.device && FXCoreTargets.device.opened) {
-        statusText = 'HID connected';
-        statusColor = '#28a745'; // Green
+    else if (selectedHW === 'hid') {
+        const isConnected = FXCoreTargets.device && FXCoreTargets.device.opened;
+        const fxcoreAddr = document.getElementById('FXcoreAddr').value || '0x30';
+        const targetText = selectedProgram === 'ram' ? 'Run from RAM' : `Program Slot ${selectedProgram}`;
+        
+        if (isConnected) {
+            statusText = `HID: Connected, Addr: ${fxcoreAddr}; Target: ${targetText}`;
+            statusColor = '#28a745'; // Green
+        } else {
+            statusText = `HID: Disconnected, Addr: ${fxcoreAddr}; Target: ${targetText}`;
+        }
     }
 
     statusElement.textContent = statusText;
