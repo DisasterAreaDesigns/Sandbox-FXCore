@@ -1184,15 +1184,18 @@ async function toggleConnection() {
     const isConnected = FXCoreTargets.device && FXCoreTargets.device.opened;
     
     if (isConnected) {
-        // Disconnect - call the original disconnect function
-        await disconnectDevice();
-        isRunningFromRAM = false; // Reset state on disconnect
+        // Disconnect - call the function from FXCoreFunctions.js
+        if (typeof disconnectDevice === 'function') {
+            await disconnectDevice();
+        }
+        isRunningFromRAM = false;
     } else {
-        // Connect - call the original connect function  
-        await connectDevice();
+        // Connect - call the function from FXCoreFunctions.js  
+        if (typeof connectDevice === 'function') {
+            await connectDevice();
+        }
     }
     
-    // Update our buttons after connection change
     updateBuildResultsButtons();
     updateHardwareConnectionStatus();
 }

@@ -223,11 +223,8 @@ async function exit_rfr() {
         return false;
     }
 
-<<<<<<< Updated upstream
     timeout = await FT260Wrapper.sleep(100);
-=======
-    let timeout = await FT260Wrapper.sleep(100);
->>>>>>> Stashed changes
+
 
     // document.getElementById("FXCoreRFRButton").disabled = false;
     // document.getElementById("FXCoreExitRFRButton").disabled = true;
