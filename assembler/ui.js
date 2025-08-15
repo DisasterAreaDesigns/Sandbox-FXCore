@@ -521,7 +521,7 @@ function updateDownloadButtonText() {
 
 // Function to cycle through program targets
 function cycleProgramTarget() {
-    const targets = ['ram', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
+    const targets = ['ram', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
     const currentIndex = targets.indexOf(selectedProgram);
     const nextIndex = (currentIndex + 1) % targets.length;
     selectedProgram = targets[nextIndex];
@@ -868,9 +868,25 @@ async function downloadHex() {
                 debugLog('Error saving to directory: ' + err.message, 'errors');
             }
         } else {
-            // Clear hardware when program slot selected in file mode
-            await clearHardware();
-            return;
+            // Save to directory as program slot file (0-F.hex)
+            const programNum = parseInt(selectedProgram);
+            const hexValue = (programNum).toString(16).toUpperCase(); // Convert 1-16 to 0-F
+            const filename = `${hexValue}.hex`;
+            
+            try {
+                const fileHandle = await outputDirectoryHandle.getFileHandle(filename, {
+                    create: true
+                });
+                const writable = await fileHandle.createWritable();
+                await writable.write(hex);
+                await writable.close();
+                document.getElementById('messages').innerHTML = '';
+                
+                debugLog(`File saved as ${filename} in selected directory`, 'success');
+                return;
+            } catch (err) {
+                debugLog('Error saving to directory: ' + err.message, 'errors');
+            }
         }
     }
     
@@ -883,7 +899,7 @@ async function downloadHex() {
     } else {
         // Convert program number (1-16) to hex filename (0-F.hex)
         const programNum = parseInt(selectedProgram);
-        const hexValue = (programNum - 1).toString(16).toUpperCase();
+        const hexValue = (programNum - 1).toString(16).toUpperCase(); // Convert 1-16 to 0-F
         filename = `${hexValue}.hex`;
     }
     
