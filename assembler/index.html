@@ -71,16 +71,16 @@
 
                 <div class="options">
                     <label>
-                        <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeight()"> Large editor window
+                        <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()"> Large editor window
                     </label>
                     <label>
-                        <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()"> Enable dark mode
+                        <input type="checkbox" id="darkModeToggle" onchange="toggleDarkModeWithSave()"> Enable dark mode
                     </label>
                     <label>
-                        <input type="checkbox" id="minimapToggle" onchange="toggleMinimap()"> Show editor mini-map
+                        <input type="checkbox" id="minimapToggle" onchange="toggleMinimapWithSave()"> Show editor mini-map
                     </label>
                     <label>
-                        <input type="checkbox" id="debugToggle" onchange="toggleDebugPreset()"> Show full build results
+                        <input type="checkbox" id="debugToggle" onchange="toggleDebugPresetWithSave()"> Show full build results
                     </label>
                 </div>
             </div>
@@ -108,7 +108,7 @@
             <div id="hardwareOptionsContent" class="hardware-options-content collapsed">
                 <div class="output-controls">
                     <div>
-                        <button onclick="cycleHWMode()" id="HWModeBtn">Select Hardware Mode</button>
+                        <button onclick="cycleHWModeWithSave()" id="HWModeBtn">Select Hardware Mode</button>
                         <span id="HWModeDisplay" style="margin-left: 10px; color: #666; font-style: italic;">HID mode</span>
                     </div><br />
                     <div id="FileModeDiv" style="display: none;">
@@ -121,7 +121,7 @@
                             <span id="serialPortDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No port selected</span>
                         </div><br />
                         <div>
-                            <button onclick="cycleProgramTarget()" id="programTargetBtn">Select Program Target</button>
+                            <button onclick="cycleProgramTargetWithSave()" id="programTargetBtn">Select Program Target</button>
                             <span id="programTargetDisplay" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
                         </div>
                     </div>
@@ -131,7 +131,7 @@
                             <input type="text" id="FXcoreAddr" size="8" value="0x30" style="margin-left: 10px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;">
                         </div><br />
                         <div>
-                            <button onclick="cycleProgramTarget()" id="programTargetBtnHid">Select Program Target</button>
+                            <button onclick="cycleProgramTargetWithSave()" id="programTargetBtnHid">Select Program Target</button>
                             <span id="programTargetDisplayHid" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
                         </div>
                     </div>
@@ -285,6 +285,7 @@
             <script src="FXCoreProgrammer.js"></script>
             <script src="FXCoreTargets.js"></script>
             <script src="FXCoreFunctions.js"></script>
+            <script src="user-preferences.js"></script>
 
             <script>
                 // Global variables and functions to integrate FXCore with Monaco editor
@@ -415,6 +416,8 @@
                             console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
                         };
                     }
+
+                    initializePreferences();
 
                     console.log('FXCore assembler libraries loaded');
                 });
