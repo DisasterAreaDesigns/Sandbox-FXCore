@@ -17,20 +17,26 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
         <script src="monaco.js"></script>
 
-    <div class="header-bar">
-        <div class="header-content">
-            <h1>Sandbox FXCore Editor</h1>
-            <span class="build">build 13</span>
+        <div class="header-bar">
+            <div class="header-content">
+                <h1>Sandbox FXCore Editor</h1>
+            </div>
+            <div class="icon-container">
+                <a href="https://sandboxpedal.com" target="_blank" rel="noopener noreferrer">
+                    <svg class="app-icon" width="64" height="64" viewBox="0 0 64 64">
+                        <rect width="64" height="64"  rx="4" ry="4" fill="currentColor"/>
+                        <text x="32" y="40"text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
+                    </svg>
+                </a>
+                <span class="build">build 14</span>
+            </div>
         </div>
-        <img src="icon.png" alt="App Icon" class="app-icon">
-    </div>
-
         <h2>Source Input</h2>
         <div class="file-input">
             <input type="file" id="fileInput" accept=".fxc,.fxo,.asm,.txt" style="display: none;" onchange="handleFileInputChange()">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <button onclick="loadFile()">Load File...</button>
-                
+
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span>Or select an example program:</span>
                     <button onclick="loadExample('fxcore_passthrough')">Pass-through</button>
@@ -62,7 +68,7 @@
                         <span class="shortcut">Editor accepts ASCII text only</span>
                     </label>
                 </div>
-                
+
                 <div class="options">
                     <label>
                         <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeight()"> Large editor window
@@ -93,7 +99,7 @@
         <h2>Build Results</h2>
         <div id="messages" style="display: block; min-height: 100px;"></div>
 
-<!-- Hardware Options Section -->
+        <!-- Hardware Options Section -->
         <div class="hardware-options-section">
             <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
                 <span id="hardwareOptionsToggle">▶</span> Hardware Options
@@ -128,39 +134,11 @@
                             <button onclick="cycleProgramTarget()" id="programTargetBtnHid">Select Program Target</button>
                             <span id="programTargetDisplayHid" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
                         </div>
-<!--                         <div style="display: none;">
-                            <button id="FXCoreConnectButton" onclick="toggleConnection()">Connect To HID device</button>
-                            <span id="HidDeviceDisplay" style="margin-left: 10px; color: #666; font-style: italic;">Select HID Device</span>
-                        </div><br />
-                        <div style="display: none;">
-                            <button id="FXCoreRFRButton" disabled onclick="run_from_ram(0)">Run from RAM</button>&nbsp;&nbsp;&nbsp;&nbsp;<button id="FXCoreExitRFRButton" disabled onclick="exit_rfr()">Exit run from RAM</button><br />
-                        </div><br />
-                        <div style="display: none;">
-                            <button id="FXCorePrgButton" disabled onclick="run_from_ram(1)">Program location</button>
-                            <select id="FXcorePrgNum">
-                                <option value="0" selected >0</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                                <option value="6">6</option>
-                                <option value="7">7</option>
-                                <option value="8">8</option>
-                                <option value="9">9</option>
-                                <option value="10">10</option>
-                                <option value="11">11</option>
-                                <option value="12">12</option>
-                                <option value="13">13</option>
-                                <option value="14">14</option>
-                                <option value="15">15</option>
-                            </select>
-                        </div><br /> -->
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <div class="download-buttons">
             <!-- Dynamic buttons that change based on mode -->
             <button onclick="downloadHex()" id="downloadHexBtn" disabled>Run from RAM</button>
@@ -172,7 +150,7 @@
             </div>
         </div>
 
-        
+
 
         <div class="output-text-section">
             <h3 onclick="toggleOutput()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
@@ -189,261 +167,259 @@
             </h3>
             <div id="instructionsContent" class="instructions-content collapsed">
                 <div class="instructions-text">
-                    <h4>Getting Started</h4>
-                    <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions.  Generated machine code may be saved locally for later use, or sent to a SandboxFX hardware target to hear the results.</p>
-                    <ul>
-                        <li><i>Enter FXCore source code into the editor area, or select a file or example.  Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
-                        <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
-                        <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with SandboxFX hardware</i></li>
-                        <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
-                    </ul>
-
-                    <h4>Connecting to Hardware</h4>
-                    <p>Connect your SandboxFX pedal to your computer using a suitable USB cable.  A new removable drive labeled <b>CIRCUITPY</b> should appear.</p>
-                    <ul>
-                        <li>Open the <b>Hardware Options</b> section to <b>Select Output Directory</b> button to specify the path to your Sandbox (typically /CIRCUITPY)./i></li>
-                        <li><i>Press the <b>Download to Programmer</b> button to save the result to your local machine or hardware device.</i></li>
-                        <li><i>Use the <b>Run from RAM</b> for developing your algorithms</i></li>
-                        <li><i>Tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write</i></li>
-                        <li><i>Press the <b>Clear Hardware</b> button to send a clear message to the Sandbox hardware unit and return to normal operation.  Note that this will not erase any programs burned to the flash EEPROM of the FXCore, it only clears the state in <b>Run from RAM mode.</b></i></li>
-                    </ul>
-
-                    <h4>Troubleshooting</h4>
-                    <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting.  Scroll up to the top to see previous messages</p>
-                    <ul>
-                        <li><i>Error information not helpful</i> - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
-                        <li><i>File transfer problems</i> - ensure proper directory permissions</li>
-                        <li><i>Assembly errors</i> - check syntax and register usage</li>
-                        <li><i>Connection issues</i> - verify USB cable and folder selection</li>
-                        <li><i>Hardware update / flash errors</i> - use <b>Hardware Options - Select Serial Port</b> to view debug information from the update process</li>
-                    </ul>
-
-                    <h4>What do these Options do?</h4>
-                    <p>These are some settings that change various editor and hardware settings</p>
-                    <ul>
-                        <h3>Editor Options</h3>
-                        <li>Large editor window:  <i>Expands editor text area to show more instructions</i></li>
-                        <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
-                        <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
-                        <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
-                    </ul>
-                    <ul>
-                        <h3>Hardware Options</h3>
-                        <li>Select Output Directory:  <i>Specify the folder location of your SandboxFX hardware (typically /CIRCUITPY)</i></li>
-                        <li>Select Serial Port: <i>Open SandboxFX serial port to allow hardware debugging information</i></li>
-                        <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on SandboxFX hardware</i></li>
-                    </ul>
+                    <div>
+                        <h4>Getting Started</h4>
+                        <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions. Generated machine code may be saved locally for later use, or sent to a <b>SandboxFX</b> hardware target to hear the results.</p>
+                        <ul>
+                            <li><i>Enter FXCore source code into the editor area, or select a file or example. Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
+                            <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
+                            <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with <b>SandboxFX</b> hardware</i></li>
+                            <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
+                        </ul>
+                        <h4>Connecting to Hardware</h4>
+                        <p><i>Connect your <b>SandboxFX</b> pedal to your computer using a suitable USB cable. A new removable drive labeled <b>SANDBOX-FX</b> should appear.</i></p>
+                        <ul>
+                            <li>Press the <b>Connect</b> button, then select the <b>SandboxFX</b> device from the list. You may need to allow this web app to access USB devices.</li>
+                            <li><i>Press the <b>Run from RAM</b> button to audition your assembled program on your <b>SandboxFX</b></i></li>
+                            <li><i>Press <b>Exit Run from RAM</b> to return to normal operation when finished</i></li>
+                            <li><i>Open the <b>Hardware Options</b> panel and tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write. This will save the assembled code to the slot and will persist even if the power is removed.</i></li>
+                        </ul>
+                        <h4>Troubleshooting</h4>
+                        <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting. Scroll up to the top to see previous messages</p>
+                        <ul>
+                            <li>Error information not helpful</i> - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
+                            <li>File transfer problems - <i>ensure proper directory permissions</i></li>
+                            <li>Assembly errors - <i>check syntax and register usage</i></li>
+                            <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
+                        </ul>
+                        <h4>What do these Options do?</h4>
+                        <p>These are some settings that change various editor and hardware settings</p>
+                        <ul>
+                            <h3>Editor Options</h3>
+                            <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
+                            <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
+                            <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
+                            <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
+                        </ul>
+                        <ul>
+                            <h3>Hardware Options</h3>
+                            <li>Select Hardware Mode: <i>Toggles communication mode between USB-HID and USB Disk Mode</i></li>
+                            <li>File - Select Output Directory: <i>Specify the folder location of your <b>SandboxFX</b> hardware (typically /SANDBOX-FX)</i></li>
+                            <li>File - Select Serial Port: <i>Open <b>SandboxFX</b> serial port to allow hardware debugging information</i></li>
+                            <li>HID - FXCore address: <i>Set I2C address of FXCore IC, defaults to 0x30</i></li>
+                            <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on <b>SandboxFX</b> hardware</i></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Modal dialogs for user prompts -->
-        <div id="confirmModal" class="modal">
-            <div class="modal-content">
-                <h3 id="confirmTitle">Confirm Action</h3>
-                <p id="confirmMessage">Are you sure you want to proceed?</p>
-                <div class="modal-buttons">
-                    <button class="btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
-                    <button class="btn-primary" id="confirmOkBtn">OK</button>
+            <!-- Modal dialogs for user prompts -->
+            <div id="confirmModal" class="modal">
+                <div class="modal-content">
+                    <h3 id="confirmTitle">Confirm Action</h3>
+                    <p id="confirmMessage">Are you sure you want to proceed?</p>
+                    <div class="modal-buttons">
+                        <button class="btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
+                        <button class="btn-primary" id="confirmOkBtn">OK</button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="threeChoiceModal" class="modal">
-            <div class="modal-content">
-                <h3 id="threeChoiceTitle">Unsaved Changes</h3>
-                <p id="threeChoiceMessage">You have unsaved changes. What would you like to do?</p>
-                <div class="modal-buttons">
-                    <button class="btn-secondary" id="threeChoiceCancelBtn">Cancel</button>
-                    <button class="btn-danger" id="threeChoiceDiscardBtn">Discard</button>
-                    <button class="btn-primary" id="threeChoiceSaveBtn">Save</button>
+            <div id="threeChoiceModal" class="modal">
+                <div class="modal-content">
+                    <h3 id="threeChoiceTitle">Unsaved Changes</h3>
+                    <p id="threeChoiceMessage">You have unsaved changes. What would you like to do?</p>
+                    <div class="modal-buttons">
+                        <button class="btn-secondary" id="threeChoiceCancelBtn">Cancel</button>
+                        <button class="btn-danger" id="threeChoiceDiscardBtn">Discard</button>
+                        <button class="btn-primary" id="threeChoiceSaveBtn">Save</button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="inputModal" class="modal">
-            <div class="modal-content">
-                <h3 id="inputTitle">Input Required</h3>
-                <label for="modalInput" id="inputLabel">Please enter a value:</label>
-                <input type="text" id="modalInput" placeholder="Enter value...">
-                <div class="modal-buttons">
-                    <button class="btn-secondary" onclick="closeModal('inputModal')">Cancel</button>
-                    <button class="btn-primary" id="inputOkBtn">OK</button>
+            <div id="inputModal" class="modal">
+                <div class="modal-content">
+                    <h3 id="inputTitle">Input Required</h3>
+                    <label for="modalInput" id="inputLabel">Please enter a value:</label>
+                    <input type="text" id="modalInput" placeholder="Enter value...">
+                    <div class="modal-buttons">
+                        <button class="btn-secondary" onclick="closeModal('inputModal')">Cancel</button>
+                        <button class="btn-primary" id="inputOkBtn">OK</button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 11px; color: #666; line-height: 1.4;">
-            <p><strong>MIT License</strong></p>
-            <p>FXCore Sandbox Editor by Disaster Area Designs, <a href="https://github.com/DisasterAreaDesigns/Sandbox-FXCore" style="color: #666;">https://github.com/DisasterAreaDesigns/Sandbox-FXCore</a><br>
-                Copyright (c) 2025-present by Disaster Area Designs LLC</p>
-            <p>Uses portions of fxcoreasmlite by Experimental Noize, <a href="https://experimentalnoize.com" style="color: #666;">https://experimentalnoize.com</a><br>
-                Copyright (c) 2019-present Experimental Noize</p>
-            <p>Uses monaco-editor by Microsoft, <a href="https://github.com/microsoft/monaco-editor" style="color: #666;">https://github.com/microsoft/monaco-editor</a><br>
-                Copyright (c) 2016-present Microsoft Corporation</p>
-            <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-                IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-                FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-                AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-                LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-                OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-                SOFTWARE.</p>
-        </footer>
+            <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 11px; color: #666; line-height: 1.4;">
+                <p><strong>MIT License</strong></p>
+                <p>FXCore Sandbox Editor by Disaster Area Designs, <a href="https://github.com/DisasterAreaDesigns/Sandbox-FXCore" style="color: #666;">https://github.com/DisasterAreaDesigns/Sandbox-FXCore</a><br>
+                    Copyright (c) 2025-present by Disaster Area Designs LLC</p>
+                <p>Uses portions of fxcoreasmlite by Experimental Noize, <a href="https://experimentalnoize.com" style="color: #666;">https://experimentalnoize.com</a><br>
+                    Copyright (c) 2019-present Experimental Noize</p>
+                <p>Uses monaco-editor by Microsoft, <a href="https://github.com/microsoft/monaco-editor" style="color: #666;">https://github.com/microsoft/monaco-editor</a><br>
+                    Copyright (c) 2016-present Microsoft Corporation</p>
+                <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+                    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+                    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+                    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+                    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+                    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+                    SOFTWARE.</p>
+            </footer>
 
-        <!-- FXCore Assembler Scripts -->
-        <script src="ui.js"></script>
-        <script src="examples.js"></script>
-        <script src="debug_config.js"></script>
-        <script src="common.js"></script>
-        <script src="reserved_words.js"></script>
-        <script src="registers.js"></script>
-        <script src="mnemonic.js"></script>
-        <script src="shunting_yard.js"></script>
-        <script src="line_parse.js"></script>
-        <script src="intel_hex.js"></script>
-        <script src="symbol_table.js"></script>
-        <script src="fxcore_ic.js"></script>
-        <script src="assembler.js"></script>
-        <script src="program.js"></script>
-        <script src="FT260_wrap.js"></script>
-        <script src="FXCoreProgrammer.js"></script>
-        <script src="FXCoreTargets.js"></script>
-        <script src="FXCoreFunctions.js"></script>
+            <!-- FXCore Assembler Scripts -->
+            <script src="ui.js"></script>
+            <script src="examples.js"></script>
+            <script src="debug_config.js"></script>
+            <script src="common.js"></script>
+            <script src="reserved_words.js"></script>
+            <script src="registers.js"></script>
+            <script src="mnemonic.js"></script>
+            <script src="shunting_yard.js"></script>
+            <script src="line_parse.js"></script>
+            <script src="intel_hex.js"></script>
+            <script src="symbol_table.js"></script>
+            <script src="fxcore_ic.js"></script>
+            <script src="assembler.js"></script>
+            <script src="program.js"></script>
+            <script src="FT260_wrap.js"></script>
+            <script src="FXCoreProgrammer.js"></script>
+            <script src="FXCoreTargets.js"></script>
+            <script src="FXCoreFunctions.js"></script>
 
-        <script>
-        // Global variables and functions to integrate FXCore with Monaco editor
-        let assembledData = null;
+            <script>
+                // Global variables and functions to integrate FXCore with Monaco editor
+                let assembledData = null;
 
-        FXCoreTargets.FXCore_I2C = 0x30; // default FXCore device address, can be changed in above text input
-        
-        // watch for board connection
-        navigator.hid.addEventListener('connect', (event) => {
-            console.log(`HID device connected`);
-            updateBuildResultsButtons();
-            updateHardwareConnectionStatus();
-        });
+                FXCoreTargets.FXCore_I2C = 0x30; // default FXCore device address, can be changed in above text input
 
-        // watch for board disconnection
-        navigator.hid.addEventListener('disconnect', (event) => {
-            const device = event.device;
-            if (device === FXCoreTargets.device) {
-                console.log(`FXCore device disconnected`);
-                FXCoreTargets.device = null;
-                // document.getElementById("FXCoreRFRButton").disabled = true;
-                // document.getElementById("FXCoreExitRFRButton").disabled = true;
-                // document.getElementById("FXCorePrgButton").disabled = true;
-                // document.getElementById("FXCoreConnectButton").disabled = false;
-                // document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
-                isRunningFromRAM = false; // Reset state on disconnect
-                updateHardwareConnectionStatus(); // update text on main page
-                updateBuildResultsButtons(); // update main buttons
-            }
-        });
+                // watch for board connection
+                navigator.hid.addEventListener('connect', (event) => {
+                    console.log(`HID device connected`);
+                    updateBuildResultsButtons();
+                    updateHardwareConnectionStatus();
+                });
 
-        // // when user changes FXCore address update it
-        // document.getElementById('FXcoreAddr').addEventListener('change', function(event) {
-        //     FXCoreTargets.FXCore_I2C = document.getElementById('FXcoreAddr').value;
-        //     updateHardwareConnectionStatus(); // Update status when address changes
-        // });
+                // watch for board disconnection
+                navigator.hid.addEventListener('disconnect', (event) => {
+                    const device = event.device;
+                    if (device === FXCoreTargets.device) {
+                        console.log(`FXCore device disconnected`);
+                        FXCoreTargets.device = null;
+                        // document.getElementById("FXCoreRFRButton").disabled = true;
+                        // document.getElementById("FXCoreExitRFRButton").disabled = true;
+                        // document.getElementById("FXCorePrgButton").disabled = true;
+                        // document.getElementById("FXCoreConnectButton").disabled = false;
+                        // document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
+                        isRunningFromRAM = false; // Reset state on disconnect
+                        updateHardwareConnectionStatus(); // update text on main page
+                        updateBuildResultsButtons(); // update main buttons
+                    }
+                });
 
-        // // when user changes program slot to program update it
-        // document.getElementById('FXcorePrgNum').addEventListener('change', function(event) {
-        //     FXCoreTargets.FXCore_Prg = document.getElementById('FXcorePrgNum').value;
-        // });
-        // FXCoreTargets.FXCore_Prg = 0; // default program slot
+                // // when user changes FXCore address update it
+                // document.getElementById('FXcoreAddr').addEventListener('change', function(event) {
+                //     FXCoreTargets.FXCore_I2C = document.getElementById('FXcoreAddr').value;
+                //     updateHardwareConnectionStatus(); // Update status when address changes
+                // });
 
-        // Sync both program target displays
-        function syncProgramTargetDisplays() {
-            const display1 = document.getElementById('programTargetDisplay');
-            const display2 = document.getElementById('programTargetDisplayHid');
-            const text = selectedProgram === 'ram' ? 'Run from RAM' : `Program ${selectedProgram}`;
-            
-            if (display1) display1.textContent = text;
-            if (display2) display2.textContent = text;
-        }
+                // // when user changes program slot to program update it
+                // document.getElementById('FXcorePrgNum').addEventListener('change', function(event) {
+                //     FXCoreTargets.FXCore_Prg = document.getElementById('FXcorePrgNum').value;
+                // });
+                // FXCoreTargets.FXCore_Prg = 0; // default program slot
 
-        // Override the cycleProgramTarget to sync both displays
-        const originalCycleProgramTarget = window.cycleProgramTarget;
-        window.cycleProgramTarget = function() {
-            originalCycleProgramTarget();
-            syncProgramTargetDisplays();
-        };
+                // Sync both program target displays
+                function syncProgramTargetDisplays() {
+                    const display1 = document.getElementById('programTargetDisplay');
+                    const display2 = document.getElementById('programTargetDisplayHid');
+                    const text = selectedProgram === 'ram' ? 'Run from RAM' : `Program ${selectedProgram}`;
 
-        // Toggle functions for new sections
-        function toggleEditorOptions() {
-            const editorOptionsContent = document.getElementById('editorOptionsContent');
-            const editorOptionsToggle = document.getElementById('editorOptionsToggle');
+                    if (display1) display1.textContent = text;
+                    if (display2) display2.textContent = text;
+                }
 
-            if (editorOptionsContent.classList.contains('collapsed')) {
-                editorOptionsContent.classList.remove('collapsed');
-                editorOptionsToggle.textContent = '▼';
-            } else {
-                editorOptionsContent.classList.add('collapsed');
-                editorOptionsToggle.textContent = '▶';
-            }
-        }
-
-        function toggleHardwareOptions() {
-            const hardwareOptionsContent = document.getElementById('hardwareOptionsContent');
-            const hardwareOptionsToggle = document.getElementById('hardwareOptionsToggle');
-
-            if (hardwareOptionsContent.classList.contains('collapsed')) {
-                hardwareOptionsContent.classList.remove('collapsed');
-                hardwareOptionsToggle.textContent = '▼';
-            } else {
-                hardwareOptionsContent.classList.add('collapsed');
-                hardwareOptionsToggle.textContent = '▶';
-            }
-        }
-
-        // Add listener for system dark mode changes
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-            const darkModeToggle = document.getElementById('darkModeToggle');
-            if (darkModeToggle && editor) {
-                darkModeToggle.checked = e.matches;
-                const theme = e.matches ? 'fxcoreDark' : 'fxcoreTheme';
-                monaco.editor.setTheme(theme);
-                document.body.classList.toggle('dark-mode', e.matches);
-            }
-        });
-
-        // Initialize the FXCore assembler when the page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            DEBUG.reset();
-            // DEBUG.setPreset('basic');
-            DEBUG.showConfig();
-
-            // Initialize with HID mode by default
-            selectedHW = 'hid';
-            document.getElementById('HWModeDisplay').textContent = 'HID mode';
-            document.getElementById('FileModeDiv').style.display = 'none';
-            document.getElementById('HidModeDiv').style.display = 'block';
-
-            updateDownloadButtonText();
-            updateProgramTargetDisplay();
-            updateClearHardwareButton();
-            updateBuildResultsButtons(); // Initialize button states
-            updatePlainHexButton(); // Initialize plain HEX button state
-            updateHardwareConnectionStatus();
-            initializeChangeDetection();
-            syncProgramTargetDisplays(); // Sync both displays on load
-
-            // Override FXCoreAssembler.logMessage to work with our DOM structure
-            if (typeof FXCoreAssembler !== 'undefined') {
-                FXCoreAssembler.logMessage = function(message, type = 'info') {
-                    const timestamp = new Date().toLocaleTimeString();
-                    const outputArea = document.getElementById('output');
-                    const messagesArea = document.getElementById('messages');
-
-                    // Log to console for debugging
-                    console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+                // Override the cycleProgramTarget to sync both displays
+                const originalCycleProgramTarget = window.cycleProgramTarget;
+                window.cycleProgramTarget = function() {
+                    originalCycleProgramTarget();
+                    syncProgramTargetDisplays();
                 };
-            }
 
-            console.log('FXCore assembler libraries loaded');
-        });
-        </script>
-    </div>
+                // Toggle functions for new sections
+                function toggleEditorOptions() {
+                    const editorOptionsContent = document.getElementById('editorOptionsContent');
+                    const editorOptionsToggle = document.getElementById('editorOptionsToggle');
+
+                    if (editorOptionsContent.classList.contains('collapsed')) {
+                        editorOptionsContent.classList.remove('collapsed');
+                        editorOptionsToggle.textContent = '▼';
+                    } else {
+                        editorOptionsContent.classList.add('collapsed');
+                        editorOptionsToggle.textContent = '▶';
+                    }
+                }
+
+                function toggleHardwareOptions() {
+                    const hardwareOptionsContent = document.getElementById('hardwareOptionsContent');
+                    const hardwareOptionsToggle = document.getElementById('hardwareOptionsToggle');
+
+                    if (hardwareOptionsContent.classList.contains('collapsed')) {
+                        hardwareOptionsContent.classList.remove('collapsed');
+                        hardwareOptionsToggle.textContent = '▼';
+                    } else {
+                        hardwareOptionsContent.classList.add('collapsed');
+                        hardwareOptionsToggle.textContent = '▶';
+                    }
+                }
+
+                // Add listener for system dark mode changes
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                    const darkModeToggle = document.getElementById('darkModeToggle');
+                    if (darkModeToggle && editor) {
+                        darkModeToggle.checked = e.matches;
+                        const theme = e.matches ? 'fxcoreDark' : 'fxcoreTheme';
+                        monaco.editor.setTheme(theme);
+                        document.body.classList.toggle('dark-mode', e.matches);
+                    }
+                });
+
+                // Initialize the FXCore assembler when the page loads
+                document.addEventListener('DOMContentLoaded', function() {
+                    DEBUG.reset();
+                    // DEBUG.setPreset('basic');
+                    DEBUG.showConfig();
+
+                    // Initialize with HID mode by default
+                    selectedHW = 'hid';
+                    document.getElementById('HWModeDisplay').textContent = 'HID mode';
+                    document.getElementById('FileModeDiv').style.display = 'none';
+                    document.getElementById('HidModeDiv').style.display = 'block';
+
+                    updateDownloadButtonText();
+                    updateProgramTargetDisplay();
+                    updateClearHardwareButton();
+                    updateBuildResultsButtons(); // Initialize button states
+                    updatePlainHexButton(); // Initialize plain HEX button state
+                    updateHardwareConnectionStatus();
+                    initializeChangeDetection();
+                    syncProgramTargetDisplays(); // Sync both displays on load
+
+                    // Override FXCoreAssembler.logMessage to work with our DOM structure
+                    if (typeof FXCoreAssembler !== 'undefined') {
+                        FXCoreAssembler.logMessage = function(message, type = 'info') {
+                            const timestamp = new Date().toLocaleTimeString();
+                            const outputArea = document.getElementById('output');
+                            const messagesArea = document.getElementById('messages');
+
+                            // Log to console for debugging
+                            console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+                        };
+                    }
+
+                    console.log('FXCore assembler libraries loaded');
+                });
+            </script>
+        </div>
 </body>
 
 </html>
