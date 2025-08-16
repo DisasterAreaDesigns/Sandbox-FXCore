@@ -1,8 +1,35 @@
 // User prompt functions, these are things that are on the main page like buttons
 let outputDirectoryHandle = null;
+let preferredStartDirectory = 'downloads';
+let projectDirectoryHandle = null;
 let modalResolve = null;
 let selectedProgram = 'ram'; // Default to RAM
 let selectedHW = 'hid'; // Changed to start in HID mode by default
+
+async function selectProjectDirectory() {
+    try {
+        if ('showDirectoryPicker' in window) {
+            // Show directory picker and get the handle
+            projectDirectoryHandle = await window.showDirectoryPicker();
+
+            document.getElementById('projectFolderLabel').textContent = `Selected: ${projectDirectoryHandle.name}`;
+            const projectFolderLabel = document.getElementById('projectFolderLabel');
+            projectFolderLabel.style.color = '#28a745'; // Green color for connected
+            
+            // Update the label with the folder name
+            // updateProjectFolderButton(projectDirectoryHandle);
+            
+            debugLog('Project directory selected successfully', 'success');
+            
+        } else {
+            debugLog('Directory selection not supported in this browser', 'errors');
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            debugLog('Error selecting project directory: ' + err.message, 'errors');
+        }
+    }
+}
 
 function showConfirmDialog(title, message) {
     return new Promise((resolve) => {
@@ -106,6 +133,33 @@ function hasEditorContent() {
     return value.length > 0 && value !== placeholderText;
 }
 
+// async function loadFile() {
+//     // Check for unsaved changes FIRST, before opening file picker
+//     if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
+//         const choice = await showThreeChoiceDialog(
+//             'Unsaved Changes',
+//             'You have unsaved changes in the editor. What would you like to do before loading a new file?'
+//         );
+
+//         if (choice === 'cancel') {
+//             return; // User cancelled - don't open file picker
+//         } else if (choice === 'save') {
+//             const saveResult = await saveSource();
+//             if (saveResult === false) {
+//                 return; // User cancelled the save dialog - don't open file picker
+//             }
+//         }
+//         // If choice === 'discard', proceed with opening file picker
+//     }
+
+//     // NOW open the file picker after handling unsaved changes
+//     const fileInput = document.getElementById('fileInput');
+//     if (fileInput) {
+//         fileInput.value = ''; // Clear any previous selection
+//         fileInput.click(); // Open the file picker
+//     }
+// }
+
 async function loadFile() {
     // Check for unsaved changes FIRST, before opening file picker
     if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
@@ -113,7 +167,6 @@ async function loadFile() {
             'Unsaved Changes',
             'You have unsaved changes in the editor. What would you like to do before loading a new file?'
         );
-
         if (choice === 'cancel') {
             return; // User cancelled - don't open file picker
         } else if (choice === 'save') {
@@ -124,13 +177,103 @@ async function loadFile() {
         }
         // If choice === 'discard', proceed with opening file picker
     }
-
-    // NOW open the file picker after handling unsaved changes
+    
     const fileInput = document.getElementById('fileInput');
-    if (fileInput) {
-        fileInput.value = ''; // Clear any previous selection
-        fileInput.click(); // Open the file picker
+
+    const options = {
+        types: [{
+            description: 'Assembly files',
+            accept: {
+                    'text/plain': ['.txt', '.fxc', '.fxo']
+            }
+        }]
+    };
+    
+    // Use project directory if available, otherwise use default preference
+    if (projectDirectoryHandle) {
+        options.startIn = projectDirectoryHandle;
+        debugLog(`Using project directory: ${projectDirectoryHandle.name}`, 'verbose');
+    } else {
+        options.startIn = preferredStartDirectory;
+        debugLog(`Using default start directory: ${preferredStartDirectory}`, 'verbose');
     }
+    
+    // Try File System Access API first if project directory is available
+    try {
+        const [fileHandle] = await window.showOpenFilePicker(options);
+        const file = await fileHandle.getFile();
+        const fileContent = await file.text();
+        
+        // Process the file content directly (don't simulate file input)
+        processFileContent(fileContent, file.name);
+        
+        debugLog('File loaded via File System Access API: ' + file.name, 'success');
+        return;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            return; // User cancelled
+        }
+        console.warn('File System Access failed, falling back to input:', error);
+    }
+    
+    // Fallback to traditional file input
+    fileInput.value = ''; // Clear any previous selection
+    fileInput.click(); // This will trigger handleFileInputChange when user selects a file
+}
+
+// Extract the file processing logic into a separate function
+function processFileContent(content, fileName) {
+    // Update editor content
+    if (editor && window.setEditorContent) {
+        window.setEditorContent(content, fileName, 'Browser Upload');
+    } else {
+        editor.updateOptions({ readOnly: false });
+        editor.setValue(content);
+    }
+    
+    // Scroll to the top of the editor
+    editor.setScrollTop(0);
+    editor.setScrollLeft(0);
+    
+    // Clear assembly output and disable download button
+    const outputElement = document.getElementById('output');
+    if (outputElement) {
+        outputElement.value = '';
+    }
+    document.getElementById('messages').innerHTML = '';
+    assembledData = null;
+    
+    // Update all button states
+    if (typeof updateBuildResultsButtons !== 'undefined') {
+        updateBuildResultsButtons();
+    }
+    if (typeof updatePlainHexButton !== 'undefined') {
+        updatePlainHexButton();
+    }
+    if (typeof updateDownloadButtonStates !== 'undefined') {
+        updateDownloadButtonStates();
+    }
+    
+    // // Clear C header data
+    // if (typeof FXCoreAssembler !== 'undefined') {
+    //     FXCoreAssembler.assembledCHeader = null;
+    // }
+    window.assembledCHeader = null;
+}
+
+// Update handleFileInputChange to use the shared processing function
+async function handleFileInputChange() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        processFileContent(e.target.result, file.name);
+        debugLog('File loaded via traditional input: ' + file.name, 'success');
+    };
+    reader.readAsText(file);
 }
 
 async function loadExample(exampleName) {
@@ -339,14 +482,111 @@ async function clearEditor() {
     updatePlainHexButton(); // Update the plain HEX download button
 }
 
+// async function saveSourceFX() {
+//     if (!editor) return false;
+
+//     if (!hasEditorContent()) {
+//         await showConfirmDialog('Save Source', 'There is no content to save.');
+//         return false;
+//     }
+
+//     // Get current filename and determine default
+//     let defaultFilename = 'fxcore_source.fxc'; // fallback default
+    
+//     if (window.getCurrentFilename) {
+//         const currentName = window.getCurrentFilename();
+//         if (currentName) {
+//             // Use the current filename if we have one
+//             defaultFilename = currentName;
+//         }
+//     }
+
+//     const sourceCode = editor.getValue();
+    
+//     // Try to use File System Access API first
+//     if ('showSaveFilePicker' in window) {
+//         try {
+//             const fileHandle = await window.showSaveFilePicker({
+//                 suggestedName: defaultFilename,
+//                 types: [{
+//                     description: 'FXCore Assembly files',
+//                     accept: {
+//                         'text/plain': ['.fxc', '.asm', '.txt']
+//                     }
+//                 }]
+//             });
+            
+//             const writable = await fileHandle.createWritable();
+//             await writable.write(sourceCode);
+//             await writable.close();
+            
+//             // Update the current filename to the saved name
+//             if (window.setCurrentFile) {
+//                 window.setCurrentFile(fileHandle.name, '');
+//             }
+            
+//             // Mark content as saved
+//             if (window.updateOriginalContent) {
+//                 window.updateOriginalContent();
+//             }
+            
+//             debugLog('File saved: ' + fileHandle.name, 'success');
+//             return true;
+            
+//         } catch (err) {
+//             if (err.name === 'AbortError') {
+//                 return false; // User cancelled
+//             } else {
+//                 debugLog('Error saving with file picker: ' + err.message, 'errors');
+//                 // Fall back to blob download
+//             }
+//         }
+//     }
+    
+//     // Fallback for browsers that don't support File System Access API
+//     // Show a message about the limitation
+//     const browserSupported = await showConfirmDialog(
+//         'Save File', 
+//         'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+//     );
+    
+//     if (!browserSupported) return false;
+    
+//     // Fallback to blob download
+//     const blob = new Blob([sourceCode], {
+//         type: 'text/plain'
+//     });
+//     const url = URL.createObjectURL(blob);
+//     const a = document.createElement('a');
+//     a.href = url;
+//     a.download = defaultFilename;
+//     document.body.appendChild(a);
+//     a.click();
+//     document.body.removeChild(a);
+//     URL.revokeObjectURL(url);
+
+//     // Update the current filename
+//     if (window.setCurrentFile) {
+//         window.setCurrentFile(defaultFilename, '');
+//     }
+
+//     // Mark content as saved - this resets the unsaved changes flag
+//     if (window.updateOriginalContent) {
+//         window.updateOriginalContent();
+//     }
+
+//     debugLog('File downloaded: ' + defaultFilename, 'success');
+//     return true; // Save completed successfully
+// }
+
 async function saveSource() {
     if (!editor) return false;
-
+    
     if (!hasEditorContent()) {
         await showConfirmDialog('Save Source', 'There is no content to save.');
         return false;
     }
-
+    
     // Get current filename and determine default
     let defaultFilename = 'fxcore_source.fxc'; // fallback default
     
@@ -357,83 +597,31 @@ async function saveSource() {
             defaultFilename = currentName;
         }
     }
-
+    
     const sourceCode = editor.getValue();
-    
-    // Try to use File System Access API first
-    if ('showSaveFilePicker' in window) {
-        try {
-            const fileHandle = await window.showSaveFilePicker({
-                suggestedName: defaultFilename,
-                types: [{
-                    description: 'FXCore Assembly files',
-                    accept: {
-                        'text/plain': ['.fxc', '.asm', '.txt']
-                    }
-                }]
-            });
-            
-            const writable = await fileHandle.createWritable();
-            await writable.write(sourceCode);
-            await writable.close();
-            
-            // Update the current filename to the saved name
-            if (window.setCurrentFile) {
-                window.setCurrentFile(fileHandle.name, '');
-            }
-            
-            // Mark content as saved
-            if (window.updateOriginalContent) {
-                window.updateOriginalContent();
-            }
-            
-            debugLog('File saved: ' + fileHandle.name, 'success');
-            return true;
-            
-        } catch (err) {
-            if (err.name === 'AbortError') {
-                return false; // User cancelled
-            } else {
-                debugLog('Error saving with file picker: ' + err.message, 'errors');
-                // Fall back to blob download
-            }
-        }
-    }
-    
-    // Fallback for browsers that don't support File System Access API
-    // Show a message about the limitation
-    const browserSupported = await showConfirmDialog(
-        'Save File', 
-        'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+    const result = await downloadWithPicker(
+        sourceCode, 
+        defaultFilename, 
+        'text/plain', 
+        'FXCore Assembly files'
     );
     
-    if (!browserSupported) return false;
+    // Handle the new return format
+    if (result && result.success) {
+        // Update the current filename to the actual saved name
+        if (window.setCurrentFile) {
+            window.setCurrentFile(result.filename, '');
+        }
+        
+        // Mark content as saved
+        if (window.updateOriginalContent) {
+            window.updateOriginalContent();
+        }
+        
+        return true;
+    }
     
-    // Fallback to blob download
-    const blob = new Blob([sourceCode], {
-        type: 'text/plain'
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = defaultFilename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Update the current filename
-    if (window.setCurrentFile) {
-        window.setCurrentFile(defaultFilename, '');
-    }
-
-    // Mark content as saved - this resets the unsaved changes flag
-    if (window.updateOriginalContent) {
-        window.updateOriginalContent();
-    }
-
-    debugLog('File downloaded: ' + defaultFilename, 'success');
-    return true; // Save completed successfully
+    return false; // Save was cancelled or failed
 }
 
 function updateFileInfo() {
@@ -908,16 +1096,88 @@ async function downloadHex() {
     debugLog(`File downloaded as ${filename} to default downloads folder`, 'success');
 }
 
-// Download plain HEX file (always available when assembly data exists)
+// // Download plain HEX file (always available when assembly data exists)
+// async function downloadPlainHex() {
+//     const hex = document.getElementById('output').value;
+    
+//     // Check if hex content exists
+//     if (!hex || hex.trim() === '') {
+//         debugLog('No hex data to download', 'errors');
+//         return;
+//     }
+
+//     if (!hasEditorContent()) {
+//         await showConfirmDialog('Download HEX', 'There is no content to download.');
+//         return false;
+//     }
+    
+//     debugLog('Download started', 'success');
+    
+//     let defaultFilename;
+    
+//     // Determine filename based on settings
+//     if (selectedProgram === 'ram') {
+//         defaultFilename = 'output.hex';
+//     } else {
+//         // Convert program number (1-16) to hex filename (0-F.hex)
+//         const programNum = parseInt(selectedProgram);
+//         const hexValue = (programNum - 1).toString(16).toUpperCase();
+//         defaultFilename = `${hexValue}.hex`;
+//     }
+    
+//     // Try to use File System Access API first
+//     if ('showSaveFilePicker' in window) {
+//         try {
+//             const fileHandle = await window.showSaveFilePicker({
+//                 suggestedName: defaultFilename,
+//                 types: [{
+//                     description: 'Intel HEX files',
+//                     accept: {
+//                         'application/octet-stream': ['.hex']
+//                     }
+//                 }]
+//             });
+            
+//             const writable = await fileHandle.createWritable();
+//             await writable.write(hex);
+//             await writable.close();
+            
+//             debugLog('HEX file saved: ' + fileHandle.name, 'success');
+//             return true;
+            
+//         } catch (err) {
+//             if (err.name === 'AbortError') {
+//                 return false; // User cancelled
+//             } else {
+//                 debugLog('Error saving with file picker: ' + err.message, 'errors');
+//                 // Fall back to blob download
+//             }
+//         }
+//     }
+    
+//     // Fallback for browsers that don't support File System Access API
+//     const browserSupported = await showConfirmDialog(
+//         'Download HEX File', 
+//         'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+//     );
+    
+//     if (!browserSupported) return false;
+    
+//     // Always download as file (no hardware interaction)
+//     downloadFile(defaultFilename, hex, 'application/octet-stream');
+//     debugLog(`File downloaded as ${defaultFilename} to default downloads folder`, 'success');
+//     return true;
+// }
+
 async function downloadPlainHex() {
     const hex = document.getElementById('output').value;
     
     // Check if hex content exists
     if (!hex || hex.trim() === '') {
         debugLog('No hex data to download', 'errors');
-        return;
+        return false;
     }
-
+    
     if (!hasEditorContent()) {
         await showConfirmDialog('Download HEX', 'There is no content to download.');
         return false;
@@ -936,49 +1196,29 @@ async function downloadPlainHex() {
         const hexValue = (programNum - 1).toString(16).toUpperCase();
         defaultFilename = `${hexValue}.hex`;
     }
-    
-    // Try to use File System Access API first
-    if ('showSaveFilePicker' in window) {
-        try {
-            const fileHandle = await window.showSaveFilePicker({
-                suggestedName: defaultFilename,
-                types: [{
-                    description: 'Intel HEX files',
-                    accept: {
-                        'application/octet-stream': ['.hex']
-                    }
-                }]
-            });
-            
-            const writable = await fileHandle.createWritable();
-            await writable.write(hex);
-            await writable.close();
-            
-            debugLog('HEX file saved: ' + fileHandle.name, 'success');
-            return true;
-            
-        } catch (err) {
-            if (err.name === 'AbortError') {
-                return false; // User cancelled
-            } else {
-                debugLog('Error saving with file picker: ' + err.message, 'errors');
-                // Fall back to blob download
-            }
+
+    if (window.getCurrentFilename) {
+        const currentName = window.getCurrentFilename();
+        if (currentName) {
+            // Replace extension with .hex
+            defaultFilename = currentName.replace(/\.[^/.]+$/, '') + '.hex';
         }
     }
     
-    // Fallback for browsers that don't support File System Access API
-    const browserSupported = await showConfirmDialog(
-        'Download HEX File', 
-        'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+    const result = await downloadWithPicker(
+        hex, 
+        defaultFilename, 
+        'application/octet-stream', 
+        'Intel HEX files'
     );
     
-    if (!browserSupported) return false;
+    // Handle the new return format
+    if (result && result.success) {
+        debugLog('HEX file saved: ' + result.filename, 'success');
+        return true;
+    }
     
-    // Always download as file (no hardware interaction)
-    downloadFile(defaultFilename, hex, 'application/octet-stream');
-    debugLog(`File downloaded as ${defaultFilename} to default downloads folder`, 'success');
-    return true;
+    return false; // Save was cancelled or failed
 }
 
 // Update plain HEX download button state
@@ -1000,81 +1240,154 @@ function updatePlainHexButton() {
 }
 
 // Download C header file
-async function downloadCHeader() {
-   // Check if we have assembled C header data
-   const headerData = window.assembledCHeader || (typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.assembledCHeader : null);
+// async function downloadCHeader() {
+//    // Check if we have assembled C header data
+//    const headerData = window.assembledCHeader || (typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.assembledCHeader : null);
    
-   if (!headerData) {
-       debugLog(`No C header data available - please assemble first`, `errors`);
-       return false;
-   }
+//    if (!headerData) {
+//        debugLog(`No C header data available - please assemble first`, `errors`);
+//        return false;
+//    }
 
-   // Try to use File System Access API first
-   if ('showSaveFilePicker' in window) {
-       try {
-           const fileHandle = await window.showSaveFilePicker({
-               suggestedName: 'fxcore_program.h',
-               types: [{
-                   description: 'C Header files',
-                   accept: {
-                       'text/plain': ['.h']
-                   }
-               }]
-           });
+//    // Try to use File System Access API first
+//    if ('showSaveFilePicker' in window) {
+//        try {
+//            const fileHandle = await window.showSaveFilePicker({
+//                suggestedName: 'fxcore_program.h',
+//                types: [{
+//                    description: 'C Header files',
+//                    accept: {
+//                        'text/plain': ['.h']
+//                    }
+//                }]
+//            });
            
-           // Get the base name and replace the placeholder
-           const baseName = fileHandle.name.replace(/\.[^/.]+$/, ""); // Remove extension
-           const finalHeader = headerData.replace(/program_name/g, baseName);
+//            // Get the base name and replace the placeholder
+//            const baseName = fileHandle.name.replace(/\.[^/.]+$/, ""); // Remove extension
+//            const finalHeader = headerData.replace(/program_name/g, baseName);
            
-           const writable = await fileHandle.createWritable();
-           await writable.write(finalHeader);
-           await writable.close();
+//            const writable = await fileHandle.createWritable();
+//            await writable.write(finalHeader);
+//            await writable.close();
            
-           debugLog('C header file saved: ' + fileHandle.name, 'success');
-           return true;
+//            debugLog('C header file saved: ' + fileHandle.name, 'success');
+//            return true;
            
-       } catch (err) {
-           if (err.name === 'AbortError') {
-               return false; // User cancelled
-           } else {
-               debugLog('Error saving with file picker: ' + err.message, 'errors');
-               // Fall back to input dialog
-           }
-       }
-   }
+//        } catch (err) {
+//            if (err.name === 'AbortError') {
+//                return false; // User cancelled
+//            } else {
+//                debugLog('Error saving with file picker: ' + err.message, 'errors');
+//                // Fall back to input dialog
+//            }
+//        }
+//    }
 
-   // Fallback: use input dialog for filename
-   const filename = await showInputDialog(
-       'Save C Header File',
-       'Enter filename:',
-       'Enter filename (e.g., my_program.h)',
-       'fxcore_program.h'
-   );
+//    // Fallback: use input dialog for filename
+//    const filename = await showInputDialog(
+//        'Save C Header File',
+//        'Enter filename:',
+//        'Enter filename (e.g., my_program.h)',
+//        'fxcore_program.h'
+//    );
 
-   if (!filename) return false; // User cancelled
+//    if (!filename) return false; // User cancelled
 
-   try {
-       // Get the base name and replace the placeholder
-       const baseName = filename.replace(/\.[^/.]+$/, ""); // Remove extension
-       const finalHeader = headerData.replace(/program_name/g, baseName);
+//    try {
+//        // Get the base name and replace the placeholder
+//        const baseName = filename.replace(/\.[^/.]+$/, ""); // Remove extension
+//        const finalHeader = headerData.replace(/program_name/g, baseName);
 
-       // Fallback to blob download
-       const blob = new Blob([finalHeader], { type: 'text/plain' });
-       const url = URL.createObjectURL(blob);
-       const a = document.createElement('a');
-       a.href = url;
-       a.download = filename;
-       document.body.appendChild(a);
-       a.click();
-       document.body.removeChild(a);
-       URL.revokeObjectURL(url);
+//        // Fallback to blob download
+//        const blob = new Blob([finalHeader], { type: 'text/plain' });
+//        const url = URL.createObjectURL(blob);
+//        const a = document.createElement('a');
+//        a.href = url;
+//        a.download = filename;
+//        document.body.appendChild(a);
+//        a.click();
+//        document.body.removeChild(a);
+//        URL.revokeObjectURL(url);
 
-       debugLog(`C header file ${filename} downloaded successfully`, 'success');
-       return true;
-   } catch (error) {
-       debugLog(`Error downloading C header: ${error.message}`, 'errors');
-       return false;
-   }
+//        debugLog(`C header file ${filename} downloaded successfully`, 'success');
+//        return true;
+//    } catch (error) {
+//        debugLog(`Error downloading C header: ${error.message}`, 'errors');
+//        return false;
+//    }
+// }
+
+async function downloadCHeader() {
+    // Check if we have assembled C header data
+    const headerData = window.assembledCHeader || (typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.assembledCHeader : null);
+    
+    if (!headerData) {
+        debugLog(`No C header data available - please assemble first`, `errors`);
+        return false;
+    }
+ 
+    let defaultFilename;
+    
+    // Determine filename based on settings
+    if (selectedProgram === 'ram') {
+        defaultFilename = 'output.h';
+    } else {
+        // Convert program number (1-16) to hex filename (0-F.hex)
+        const programNum = parseInt(selectedProgram);
+        const hexValue = (programNum - 1).toString(16).toUpperCase();
+        defaultFilename = `${hexValue}.h`;
+    }
+
+    if (window.getCurrentFilename) {
+        const currentName = window.getCurrentFilename();
+        if (currentName) {
+            // Replace extension with .h
+            defaultFilename = currentName.replace(/\.[^/.]+$/, '') + '.h';
+        }
+    }
+
+    const result = await downloadWithPicker(
+        '', // We'll set content after filename processing
+        defaultFilename, 
+        'text/plain', 
+        'C Header files'
+    );
+    
+    // Handle the new return format
+    if (result && result.success) {
+        // Get the base name and replace the placeholder
+        const baseName = result.filename.replace(/\.[^/.]+$/, ""); // Remove extension
+        const finalHeader = headerData.replace(/program_name/g, baseName);
+        
+        // If we used the File System Access API, we need to write the processed content
+        if (result.fileHandle && !result.fallback) {
+            try {
+                const writable = await result.fileHandle.createWritable();
+                await writable.write(finalHeader);
+                await writable.close();
+                debugLog('C header file saved: ' + result.filename, 'success');
+            } catch (err) {
+                debugLog('Error writing processed header: ' + err.message, 'errors');
+                return false;
+            }
+        } else if (result.fallback) {
+            // For fallback blob download, we need to trigger a new download with processed content
+            const blob = new Blob([finalHeader], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            debugLog(`C header file ${result.filename} downloaded successfully`, 'success');
+        }
+        
+        return true;
+    }
+    
+    return false; // Save was cancelled or failed
 }
 
 function generateCHeaderFromHex(hexData) {
@@ -1493,41 +1806,41 @@ async function serialConnect() {
     }
 }
 
-async function handleFileInputChange() {
-    const fileInput = document.getElementById('fileInput');
-    const file = fileInput.files[0];
+// async function handleFileInputChange() {
+//     const fileInput = document.getElementById('fileInput');
+//     const file = fileInput.files[0];
     
-    if (!file) return;
+//     if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        if (editor && window.setEditorContent) {
-            window.setEditorContent(e.target.result, file.name, 'Browser Upload');
-            // Scroll to the top of the editor
-            editor.setScrollTop(0);
-            editor.setScrollLeft(0);
-        }
+//     const reader = new FileReader();
+//     reader.onload = function(e) {
+//         if (editor && window.setEditorContent) {
+//             window.setEditorContent(e.target.result, file.name, 'Browser Upload');
+//             // Scroll to the top of the editor
+//             editor.setScrollTop(0);
+//             editor.setScrollLeft(0);
+//         }
         
-        // Clear assembly output and disable download button
-        const outputElement = document.getElementById('output');
-        if (outputElement) {
-            outputElement.value = '';
-        }
-        document.getElementById('messages').innerHTML = '';
-        assembledData = null;
+//         // Clear assembly output and disable download button
+//         const outputElement = document.getElementById('output');
+//         if (outputElement) {
+//             outputElement.value = '';
+//         }
+//         document.getElementById('messages').innerHTML = '';
+//         assembledData = null;
         
-        // Clear C header data
-        if (typeof FXCoreAssembler !== 'undefined') {
-            FXCoreAssembler.assembledCHeader = null;
-        }
-        window.assembledCHeader = null;
+//         // Clear C header data
+//         if (typeof FXCoreAssembler !== 'undefined') {
+//             FXCoreAssembler.assembledCHeader = null;
+//         }
+//         window.assembledCHeader = null;
         
-        updateBuildResultsButtons(); // Update buttons after clearing assembly
-        updatePlainHexButton(); // Update the plain HEX download button
-    };
-    reader.readAsText(file);
-    debugLog('File loaded: ' + file.name, 'success');
-}
+//         updateBuildResultsButtons(); // Update buttons after clearing assembly
+//         updatePlainHexButton(); // Update the plain HEX download button
+//     };
+//     reader.readAsText(file);
+//     debugLog('File loaded: ' + file.name, 'success');
+// }
 
 // switch between hardware modes
 function cycleHWMode() {
@@ -1586,4 +1899,86 @@ function updateHardwareConnectionStatus() {
 
     statusElement.textContent = statusText;
     statusElement.style.color = statusColor;
+}
+
+// Modified downloadWithPicker function - returns filename when possible
+async function downloadWithPicker(content, defaultFilename, mimeType, description) {
+    // Try to use File System Access API first
+    if ('showSaveFilePicker' in window) {
+        try {
+            const options = {
+                suggestedName: defaultFilename,
+                types: [{
+                    description: description,
+                    accept: {
+                        [mimeType]: [defaultFilename.substring(defaultFilename.lastIndexOf('.'))]
+                    }
+                }]
+            };
+            
+            // Use project directory if available, otherwise use default preference
+            if (projectDirectoryHandle) {
+                options.startIn = projectDirectoryHandle;
+                debugLog(`Using project directory: ${projectDirectoryHandle.name}`, 'verbose');
+            } else {
+                options.startIn = preferredStartDirectory;
+                debugLog(`Using default start directory: ${preferredStartDirectory}`, 'verbose');
+            }
+            
+            const fileHandle = await window.showSaveFilePicker(options);
+            
+            const writable = await fileHandle.createWritable();
+            if (content instanceof Uint8Array) {
+                await writable.write(content);
+            } else {
+                await writable.write(content);
+            }
+            await writable.close();
+            
+            debugLog(`File saved: ${fileHandle.name}`, 'success');
+            
+            // Return an object with success status and filename
+            return {
+                success: true,
+                filename: fileHandle.name,
+                fileHandle: fileHandle
+            };
+            
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                return { success: false, cancelled: true }; // User cancelled
+            } else {
+                debugLog('Error saving with file picker: ' + err.message, 'errors');
+                // Fall back to blob download
+            }
+        }
+    }
+    
+    // Fallback for browsers that don't support File System Access API
+    const browserSupported = await showConfirmDialog(
+        'Download File', 
+        'Your browser doesn\'t support the advanced file picker. The file will be downloaded to your default downloads folder. Continue?'
+    );
+    
+    if (!browserSupported) return { success: false, cancelled: true };
+    
+    // Create blob and download
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    debugLog(`File downloaded as ${defaultFilename} to default downloads folder`, 'success');
+    
+    // Return success with the default filename (since we can't know what the browser actually saved it as)
+    return {
+        success: true,
+        filename: defaultFilename,
+        fallback: true
+    };
 }

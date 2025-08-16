@@ -57,19 +57,13 @@
                 <span id="editorOptionsToggle">▶</span> Editor Options
             </h3>
             <div id="editorOptionsContent" class="editor-options-content collapsed">
-                <div class="editor-help-text">
-                    <label>
-                        <span class="shortcut">Editor Shortcuts active when cursor is in editor window:</span>
-                        <span class="shortcut">Ctrl+F / ⌘+F Find</span>
-                        <span class="shortcut">Ctrl+Shift+F / ⌘+⌥+F Replace</span>
-                        <span class="shortcut">F3 Find Next</span>
-                    </label><br>
-                    <label>
-                        <span class="shortcut">Editor accepts ASCII text only</span>
-                    </label>
-                </div>
-
                 <div class="options">
+                    <div class="project-folder-section">
+                        <button id="projectFolderBtn" class="project-folder-button" onclick="selectProjectDirectory()">
+                            Select Project Folder
+                        </button>
+                        <span id="projectFolderLabel" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
+                    </div><br>
                     <label>
                         <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()"> Large editor window
                     </label>
@@ -88,6 +82,17 @@
                                 <option value="dark">Dark</option>
                             </select>
                         </label>
+                    </label>
+                </div>
+                <div class="editor-help-text">
+                    <label>
+                        <span class="shortcut">Editor Shortcuts active when cursor is in editor window:</span>
+                        <span class="shortcut">Ctrl+F / ⌘+F Find</span>
+                        <span class="shortcut">Ctrl+Shift+F / ⌘+⌥+F Replace</span>
+                        <span class="shortcut">F3 Find Next</span>
+                    </label><br>
+                    <label>
+                        <span class="shortcut">Editor accepts ASCII text only</span>
                     </label>
                 </div>
             </div>
