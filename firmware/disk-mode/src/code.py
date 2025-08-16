@@ -1,12 +1,14 @@
-# FXCore Hex File Uploader with Location Programming and State Monitoring
-# Version 3.0 - Added location-specific programming and comprehensive logging
-# Date: 2025-01-06
+# FXCore Hex File Uploader with FT260 Emulation
+# Version 4.1 - Removed FT260 timeout (files checked at boot only)
+# Date: 2025-01-15
 
 import board
 import busio
 import time
 import neopixel
 import os
+import usb_hid
+import digitalio
 
 # FXCore I2C address
 FXCORE_ADDRESS = 0x30
@@ -36,33 +38,197 @@ except Exception as e:
     while True:
         time.sleep(1)
 
+# FT260 Emulator Class
+class FT260Emulator:
+    def __init__(self):
+        # Find our custom FT260 HID device
+        self.hid_device = None
+        for device in usb_hid.devices:
+            if hasattr(device, 'usage_page') and device.usage_page == 0xFF00:
+                self.hid_device = device
+                break
+        
+        if not self.hid_device:
+            print("FT260 HID device not found. Check boot.py configuration.")
+            self.enabled = False
+        else:
+            self.enabled = True
+            print("✓ FT260 Emulator ready")
+        
+        # Setup status LED if available
+        try:
+            self.led = digitalio.DigitalInOut(board.LED)
+            self.led.direction = digitalio.Direction.OUTPUT
+            self.led.value = False
+        except:
+            self.led = None
+        
+        # State tracking (timeout removed)
+        self.i2c_status = 0x20  # I2C idle status
+        self.active = False
+    
+    def flash_led(self, count=1, duration=0.1):
+        """Flash the LED to indicate activity"""
+        if self.led:
+            for _ in range(count):
+                self.led.value = True
+                time.sleep(duration)
+                self.led.value = False
+                if count > 1:
+                    time.sleep(duration)
+    
+    def get_last_received_report(self):
+        """Get the last received report from host"""
+        if not self.enabled:
+            return None, None
+            
+        try:
+            # Try each report type individually
+            for report_id in [0xA1, 0xC0, 0xC2, 0xD0]:
+                data = self.hid_device.get_last_received_report(report_id)
+                if data:
+                    return report_id, list(data)
+            return None, None
+        except Exception as e:
+            return None, None
+    
+    def send_input_report(self, report_id, data):
+        """Send an input report back to the host"""
+        if not self.enabled:
+            return False
+            
+        try:
+            report_data = bytearray(63)
+            if data:
+                copy_len = min(len(data), 63)
+                report_data[:copy_len] = data[:copy_len]
+            
+            self.hid_device.send_report(report_data, report_id)
+            return True
+            
+        except Exception as e:
+            print(f"FT260: Error sending input report 0x{report_id:02X}: {e}")
+            return False
+    
+    def handle_output_report_c2(self, data):
+        """Handle Output Report 0xC2 - I2C Read request"""
+        if len(data) < 4:
+            return
+            
+        i2c_addr = data[0]
+        bytes_to_read = data[2] | (data[3] << 8)
+        
+        print(f"FT260: I2C Read: 0x{i2c_addr:02X}, {bytes_to_read} bytes")
+        
+        # Perform I2C read
+        read_data = None
+        if bytes_to_read > 0:
+            try:
+                while not i2c.try_lock():
+                    time.sleep(0.001)
+                
+                try:
+                    read_buffer = bytearray(bytes_to_read)
+                    i2c.readfrom_into(i2c_addr, read_buffer)
+                    read_data = read_buffer
+                    self.i2c_status = 0x20  # Success
+                    
+                except OSError:
+                    self.i2c_status = 0x26  # Error: device not responding
+                    read_data = None
+                finally:
+                    i2c.unlock()
+                    
+            except Exception:
+                self.i2c_status = 0x26
+                read_data = None
+        
+        # Create response in FT260 format
+        response_data = bytearray(63)
+        
+        if read_data is not None:
+            response_data[0] = bytes_to_read & 0xFF  # Byte count
+            for i in range(min(bytes_to_read, len(read_data))):
+                response_data[1 + i] = read_data[i]
+            print("FT260: ✓ Read successful")
+        else:
+            response_data[0] = 0  # Failed read
+            print("FT260: ✗ Read failed")
+        
+        self.send_input_report(0xC2, response_data)
+    
+    def handle_output_report_d0(self, data):
+        """Handle Output Report 0xD0 - I2C Write command"""
+        if len(data) < 4:
+            return
+            
+        i2c_addr = data[0]
+        byte_count = data[2]
+        write_data = data[3:3+byte_count]
+        
+        print(f"FT260: I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes")
+        
+        # Perform I2C write
+        if byte_count > 0:
+            try:
+                while not i2c.try_lock():
+                    time.sleep(0.001)
+                
+                try:
+                    i2c.writeto(i2c_addr, bytes(write_data))
+                    self.i2c_status = 0x20  # Success
+                    print("FT260: ✓ Write successful")
+                    
+                except OSError:
+                    self.i2c_status = 0x26  # Error
+                    print("FT260: ✗ Write failed")
+                finally:
+                    i2c.unlock()
+                    
+            except Exception:
+                self.i2c_status = 0x26
+                print("FT260: ✗ Write error")
+        else:
+            print("FT260: ✗ No data to write")
+    
+    def process_reports(self):
+        """Process incoming HID reports"""
+        if not self.enabled:
+            return False
+            
+        try:
+            report_id, data = self.get_last_received_report()
+            if report_id is not None:
+                self.flash_led(1, 0.02)
+                
+                if not self.active:
+                    print("FT260: Bridge mode activated")
+                    self.active = True
+                
+                # Route to appropriate handler
+                if report_id == 0xC2:
+                    self.handle_output_report_c2(data)
+                elif report_id == 0xD0:
+                    self.handle_output_report_d0(data)
+                
+                return True  # Processed a report
+                
+        except Exception as e:
+            print(f"FT260: Error processing reports: {e}")
+        
+        return False  # No report processed
+
+# Initialize FT260 Emulator
+ft260 = FT260Emulator()
+
 def get_timestamp():
     """Get current timestamp for logging"""
-    # Simple timestamp since we don't have datetime
     return f"T+{time.monotonic():.2f}s"
 
 def log_message(message):
     """Log message to results.txt with timestamp"""
-    # timestamp = get_timestamp()
-    #log_entry = f"[{timestamp}] {message}\n"
     log_entry = f"{message}"
-    print(log_entry)  # Also print to console
-    #time.sleep(0.3) # add a small delay to prevent splitting
-    
-    #try:
-    #    with open(LOG_FILE, 'a') as f:
-    #        f.write(log_entry)
-    #except Exception as e:
-    #    print(f"Log write failed: {e}")
-
-# def clear_log():
-#     """Clear the log file for new operation"""
-#     try:
-#         with open(LOG_FILE, 'w') as f:
-#             f.write(f"FXCore Programming Log - Started at {get_timestamp()}\n")
-#             f.write("=" * 50 + "\n")
-#     except Exception as e:
-#         print(f"Log clear failed: {e}")
+    print(log_entry)
 
 def read_fxcore_status():
     """Read the 12-byte status from FXCore and return parsed information"""
@@ -76,13 +242,6 @@ def read_fxcore_status():
         i2c.unlock()
         
         # Parse according to FXCore documentation:
-        # Byte 0: Current transfer state
-        # Byte 1: Command status  
-        # Bytes 2-3: Last command (CMDH, CMDL)
-        # Bytes 4-5: Program slot status (16-bit, little-endian)
-        # Bytes 6-7: Device ID (16-bit, little-endian)
-        # Bytes 8-11: Device serial number (32-bit, little-endian)
-        
         transfer_state = status_bytes[0]
         command_status = status_bytes[1]
         last_cmd_h = status_bytes[2]
@@ -132,7 +291,6 @@ def log_fxcore_status(operation="Status Check"):
         log_message(f"  Program Slots: 0x{status['program_slot_status']:04X}")
         log_message(f"  Device ID: 0x{status['device_id']:04X}")
         log_message(f"  Serial Number: {status['serial_number']} (0x{status['serial_number']:08X})")
-        # ... rest of status logging
     
     return status
 
@@ -550,7 +708,6 @@ def send_return_0():
 
 def program_location(location, filename):
     """Program a specific location with a hex file"""
-    #clear_log()
     log_message(f"Starting location programming: {filename} -> Location {location:X}")
     
     # Indicate starting programming process
@@ -647,7 +804,6 @@ def program_location(location, filename):
 
 def run_ram_execution(filename="output.hex"):
     """Run the complete upload and execution process for RAM execution"""
-    #clear_log()
     log_message(f"Starting RAM execution: {filename}")
     
     # Indicate starting upload process
@@ -755,7 +911,7 @@ def stop_execution():
     log_message("Program stopped and returned to normal operation")
 
 def main():
-    print("FXCore Enhanced Hex Programmer with Location Support")
+    print("FXCore Enhanced Hex Programmer with FT260 Emulation")
     print("===================================================")
     print("- NeoPixel on GP16 shows status:")
     print("  * RED = Program running from RAM")
@@ -765,97 +921,64 @@ def main():
     print("  * OFF = Normal operation")
     print("- Place output.hex for RAM execution")
     print("- Place 0.hex through F.hex for location programming")
-    print("- All operations logged to results.txt")
+    print("- FT260 USB-I2C Bridge emulation available")
     print()
     
     # Turn off LED initially
     set_status_led(OFF)
     
     running = False
-    last_location_files = {}
-    normal_commands_sent = 0
     
     # Always return to STATE0 on boot
     print("Ensuring STATE0 on startup...")
     stop_execution()
     time.sleep(0.1)
     
+    # Check for location-specific hex files (0.hex through F.hex) at boot
+    location_files = find_location_hex_files()
+    
+    # Process any location files found at boot
+    if location_files:
+        for location, filename in location_files.items():
+            log_message(f"Boot-time location file detected: {filename} for location {location:X}")
+            print(f"Found {filename} - programming location {location:X}...")
+            
+            if program_location(location, filename):
+                print(f"Successfully programmed location {location:X}")
+                # Keep green LED on for a few seconds to show success
+                time.sleep(3)
+            else:
+                print(f"Failed to program location {location:X}")
+                # Keep red LED on for a few seconds to show failure
+                time.sleep(3)
+            
+            # Return LED to off state after programming
+            set_status_led(OFF)
+    
+    # Check for output.hex (RAM execution) at boot
+    output_hex_exists = check_output_hex_exists()
+    if output_hex_exists:
+        print("output.hex found at boot - starting RAM execution...")
+        if run_ram_execution():
+            running = True
+    
     while True:
         try:
-            # Check for location-specific hex files (0.hex through F.hex)
-            location_files = find_location_hex_files()
+            # Process FT260 emulation (always process)
+            ft260_processed = ft260.process_reports()
             
-            # Check for new location files
-            new_location_files = {}
-            for location, filename in location_files.items():
-                if location not in last_location_files or last_location_files[location] != filename:
-                    new_location_files[location] = filename
-            
-            # Process any new location files
-            if new_location_files:
-                for location, filename in new_location_files.items():
-                    log_message(f"New location file detected: {filename} for location {location:X}")
-                    print(f"Found {filename} - programming location {location:X}...")
-                    
-                    if program_location(location, filename):
-                        print(f"Successfully programmed location {location:X}")
-                        # Keep green LED on for a few seconds to show success
-                        time.sleep(3)
-                    else:
-                        print(f"Failed to program location {location:X}")
-                        # Keep red LED on for a few seconds to show failure
-                        time.sleep(3)
-                    
-                    # Return LED to off state after programming
-                    set_status_led(OFF)
-                
-                # Update tracking
-                last_location_files = location_files.copy()
-            
-            # Check for output.hex (RAM execution)
-            output_hex_exists = check_output_hex_exists()
-            
-            if output_hex_exists and not running:
-                # File exists and we're not running - start execution
-                print("output.hex found - starting RAM execution...")
-                if run_ram_execution():
-                    running = True
-                    normal_commands_sent = 0
-                else:
-                    # Failed to start, wait before checking again
-                    time.sleep(2)
-            
-            elif not output_hex_exists and running:
-                # File deleted and we're running - stop execution
-                print("output.hex deleted - stopping execution...")
-                stop_execution()
-                running = False
-                normal_commands_sent = 0
-            
-            elif running and output_hex_exists:
-                # Still running and file still exists - blink red LED
+            # Handle RAM execution LED blinking if running
+            if running:
+                # Still running - blink red LED
                 current_color = pixel[0]
                 if current_color == RED:
                     set_status_led((128, 0, 0))  # Dimmer red
                 else:
                     set_status_led(RED)  # Full red
                 time.sleep(0.5)
-            
-            elif not output_hex_exists and not running and not location_files:
-                # No files present - ensure normal state
-                if normal_commands_sent < 2:
-                    log_message(f"No hex files present - ensuring normal state ({normal_commands_sent + 1}/2)")
-                    stop_execution()
-                    time.sleep(0.1)
-                    normal_commands_sent += 1
-                
-                set_status_led(OFF)
-                time.sleep(1)
-            
             else:
-                # Fallback case - just wait
-                set_status_led(OFF)
-                time.sleep(1)
+                # Not running - minimal delay for FT260 processing
+                time.sleep(0.001)
                 
         except KeyboardInterrupt:
             log_message("Program interrupted by user")
