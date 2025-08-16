@@ -824,7 +824,7 @@ async function downloadHex() {
         if (selectedProgram === 'ram') {
             // Call run from RAM function and update state
             if (typeof run_from_ram !== 'undefined') {
-                run_from_ram(0);
+                await run_from_ram(0);
                 isRunningFromRAM = true; // Set state
                 updateBuildResultsButtons(); // Update button states
             } else {
@@ -833,7 +833,7 @@ async function downloadHex() {
         } else {
             // Call program slot function
             if (typeof run_from_ram !== 'undefined') {
-                run_from_ram(1);
+                await run_from_ram(1);
             } else {
                 debugLog('Program slot function not available', 'errors');
             }
