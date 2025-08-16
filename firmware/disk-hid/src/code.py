@@ -25,6 +25,7 @@ GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
 PURPLE = (255, 0, 255)
+WHITE = (255, 255, 255)
 OFF = (0, 0, 0)
 
 # Initialize I2C bus on GP0 (SDA) and GP1 (SCL)
@@ -55,14 +56,6 @@ class SmartFT260Emulator:
             self.enabled = True
             print("✓ Smart FT260 Emulator ready")
         
-        # Setup status LED if available
-        try:
-            self.led = digitalio.DigitalInOut(board.LED)
-            self.led.direction = digitalio.Direction.OUTPUT
-            self.led.value = False
-        except:
-            self.led = None
-        
         # State tracking
         self.i2c_status = 0x20  # I2C idle status
         self.active = False
@@ -84,16 +77,7 @@ class SmartFT260Emulator:
         self.expecting_data = None
         self.data_remaining = 0
         print("FT260: Programming state reset")
-    
-    def flash_led(self, count=1, duration=0.1):
-        """Flash the LED to indicate activity"""
-        if self.led:
-            for _ in range(count):
-                self.led.value = True
-                time.sleep(duration)
-                self.led.value = False
-                if count > 1:
-                    time.sleep(duration)
+
     
     def get_last_received_report(self):
         """Get the last received report from host"""
@@ -582,7 +566,7 @@ class SmartFT260Emulator:
         try:
             report_id, data = self.get_last_received_report()
             if report_id is not None:
-                self.flash_led(1, 0.02)
+                blink_status_led(YELLOW, 1, 0.005)
                 
                 if not self.active:
                     print("FT260: Smart bridge mode activated")
@@ -591,7 +575,8 @@ class SmartFT260Emulator:
                 # Route to appropriate handler
                 if report_id == 0xA1:
                     # A1 reports pass through (status/control)
-                    print("FT260: A1 report - passing through")
+                    print("FT260: A1 report - resetting")
+                    stop_execution()
                 elif report_id == 0xC0:
                     # C0 reports pass through  
                     print("FT260: C0 report - passing through")
