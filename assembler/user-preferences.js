@@ -5,7 +5,7 @@ class UserPreferences {
         this.defaults = {
             // Editor Options
             editorHeight: false,        // Large editor window
-            darkMode: false,           // Enable dark mode
+            darkMode: 'system',        // Dark mode: 'dark', 'light', or 'system'
             minimap: false,            // Show editor mini-map
             debugMode: false,          // Show full build results
             
@@ -24,7 +24,7 @@ class UserPreferences {
             const currentPrefs = {
                 // Get current checkbox states
                 editorHeight: document.getElementById('editorHeightToggle')?.checked || false,
-                darkMode: document.getElementById('darkModeToggle')?.checked || false,
+                darkMode: this.getCurrentDarkModeSetting(),
                 minimap: document.getElementById('minimapToggle')?.checked || false,
                 debugMode: document.getElementById('debugToggle')?.checked || false,
                 
@@ -64,54 +64,68 @@ class UserPreferences {
         }
     }
 
-    // Apply loaded preferences to the UI
+    // Apply loaded preferences to the UI with proper timing
     apply() {
         const prefs = this.load();
         
-        // Apply editor options
-        this.applyEditorOptions(prefs);
-        
-        // Apply hardware options
-        this.applyHardwareOptions(prefs);
-        
-        // Save current state (in case any defaults were applied)
-        this.save();
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+            this.applyEditorOptions(prefs);
+            this.applyHardwareOptions(prefs);
+            
+            // Don't save here - we're applying saved preferences, not creating new ones
+            // Only save when the user actually changes something via the auto-save listeners
+        });
     }
 
     applyEditorOptions(prefs) {
+        console.log('Applying editor options:', prefs);
+        
         // Large editor window
         const editorHeightToggle = document.getElementById('editorHeightToggle');
         if (editorHeightToggle) {
+            console.log('Setting editorHeight checkbox to:', prefs.editorHeight);
             editorHeightToggle.checked = prefs.editorHeight;
-            if (prefs.editorHeight) {
+            if (prefs.editorHeight && typeof toggleEditorHeight === 'function') {
                 toggleEditorHeight();
             }
         }
 
-        // Dark mode
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        if (darkModeToggle) {
-            darkModeToggle.checked = prefs.darkMode;
-            if (prefs.darkMode) {
-                toggleDarkMode();
-            }
+        // Dark mode - handle dropdown selection
+        const darkModeSelect = document.getElementById('darkModeSelect');
+        if (darkModeSelect) {
+            console.log('Setting darkMode to:', prefs.darkMode);
+            darkModeSelect.value = prefs.darkMode;
+            this.applyDarkMode(prefs.darkMode);
         }
 
         // Minimap
         const minimapToggle = document.getElementById('minimapToggle');
         if (minimapToggle) {
+            console.log('Setting minimap checkbox to:', prefs.minimap);
             minimapToggle.checked = prefs.minimap;
-            if (prefs.minimap) {
+            if (prefs.minimap && typeof toggleMinimap === 'function') {
                 toggleMinimap();
             }
         }
 
-        // Debug mode
+        // Debug mode - set checkbox first, then apply the setting
         const debugToggle = document.getElementById('debugToggle');
         if (debugToggle) {
+            console.log('Setting debugMode checkbox to:', prefs.debugMode);
             debugToggle.checked = prefs.debugMode;
+            
+            // Apply debug preset based on saved preference
             if (prefs.debugMode) {
-                toggleDebugPreset();
+                console.log('Applying debug preset: basic');
+                if (typeof DEBUG !== 'undefined' && DEBUG.setPreset) {
+                    DEBUG.setPreset('basic');
+                }
+            } else {
+                console.log('Resetting debug preset to default');
+                if (typeof DEBUG !== 'undefined' && DEBUG.reset) {
+                    DEBUG.reset();
+                }
             }
         }
     }
@@ -121,15 +135,20 @@ class UserPreferences {
         if (prefs.hwMode !== selectedHW) {
             // Set the mode without cycling through
             selectedHW = prefs.hwMode;
-            document.getElementById('HWModeDisplay').textContent = 
-                selectedHW === 'hid' ? 'HID mode' : 'File mode';
+            const hwModeDisplay = document.getElementById('HWModeDisplay');
+            if (hwModeDisplay) {
+                hwModeDisplay.textContent = selectedHW === 'hid' ? 'HID mode' : 'File mode';
+            }
+            
+            const fileModeDiv = document.getElementById('FileModeDiv');
+            const hidModeDiv = document.getElementById('HidModeDiv');
             
             if (selectedHW === 'hid') {
-                document.getElementById('FileModeDiv').style.display = 'none';
-                document.getElementById('HidModeDiv').style.display = 'block';
+                if (fileModeDiv) fileModeDiv.style.display = 'none';
+                if (hidModeDiv) hidModeDiv.style.display = 'block';
             } else {
-                document.getElementById('FileModeDiv').style.display = 'block';
-                document.getElementById('HidModeDiv').style.display = 'none';
+                if (fileModeDiv) fileModeDiv.style.display = 'block';
+                if (hidModeDiv) hidModeDiv.style.display = 'none';
             }
         }
 
@@ -137,21 +156,29 @@ class UserPreferences {
         const fxcoreAddrInput = document.getElementById('FXcoreAddr');
         if (fxcoreAddrInput && prefs.fxcoreAddress) {
             fxcoreAddrInput.value = prefs.fxcoreAddress;
-            FXCoreTargets.FXCore_I2C = prefs.fxcoreAddress;
+            if (typeof FXCoreTargets !== 'undefined') {
+                FXCoreTargets.FXCore_I2C = prefs.fxcoreAddress;
+            }
         }
 
         // Program target
         if (prefs.programTarget !== selectedProgram) {
             selectedProgram = prefs.programTarget;
-            updateProgramTargetDisplay();
+            if (typeof updateProgramTargetDisplay === 'function') {
+                updateProgramTargetDisplay();
+            }
             if (window.syncProgramTargetDisplays) {
                 window.syncProgramTargetDisplays();
             }
         }
 
-        // Update UI elements
-        updateHardwareConnectionStatus();
-        updateBuildResultsButtons();
+        // Update UI elements if functions exist
+        if (typeof updateHardwareConnectionStatus === 'function') {
+            updateHardwareConnectionStatus();
+        }
+        if (typeof updateBuildResultsButtons === 'function') {
+            updateBuildResultsButtons();
+        }
     }
 
     // Clear all saved preferences
@@ -160,11 +187,53 @@ class UserPreferences {
         debugLog('Preferences cleared', 'info');
     }
 
+    // Helper method to get current dark mode setting
+    getCurrentDarkModeSetting() {
+        const darkModeSelect = document.getElementById('darkModeSelect');
+        return darkModeSelect ? darkModeSelect.value : 'system';
+    }
+
+    // Apply dark mode based on preference
+    applyDarkMode(setting) {
+        const darkModeSelect = document.getElementById('darkModeSelect');
+        if (!darkModeSelect) return;
+
+        // Ensure setting is a string and has a valid value
+        const validSetting = typeof setting === 'string' ? setting : 'system';
+        const finalSetting = ['light', 'dark', 'system'].includes(validSetting) ? validSetting : 'system';
+
+        // Set the dropdown value
+        darkModeSelect.value = finalSetting;
+
+        let shouldUseDark = false;
+        
+        switch (finalSetting) {
+            case 'dark':
+                shouldUseDark = true;
+                break;
+            case 'light':
+                shouldUseDark = false;
+                break;
+            case 'system':
+            default:
+                // Follow system preference
+                shouldUseDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                break;
+        }
+
+        // Apply the theme
+        if (editor && typeof monaco !== 'undefined') {
+            const theme = shouldUseDark ? 'fxcoreDark' : 'fxcoreTheme';
+            monaco.editor.setTheme(theme);
+        }
+        document.body.classList.toggle('dark-mode', shouldUseDark);
+    }
+
     // Get current preferences without saving
     getCurrent() {
         return {
             editorHeight: document.getElementById('editorHeightToggle')?.checked || false,
-            darkMode: document.getElementById('darkModeToggle')?.checked || false,
+            darkMode: this.getCurrentDarkModeSetting(),
             minimap: document.getElementById('minimapToggle')?.checked || false,
             debugMode: document.getElementById('debugToggle')?.checked || false,
             hwMode: selectedHW || 'hid',
@@ -182,7 +251,6 @@ function setupAutoSave() {
     // Save when checkboxes change
     const checkboxes = [
         'editorHeightToggle',
-        'darkModeToggle', 
         'minimapToggle',
         'debugToggle'
     ];
@@ -196,11 +264,22 @@ function setupAutoSave() {
         }
     });
 
+    // Save when dark mode dropdown changes
+    const darkModeSelect = document.getElementById('darkModeSelect');
+    if (darkModeSelect) {
+        darkModeSelect.addEventListener('change', () => {
+            userPrefs.applyDarkMode(darkModeSelect.value);
+            userPrefs.save();
+        });
+    }
+
     // Save when FXCore address changes
     const fxcoreAddrInput = document.getElementById('FXcoreAddr');
     if (fxcoreAddrInput) {
         fxcoreAddrInput.addEventListener('change', () => {
-            FXCoreTargets.FXCore_I2C = fxcoreAddrInput.value;
+            if (typeof FXCoreTargets !== 'undefined') {
+                FXCoreTargets.FXCore_I2C = fxcoreAddrInput.value;
+            }
             userPrefs.save();
         });
     }
@@ -211,44 +290,84 @@ function setupAutoSave() {
 
 // Modified versions of your existing functions to include auto-save
 function toggleEditorHeightWithSave() {
-    toggleEditorHeight();
+    if (typeof toggleEditorHeight === 'function') {
+        toggleEditorHeight();
+    }
     userPrefs.save();
 }
 
+// Modified dark mode toggle to cycle through three states: Light -> Dark -> System
 function toggleDarkModeWithSave() {
-    toggleDarkMode();
-    userPrefs.save();
+    // This function is no longer needed with dropdown
+    // Left for compatibility but does nothing
 }
 
 function toggleMinimapWithSave() {
-    toggleMinimap();
+    if (typeof toggleMinimap === 'function') {
+        toggleMinimap();
+    }
     userPrefs.save();
 }
 
 function toggleDebugPresetWithSave() {
-    toggleDebugPreset();
+    if (typeof toggleDebugPreset === 'function') {
+        toggleDebugPreset();
+    }
     userPrefs.save();
 }
 
 function cycleHWModeWithSave() {
-    cycleHWMode();
+    if (typeof cycleHWMode === 'function') {
+        cycleHWMode();
+    }
     userPrefs.save();
 }
 
 function cycleProgramTargetWithSave() {
-    cycleProgramTarget();
+    if (typeof cycleProgramTarget === 'function') {
+        cycleProgramTarget();
+    }
     userPrefs.save();
 }
 
-// Initialize preferences system
+// Initialize preferences system with better timing
 function initializePreferences() {
-    // Load and apply saved preferences
-    userPrefs.apply();
-    
-    // Set up auto-save listeners
-    setupAutoSave();
-    
-    debugLog('User preferences system initialized', 'info');
+    // Wait for DOM to be fully ready and other scripts to load
+    setTimeout(() => {
+        console.log('Initializing preferences system...');
+        
+        // Load and apply saved preferences
+        userPrefs.apply();
+        
+        // Set up auto-save listeners after a short delay
+        setTimeout(() => {
+            setupAutoSave();
+            setupSystemThemeListener();
+        }, 200);
+        
+        debugLog('User preferences system initialized', 'info');
+    }, 300); // Increased delay to ensure all scripts are loaded
+}
+
+// Listen for system theme changes and update if user has "system" selected
+function setupSystemThemeListener() {
+    if (window.matchMedia) {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        
+        const handleSystemThemeChange = (e) => {
+            const darkModeSelect = document.getElementById('darkModeSelect');
+            if (darkModeSelect && darkModeSelect.value === 'system') {
+                console.log('System theme changed, updating app theme');
+                userPrefs.applyDarkMode('system');
+                // No need to save here - the preference is still "system"
+            }
+        };
+        
+        // Listen for changes
+        mediaQuery.addEventListener('change', handleSystemThemeChange);
+        
+        console.log('System theme change listener set up');
+    }
 }
 
 // Export for use in other files
