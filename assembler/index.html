@@ -74,13 +74,20 @@
                         <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()"> Large editor window
                     </label>
                     <label>
-                        <input type="checkbox" id="darkModeToggle" onchange="toggleDarkModeWithSave()"> Enable dark mode
-                    </label>
-                    <label>
                         <input type="checkbox" id="minimapToggle" onchange="toggleMinimapWithSave()"> Show editor mini-map
                     </label>
                     <label>
                         <input type="checkbox" id="debugToggle" onchange="toggleDebugPresetWithSave()"> Show full build results
+                    </label>
+                    <label>
+                        <label>
+                            Theme: 
+                            <select id="darkModeSelect">
+                                <option value="system">System</option>
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </label>
                     </label>
                 </div>
             </div>
@@ -388,7 +395,7 @@
                 document.addEventListener('DOMContentLoaded', function() {
                     DEBUG.reset();
                     // DEBUG.setPreset('basic');
-                    DEBUG.showConfig();
+                    // DEBUG.showConfig();
 
                     // Initialize with HID mode by default
                     selectedHW = 'hid';
@@ -418,6 +425,7 @@
                     }
 
                     initializePreferences();
+                    DEBUG.showConfig();
 
                     console.log('FXCore assembler libraries loaded');
                 });
