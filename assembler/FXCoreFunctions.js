@@ -169,8 +169,8 @@ async function run_from_ram(action) {
 
             // Program the slot
             const slotCmd = new Uint8Array([
-                ((0x0C00 | (FXCoreTargets.FXCore_Prg & 0x000f)) >> 8) & 0xFF,
-                (0x0C00 | (FXCoreTargets.FXCore_Prg & 0x000f)) & 0xFF
+                ((0x0C00 | (parseInt(selectedProgram) & 0x000f)) >> 8) & 0xFF,
+                (0x0C00 | (parseInt(selectedProgram) & 0x000f)) & 0xFF
             ]);
 
             result = await FT260Wrapper.ft260HidI2cWrite(
@@ -183,7 +183,7 @@ async function run_from_ram(action) {
                 debugLog('Error sending program location command:' + result.status, 'errors');
                 return false;
             }
-            debugLog('Sent program location ' + FXCoreTargets.FXCore_Prg + ' command', 'success');
+            debugLog('Sent program location ' + selectedProgram + ' command', 'success');
             await programmer.sleep(200);
             exit_rfr();
             return true;
