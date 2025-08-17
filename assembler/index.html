@@ -28,7 +28,7 @@
                         <text x="32" y="40"text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
-                <span class="build">build 14</span>
+                <span class="build">build 15</span>
             </div>
         </div>
         <h2>Source Input</h2>
@@ -49,6 +49,27 @@
 
         <div class="editor-container">
             <div id="editor" style="width: 100%; height: 400px;"></div>
+        </div>
+
+        <div class="editor-help-text">
+            <label class="windows-only">
+                <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
+                <span class="shortcut"><strong>Ctrl+F</strong> Find</span>
+                <span class="shortcut"><strong>Ctrl+Shift+F</strong> Replace</span>
+                <span class="shortcut"><strong>F3</strong> Find Next</span>
+                <span class="shortcut"><strong>Alt+A</strong>  Assemble</span>
+                <span class="shortcut"><strong>Alt+C</strong>  Exit Run from RAM</span>
+                <span class="shortcut"><strong>Alt+D</strong>  Download Hex / Run from RAM</span>
+            </label>
+            <label class="mac-only">
+                <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
+                <span class="shortcut"><strong>⌘+F</strong> Find</span>
+                <span class="shortcut"><strong>⌘+⌥+F</strong> Replace</span>
+                <span class="shortcut"><strong>F3</strong> Find Next</span>
+                <span class="shortcut"><strong>⌃+A</strong>  Assemble</span>
+                <span class="shortcut"><strong>⌃+C</strong>  Exit Run from RAM</span>
+                <span class="shortcut"><strong>⌃+D</strong>  Download Hex / Run from RAM</span>
+            </label>
         </div>
 
         <!-- Editor Options Section -->
@@ -84,17 +105,26 @@
                         </label>
                     </label>
                 </div>
-                <div class="editor-help-text">
-                    <label>
-                        <span class="shortcut">Editor Shortcuts active when cursor is in editor window:</span>
-                        <span class="shortcut">Ctrl+F / ⌘+F Find</span>
-                        <span class="shortcut">Ctrl+Shift+F / ⌘+⌥+F Replace</span>
-                        <span class="shortcut">F3 Find Next</span>
-                    </label><br>
-                    <label>
-                        <span class="shortcut">Editor accepts ASCII text only</span>
+<!--                 <div class="editor-help-text">
+                    <label class="windows-only">
+                        <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
+                        <span class="shortcut"><strong>Ctrl+F</strong> Find</span>
+                        <span class="shortcut"><strong>Ctrl+Shift+F</strong> Replace</span>
+                        <span class="shortcut"><strong>F3</strong> Find Next</span>
+                        <span class="shortcut"><strong>Alt+A</strong>  Assemble</span>
+                        <span class="shortcut"><strong>Alt+C</strong>  Exit Run from RAM</span>
+                        <span class="shortcut"><strong>Alt+D</strong>  Download Hex / Run from RAM</span>
                     </label>
-                </div>
+                    <label class="mac-only">
+                        <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
+                        <span class="shortcut"><strong>⌘+F</strong> Find</span>
+                        <span class="shortcut"><strong>⌘+⌥+F</strong> Replace</span>
+                        <span class="shortcut"><strong>F3</strong> Find Next</span>
+                        <span class="shortcut"><strong>⌃+A</strong>  Assemble</span>
+                        <span class="shortcut"><strong>⌃+C</strong>  Exit Run from RAM</span>
+                        <span class="shortcut"><strong>⌃+D</strong>  Download Hex / Run from RAM</span>
+                    </label>
+                </div> -->
             </div>
         </div>
 
@@ -330,18 +360,6 @@
                     }
                 });
 
-                // // when user changes FXCore address update it
-                // document.getElementById('FXcoreAddr').addEventListener('change', function(event) {
-                //     FXCoreTargets.FXCore_I2C = document.getElementById('FXcoreAddr').value;
-                //     updateHardwareConnectionStatus(); // Update status when address changes
-                // });
-
-                // // when user changes program slot to program update it
-                // document.getElementById('FXcorePrgNum').addEventListener('change', function(event) {
-                //     FXCoreTargets.FXCore_Prg = document.getElementById('FXcorePrgNum').value;
-                // });
-                // FXCoreTargets.FXCore_Prg = 0; // default program slot
-
                 // Sync both program target displays
                 function syncProgramTargetDisplays() {
                     const display1 = document.getElementById('programTargetDisplay');
@@ -400,8 +418,25 @@
                 // Initialize the FXCore assembler when the page loads
                 document.addEventListener('DOMContentLoaded', function() {
                     DEBUG.reset();
-                    // DEBUG.setPreset('basic');
-                    // DEBUG.showConfig();
+
+                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                    
+                    // Show/hide platform-specific shortcuts
+                    if (isMac) {
+                        document.querySelectorAll('.mac-only').forEach(el => {
+                            el.style.display = 'block';
+                        });
+                        document.querySelectorAll('.windows-only').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                    } else {
+                        document.querySelectorAll('.windows-only').forEach(el => {
+                            el.style.display = 'block';
+                        });
+                        document.querySelectorAll('.mac-only').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                    }
 
                     // Initialize with HID mode by default
                     selectedHW = 'hid';
@@ -434,6 +469,73 @@
                     DEBUG.showConfig();
 
                     console.log('FXCore assembler libraries loaded');
+                });
+
+                document.addEventListener('keydown', function(event) {
+
+                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+                    const monacoHasFocus = document.activeElement?.closest('.monaco-editor');
+
+                    // Only prevent browser shortcuts when Monaco is NOT in focus
+                    // add whatever commands windows is using when I figure that out
+                    if (!monacoHasFocus) {
+                        if (isMac && event.metaKey) {
+                            switch(event.code) {
+                                case 'KeyF':
+                                    if (event.altKey) {
+                                        // Prevent Cmd+Opt+F (Replace)
+                                        event.preventDefault();
+                                        editor.getAction('editor.action.startFindReplaceAction').run();
+                                        return;
+                                    } else {
+                                        // Prevent Cmd+F (Find)
+                                        event.preventDefault();
+                                        editor.getAction('actions.find').run();
+                                        return;
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+
+                    // enable these shortcuts on an OS basis
+                    if (isMac) {
+                        if (event.ctrlKey) {
+                            switch(event.key.toLowerCase()) {
+                                case 'd':
+                                    event.preventDefault(); // Prevents browser's default bookmark
+                                    downloadHex();
+                                    break;
+                                case 'c':
+                                    event.preventDefault();
+                                    exitRunFromRam();
+                                    break;
+                                case 'a':
+                                    event.preventDefault();
+                                    assembleFXCore();
+                                    break;
+                            }
+                        }
+                    }
+                    else {
+                        if (event.altKey) {
+                            switch(event.key.toLowerCase()) {
+                                case 'd':
+                                    event.preventDefault(); // Prevents browser's default bookmark
+                                    downloadHex();
+                                    break;
+                                case 'c':
+                                    event.preventDefault();
+                                    exitRunFromRam();
+                                    break;
+                                case 'a':
+                                    event.preventDefault();
+                                    assembleFXCore();
+                                    break;
+                            }
+                        }
+                    }
                 });
             </script>
         </div>

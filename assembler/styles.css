@@ -125,7 +125,7 @@ textarea {
 .file-input + .editor-options-section,
 .editor-container + div,
 h2 + div {
-    margin-top: 20px;
+    margin-top: 6px;
 }
 
 /* All collapsible section headers */
@@ -273,7 +273,7 @@ button:disabled {
 
 .editor-help-text {
     color: #888;
-    padding-top: 12px;
+    padding-top: 6px;
     padding-left: 4px;
     margin-bottom: 8px;
     font-style: italic;
@@ -803,4 +803,13 @@ body.dark-mode .header-bar::after {
 
 .container > h2:first-of-type {
     margin-top: 0;
+}
+
+/* Hide Mac or Win shortcuts if needed */
+.mac-only {
+    display: none;
+}
+
+.windows-only {
+    display: none;
 }
