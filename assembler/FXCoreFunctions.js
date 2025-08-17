@@ -4,6 +4,34 @@
 // info print out if full build details is checked
 // various other levels only log to console
 
+// This routine gets the raw page text, for a github directory call it is in JSON, for the programs just plain text
+const getPageText = async url => {
+  const response = await fetch(url);
+  if(!response.ok) // check if response worked (no 404 errors etc...)
+    throw new Error(response.statusText);
+
+  const data = response.text(); // get raw page text
+  return data; 
+}
+
+// Recursively examine JSON to find the programs as they are in a nested structure. 
+function traverseJson(obj,prgms) {
+    if (obj !== null && typeof obj === 'object') {
+        if (Array.isArray(obj)) {
+            // If it's an array, iterate through its elements
+            obj.forEach(item => traverseJson(item,prgms));
+        } else {
+            // If it's an object, iterate through its properties
+            Object.entries(obj).forEach(([key, value]) => {
+                if (key === "download_url") {
+                    prgms.push(`${value}`);
+                }
+                    traverseJson(value,prgms); // Recursively call for nested values
+            });
+        }
+    }
+}
+
 async function connectDevice() {
     // FXCoreTargets.filters is an array of VID/PID pairs to look for valid targets, assumes that
     // all of them use or emulate an FT260
