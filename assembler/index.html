@@ -28,7 +28,7 @@
                         <text x="32" y="40"text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
-                <span class="build">build 15</span>
+                <span class="build">build 16</span>
             </div>
         </div>
         <h2>Source Input</h2>
@@ -51,7 +51,7 @@
             <div id="editor" style="width: 100%; height: 400px;"></div>
         </div>
 
-        <div class="editor-help-text">
+<!--         <div class="editor-help-text">
             <label class="windows-only">
                 <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
                 <span class="shortcut"><strong>Ctrl+F</strong> Find</span>
@@ -70,10 +70,10 @@
                 <span class="shortcut"><strong>⌃+C</strong>  Exit Run from RAM</span>
                 <span class="shortcut"><strong>⌃+D</strong>  Download Hex / Run from RAM</span>
             </label>
-        </div>
+        </div> -->
 
         <!-- Editor Options Section -->
-        <div class="editor-options-section">
+<!--         <div class="editor-options-section">
             <h3 onclick="toggleEditorOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
                 <span id="editorOptionsToggle">▶</span> Editor Options
             </h3>
@@ -104,7 +104,7 @@
                             </select>
                         </label>
                     </label>
-                </div>
+                </div> -->
 <!--                 <div class="editor-help-text">
                     <label class="windows-only">
                         <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
@@ -125,8 +125,8 @@
                         <span class="shortcut"><strong>⌃+D</strong>  Download Hex / Run from RAM</span>
                     </label>
                 </div> -->
-            </div>
-        </div>
+<!--             </div>
+        </div> -->
 
         <div>
             <button onclick="assembleFXCore()">Assemble</button>
@@ -143,11 +143,11 @@
 
         <!-- Hardware Options Section -->
         <div class="hardware-options-section">
-            <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
-                <span id="hardwareOptionsToggle">▶</span> Hardware Options
+            <!-- <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
+                <span id="hardwareOptionsToggle">▶</span> Hardware Options -->
                 <span id="hardwareConnectionStatus" style="font-weight: normal; color: #666; margin-left: 10px; font-size: 0.9em;">No connection</span>
             </h3>
-            <div id="hardwareOptionsContent" class="hardware-options-content collapsed">
+<!--             <div id="hardwareOptionsContent" class="hardware-options-content collapsed">
                 <div class="output-controls">
                     <div>
                         <button onclick="cycleHWModeWithSave()" id="HWModeBtn">Select Hardware Mode</button>
@@ -178,7 +178,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> -->
         </div>
 
         <div class="download-buttons">
@@ -203,7 +203,7 @@
             </div>
         </div>
 
-        <div class="instructions-section">
+<!--         <div class="instructions-section">
             <h3 onclick="toggleInstructions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
                 <span id="instructionsToggle">▶</span> Instructions & Help
             </h3>
@@ -253,7 +253,7 @@
                         </ul>
                     </div>
                 </div>
-            </div>
+            </div> -->
 
             <!-- Modal dialogs for user prompts -->
             <div id="confirmModal" class="modal">
@@ -329,6 +329,7 @@
             <script src="FXCoreTargets.js"></script>
             <script src="FXCoreFunctions.js"></script>
             <script src="user-preferences.js"></script>
+            <script src="opcodes.js"></script>
 
             <script>
                 // Global variables and functions to integrate FXCore with Monaco editor
@@ -539,6 +540,817 @@
                 });
             </script>
         </div>
+
+<div class="options-toggle" onclick="toggleFlyout('options')">OPTIONS</div>
+<div class="info-toggle" onclick="toggleFlyout('info')">INFO</div>
+<div class="instructions-toggle" onclick="toggleFlyout('instructions')">HELP</div>
+
+
+    <div id="optionsPanel" class="options-panel">
+        <!-- <button class="close-btn" onclick="closeFlyout('options')">&times;</button> -->
+        <div class="flyout-header">
+            <h3>Options</h3>
+        </div>
+        <div class="flyout-content">
+            <div class="flyout-section">
+                <h4>Editor Options</h4>
+                <div class="options">
+                <div class="project-folder-section">
+                    <button id="projectFolderBtn" class="project-folder-button" onclick="selectProjectDirectory()">
+                        Select Project Folder
+                    </button>
+                    <span id="projectFolderLabel" class="project-folder-label">No directory selected</span>
+                </div>
+                
+                <label>
+                    <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()"> 
+                    Large editor window
+                </label>
+                
+                <label>
+                    <input type="checkbox" id="minimapToggle" onchange="toggleMinimapWithSave()"> 
+                    Show editor mini-map
+                </label>
+                
+                <label>
+                    <input type="checkbox" id="debugToggle" onchange="toggleDebugPresetWithSave()"> 
+                    Show full build results
+                </label>
+                
+                <label>
+                    Theme: 
+                    <select id="darkModeSelect" onchange="handleThemeChange()">
+                        <option value="system">System</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+        
+        <div class="flyout-section">
+            <h4>Hardware Options</h4>
+            <div class="options">
+                <div>
+                    <button onclick="cycleHWModeWithSave()" id="HWModeBtn">Select Hardware Mode</button>
+                    <span id="HWModeDisplay" class="hw-option-label-medium">HID mode</span>
+                </div>
+                
+                <div id="FileModeDiv" style="display: none;">
+                    <div>
+                        <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
+                        <span id="outputDirDisplay" class="hw-option-label-medium">No directory selected</span>
+                    </div>
+                    
+                    <div>
+                        <button onclick="serialConnect()">Select Serial Port</button>
+                        <span id="serialPortDisplay" class="hw-option-label-medium">No port selected</span>
+                    </div>
+                    
+                    <div>
+                        <button onclick="cycleProgramTargetWithSave()" id="programTargetBtn">Select Program Target</button>
+                        <span id="programTargetDisplay" class="hw-option-label-medium">Run from RAM</span>
+                    </div>
+                </div>
+                
+                <div id="HidModeDiv" style="display: block;">
+                    <div>
+                        <label>FXCore address</label>
+<input type="text" id="FXcoreAddr" size="8" value="0x30" class="fxcore-address-input">
+<span class="project-folder-label">HEX with leading 0x</span>
+                    </div><br>
+                    
+                    <div>
+                        <button onclick="cycleProgramTargetWithSave()" id="programTargetBtnHid">Select Program Target</button>
+                        <span id="programTargetDisplayHid" class="hw-option-label-medium">Run from RAM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="flyout-section">
+   <div>
+    <label class="windows-only">
+        <span class="shortcut">
+            <span class="key"><strong>Keyboard Shortcuts:</strong></span>
+            <span class="desc"></span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>Ctrl+F</strong></span>
+            <span class="desc">Find</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>Ctrl+Shift+F</strong></span>
+            <span class="desc">Replace</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>F3</strong></span>
+            <span class="desc">Find Next</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>Alt+A</strong></span>
+            <span class="desc">Assemble</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>Alt+C</strong></span>
+            <span class="desc">Exit Run from RAM</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>Alt+D</strong></span>
+            <span class="desc">Download Hex / Run from RAM</span>
+        </span>
+    </label>
+
+    <label class="mac-only">
+        <span class="shortcut">
+            <span class="key"><strong>Keyboard Shortcuts:</strong></span>
+            <span class="desc"></span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>⌘+F</strong></span>
+            <span class="desc">Find</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>⌘+⌥+F</strong></span>
+            <span class="desc">Replace</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>F3</strong></span>
+            <span class="desc">Find Next</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>⌃+A</strong></span>
+            <span class="desc">Assemble</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>⌃+C</strong></span>
+            <span class="desc">Exit Run from RAM</span>
+        </span>
+        <span class="shortcut">
+            <span class="key"><strong>⌃+D</strong></span>
+            <span class="desc">Download Hex / Run from RAM</span>
+        </span>
+    </label>
+</div>
+
+        </div>
+    </div>
+
+    <div id="infoPanel" class="info-panel">
+        <!-- <button class="close-btn" onclick="closeFlyout('info')">&times;</button> -->
+        <div class="flyout-header">
+            <h3>FXCore Instruction Set Reference</h3>
+        </div>
+        <div class="flyout-content">
+            <!-- Content will be loaded here -->
+        </div>
+    </div>
+
+    <div id="instructionsPanel" class="info-panel">
+    <!-- <button class="close-btn" onclick="closeFlyout('instructions')">&times;</button> -->
+    <div class="flyout-header">
+        <h3>Instructions & Help</h3>
+    </div>
+    <div class="flyout-content">
+        <div class="instructions-text">
+            <h4>Getting Started</h4>
+            <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions. Generated machine code may be saved locally for later use, or sent to a <b>SandboxFX</b> hardware target to hear the results.</p>
+            <ul>
+                <li><i>Enter FXCore source code into the editor area, or select a file or example. Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
+                <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
+                <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with <b>SandboxFX</b> hardware</i></li>
+                <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
+            </ul>
+            <h4>Connecting to Hardware</h4>
+            <p><i>Connect your <b>SandboxFX</b> pedal to your computer using a suitable USB cable. A new removable drive labeled <b>SANDBOX-FX</b> should appear.</i></p>
+            <ul>
+                <li>Press the <b>Connect</b> button, then select the <b>SandboxFX</b> device from the list. You may need to allow this web app to access USB devices.</li>
+                <li><i>Press the <b>Run from RAM</b> button to audition your assembled program on your <b>SandboxFX</b></i></li>
+                <li><i>Press <b>Exit Run from RAM</b> to return to normal operation when finished</i></li>
+                <li><i>Open the <b>Hardware Options</b> panel and tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write. This will save the assembled code to the slot and will persist even if the power is removed.</i></li>
+            </ul>
+            <h4>Troubleshooting</h4>
+            <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting. Scroll up to the top to see previous messages</p>
+            <ul>
+                <li>Error information not helpful - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
+                <li>File transfer problems - <i>ensure proper directory permissions</i></li>
+                <li>Assembly errors - <i>check syntax and register usage</i></li>
+                <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
+            </ul>
+            <h4>What do these Options do?</h4>
+            <p>These are some settings that change various editor and hardware settings</p>
+            <ul>
+                <h3>Editor Options</h3>
+                <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
+                <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
+                <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
+                <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
+            </ul>
+            <ul>
+                <h3>Hardware Options</h3>
+                <li>Select Hardware Mode: <i>Toggles communication mode between USB-HID and USB Disk Mode</i></li>
+                <li>File - Select Output Directory: <i>Specify the folder location of your <b>SandboxFX</b> hardware (typically /SANDBOX-FX)</i></li>
+                <li>File - Select Serial Port: <i>Open <b>SandboxFX</b> serial port to allow hardware debugging information</i></li>
+                <li>HID - FXCore address: <i>Set I2C address of FXCore IC, defaults to 0x30</i></li>
+                <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on <b>SandboxFX</b> hardware</i></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+    <script>
+        // FXCore opcodes JSON data
+        const fxcoreData = {
+            "title": "FXCore Instruction Set Reference",
+            "version": "v1.1 Feb 2025",
+            "categories": {
+                "math-operations": {
+                    "name": "Math Operations",
+                    "opcodes": [
+                        {
+                            "name": "ABS",
+                            "syntax": "ABS CREG",
+                            "description": "Absolute value operation on a core register"
+                        },
+                        {
+                            "name": "CLRACC64",
+                            "syntax": "CLRACC64",
+                            "description": "Clear the 64-bit accumulator"
+                        },
+                        {
+                            "name": "ADDI",
+                            "syntax": "ADDI CREG, IMM16",
+                            "description": "Add immediate value to core register"
+                        },
+                        {
+                            "name": "ADD",
+                            "syntax": "ADD CREG, CREG",
+                            "description": "Add two core registers together"
+                        },
+                        {
+                            "name": "ADDS",
+                            "syntax": "ADDS CREG, CREG",
+                            "description": "Add two core registers with saturation"
+                        },
+                        {
+                            "name": "ADDSI",
+                            "syntax": "ADDSI CREG, IMM16D",
+                            "description": "Add signed immediate value to core register with saturation"
+                        },
+                        {
+                            "name": "SUB",
+                            "syntax": "SUB CREG, CREG",
+                            "description": "Subtract two core registers"
+                        },
+                        {
+                            "name": "SUBS",
+                            "syntax": "SUBS CREG, CREG",
+                            "description": "Subtract two core registers with saturation"
+                        },
+                        {
+                            "name": "SL",
+                            "syntax": "SL CREG, IMM5",
+                            "description": "Shift left by immediate value"
+                        },
+                        {
+                            "name": "SLR",
+                            "syntax": "SLR CREG, CREG",
+                            "description": "Shift left by register value"
+                        },
+                        {
+                            "name": "SLS",
+                            "syntax": "SLS CREG, IMM5",
+                            "description": "Shift left with saturation by immediate value"
+                        },
+                        {
+                            "name": "SLSR",
+                            "syntax": "SLSR CREG, CREG",
+                            "description": "Shift left with saturation by register value"
+                        },
+                        {
+                            "name": "SR",
+                            "syntax": "SR CREG, IMM5",
+                            "description": "Shift right by immediate value"
+                        },
+                        {
+                            "name": "SRR",
+                            "syntax": "SRR CREG, CREG",
+                            "description": "Shift right by register value"
+                        },
+                        {
+                            "name": "SRA",
+                            "syntax": "SRA CREG, IMM5",
+                            "description": "Shift right arithmetic by immediate value"
+                        },
+                        {
+                            "name": "SRAR",
+                            "syntax": "SRAR CREG, CREG",
+                            "description": "Shift right arithmetic by register value"
+                        },
+                        {
+                            "name": "MACRR",
+                            "syntax": "MACRR CREG, CREG",
+                            "description": "Multiply accumulate register to register"
+                        },
+                        {
+                            "name": "MACRI",
+                            "syntax": "MACRI CREG, IMM16D",
+                            "description": "Multiply accumulate register to immediate"
+                        },
+                        {
+                            "name": "MACRD",
+                            "syntax": "MACRD CREG, ADDR",
+                            "description": "Multiply accumulate register to delay memory"
+                        },
+                        {
+                            "name": "MACID",
+                            "syntax": "MACID IMM8D, ADDR",
+                            "description": "Multiply accumulate immediate to delay memory"
+                        },
+                        {
+                            "name": "MACHRR",
+                            "syntax": "MACHRR CREG, CREG",
+                            "description": "Multiply accumulate high register to register"
+                        },
+                        {
+                            "name": "MACHRI",
+                            "syntax": "MACHRI CREG, IMM16D",
+                            "description": "Multiply accumulate high register to immediate"
+                        },
+                        {
+                            "name": "MACHRD",
+                            "syntax": "MACHRD CREG, ADDR",
+                            "description": "Multiply accumulate high register to delay memory"
+                        },
+                        {
+                            "name": "MACHID",
+                            "syntax": "MACHID IMM8D, ADDR",
+                            "description": "Multiply accumulate high immediate to delay memory"
+                        },
+                        {
+                            "name": "MULTRR",
+                            "syntax": "MULTRR CREG, CREG",
+                            "description": "Multiply register to register"
+                        },
+                        {
+                            "name": "MULTRI",
+                            "syntax": "MULTRI CREG, IMM16D",
+                            "description": "Multiply register to immediate"
+                        },
+                        {
+                            "name": "NEG",
+                            "syntax": "NEG CREG",
+                            "description": "Negate register value"
+                        },
+                        {
+                            "name": "LOG2",
+                            "syntax": "LOG2 CREG",
+                            "description": "Calculate log base 2 of register value"
+                        },
+                        {
+                            "name": "EXP2",
+                            "syntax": "EXP2 CREG",
+                            "description": "Calculate 2 to the power of register value"
+                        }
+                    ]
+                },
+                "copy-operations": {
+                    "name": "Copy Operations",
+                    "opcodes": [
+                        {
+                            "name": "CPY_CC",
+                            "syntax": "CPY_CC CREG, CREG",
+                            "description": "Copy core register to core register"
+                        },
+                        {
+                            "name": "CPY_CM",
+                            "syntax": "CPY_CM CREG, MREG",
+                            "description": "Copy core register to memory register"
+                        },
+                        {
+                            "name": "CPY_CS",
+                            "syntax": "CPY_CS CREG, SFR",
+                            "description": "Copy core register to special function register"
+                        },
+                        {
+                            "name": "CPY_MC",
+                            "syntax": "CPY_MC MREG, CREG",
+                            "description": "Copy memory register to core register"
+                        },
+                        {
+                            "name": "CPY_SC",
+                            "syntax": "CPY_SC SFR, CREG",
+                            "description": "Copy special function register to core register"
+                        },
+                        {
+                            "name": "CPY_CMX",
+                            "syntax": "CPY_CMX CREG, CREG",
+                            "description": "Copy core register to memory indexed by register"
+                        }
+                    ]
+                },
+                "load-store-operations": {
+                    "name": "Load/Store Operations",
+                    "opcodes": [
+                        {
+                            "name": "RDACC64U",
+                            "syntax": "RDACC64U CREG",
+                            "description": "Read upper 32 bits of 64-bit accumulator to register"
+                        },
+                        {
+                            "name": "RDACC64L",
+                            "syntax": "RDACC64L CREG",
+                            "description": "Read lower 32 bits of 64-bit accumulator to register"
+                        },
+                        {
+                            "name": "LDACC64U",
+                            "syntax": "LDACC64U CREG",
+                            "description": "Load register to upper 32 bits of 64-bit accumulator"
+                        },
+                        {
+                            "name": "LDACC64L",
+                            "syntax": "LDACC64L CREG",
+                            "description": "Load register to lower 32 bits of 64-bit accumulator"
+                        },
+                        {
+                            "name": "RDDEL",
+                            "syntax": "RDDEL CREG, ADDR",
+                            "description": "Read from delay memory at address to register"
+                        },
+                        {
+                            "name": "WRDEL",
+                            "syntax": "WRDEL ADDR, CREG",
+                            "description": "Write register to delay memory at address"
+                        },
+                        {
+                            "name": "RDDELX",
+                            "syntax": "RDDELX CREG, CREG",
+                            "description": "Read from delay memory at indexed address to register"
+                        },
+                        {
+                            "name": "WRDELX",
+                            "syntax": "WRDELX CREG, CREG",
+                            "description": "Write register to delay memory at indexed address"
+                        },
+                        {
+                            "name": "RDDIRX",
+                            "syntax": "RDDIRX CREG, CREG",
+                            "description": "Read from direct memory at indexed address to register"
+                        },
+                        {
+                            "name": "WRDIRX",
+                            "syntax": "WRDIRX CREG, CREG",
+                            "description": "Write register to direct memory at indexed address"
+                        },
+                        {
+                            "name": "SAT64",
+                            "syntax": "SAT64 CREG",
+                            "description": "Saturate 64-bit accumulator and store to register"
+                        },
+                        {
+                            "name": "WRDLD",
+                            "syntax": "WRDLD CREG, IMM16",
+                            "description": "Write immediate value directly to register"
+                        }
+                    ]
+                },
+                "logic-operations": {
+                    "name": "Logic Operations",
+                    "opcodes": [
+                        {
+                            "name": "INV",
+                            "syntax": "INV CREG",
+                            "description": "Invert all bits in register"
+                        },
+                        {
+                            "name": "OR",
+                            "syntax": "OR CREG, CREG",
+                            "description": "Bitwise OR of two registers"
+                        },
+                        {
+                            "name": "ORI",
+                            "syntax": "ORI CREG, IMM16",
+                            "description": "Bitwise OR register with immediate value"
+                        },
+                        {
+                            "name": "AND",
+                            "syntax": "AND CREG, CREG",
+                            "description": "Bitwise AND of two registers"
+                        },
+                        {
+                            "name": "ANDI",
+                            "syntax": "ANDI CREG, IMM16",
+                            "description": "Bitwise AND register with immediate value"
+                        },
+                        {
+                            "name": "XOR",
+                            "syntax": "XOR CREG, CREG",
+                            "description": "Bitwise XOR of two registers"
+                        },
+                        {
+                            "name": "XORI",
+                            "syntax": "XORI CREG, IMM16",
+                            "description": "Bitwise XOR register with immediate value"
+                        }
+                    ]
+                },
+                "jump-instructions": {
+                    "name": "Jump Instructions",
+                    "opcodes": [
+                        {
+                            "name": "JGEZ",
+                            "syntax": "JGEZ CREG, ADDROFFSET",
+                            "description": "Jump if register value is greater than or equal to zero"
+                        },
+                        {
+                            "name": "JNEG",
+                            "syntax": "JNEG CREG, ADDROFFSET",
+                            "description": "Jump if register value is negative"
+                        },
+                        {
+                            "name": "JNZ",
+                            "syntax": "JNZ CREG, ADDROFFSET",
+                            "description": "Jump if register value is not zero"
+                        },
+                        {
+                            "name": "JZ",
+                            "syntax": "JZ CREG, ADDROFFSET",
+                            "description": "Jump if register value is zero"
+                        },
+                        {
+                            "name": "JZC",
+                            "syntax": "JZC CREG, ADDROFFSET",
+                            "description": "Jump if register value is zero and clear register"
+                        },
+                        {
+                            "name": "JMP",
+                            "syntax": "JMP ADDROFFSET",
+                            "description": "Unconditional jump to address offset"
+                        }
+                    ]
+                },
+                "extended-operations": {
+                    "name": "Extended Operations",
+                    "opcodes": [
+                        {
+                            "name": "APA",
+                            "syntax": "APA IMM8D, ADDR",
+                            "description": "All-pass filter A with immediate coefficient and delay address"
+                        },
+                        {
+                            "name": "APB",
+                            "syntax": "APB IMM8D, ADDR",
+                            "description": "All-pass filter B with immediate coefficient and delay address"
+                        },
+                        {
+                            "name": "APRA",
+                            "syntax": "APRA CREG, ADDR",
+                            "description": "All-pass filter A with register coefficient and delay address"
+                        },
+                        {
+                            "name": "APRB",
+                            "syntax": "APRB CREG, ADDR",
+                            "description": "All-pass filter B with register coefficient and delay address"
+                        },
+                        {
+                            "name": "APRRA",
+                            "syntax": "APRRA CREG, CREG",
+                            "description": "All-pass filter A with register coefficient and register delay address"
+                        },
+                        {
+                            "name": "APRRB",
+                            "syntax": "APRRB CREG, CREG",
+                            "description": "All-pass filter B with register coefficient and register delay address"
+                        },
+                        {
+                            "name": "APMA",
+                            "syntax": "APMA CREG, MREG",
+                            "description": "All-pass filter A with register coefficient and memory register"
+                        },
+                        {
+                            "name": "APMB",
+                            "syntax": "APMB CREG, MREG",
+                            "description": "All-pass filter B with register coefficient and memory register"
+                        },
+                        {
+                            "name": "CHR",
+                            "syntax": "CHR IMM4, ADDR",
+                            "description": "Chorus effect with 4-bit coefficient and delay address"
+                        },
+                        {
+                            "name": "PITCH",
+                            "syntax": "PITCH IMM6, ADDR",
+                            "description": "Pitch shift effect with 6-bit coefficient and delay address"
+                        },
+                        {
+                            "name": "SET",
+                            "syntax": "SET IMM6, CREG",
+                            "description": "Set register to 6-bit immediate value"
+                        },
+                        {
+                            "name": "INTERP",
+                            "syntax": "INTERP CREG, ADDR",
+                            "description": "Interpolate between delay memory values using register coefficient"
+                        }
+                    ]
+                }
+            }
+        };
+
+function loadFXCoreOpcodes() {
+    const flyoutContent = document.querySelector('#infoPanel .flyout-content');
+    if (!flyoutContent) return;
+
+    flyoutContent.innerHTML = '';
+
+    const container = document.createElement('div');
+    container.className = 'opcodes-container';
+
+    // Sticky, wrapping nav
+    const navLinks = document.createElement('div');
+    navLinks.className = 'opcode-nav-links';
+
+    // Map your actual (hyphenated) category IDs → short labels
+    const labelMap = {
+        'math-operations': 'MATH',
+        'copy-operations': 'COPY',
+        'load-store-operations': 'LOAD / STORE',
+        'logic-operations': 'LOGIC',
+        'jump-instructions': 'JUMP',
+        'extended-operations': 'EXTENDED'
+    };
+
+    Object.entries(fxcoreData.categories).forEach(([categoryId, category]) => {
+        const link = document.createElement('a');
+        link.href = `#${categoryId}`;
+        link.className = `opcode-nav-link ${categoryId}`;
+        link.textContent = labelMap[categoryId] ?? category.name;
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const el = document.getElementById(categoryId);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        navLinks.appendChild(link);
+    });
+
+    container.appendChild(navLinks);
+
+    Object.entries(fxcoreData.categories).forEach(([categoryId, category]) => {
+        const sectionHeader = document.createElement('div');
+        sectionHeader.className = 'opcode-section-header';
+        sectionHeader.id = categoryId;
+        sectionHeader.textContent = labelMap[categoryId] ?? category.name;
+        container.appendChild(sectionHeader);
+
+        category.opcodes.forEach(opcode => {
+            const card = document.createElement('div');
+            card.className = 'opcode-card';
+
+            const header = document.createElement('div');
+            header.className = 'opcode-header';
+
+            const name = document.createElement('div');
+            name.className = 'opcode-name';
+            name.textContent = opcode.name;
+
+            const categoryBadge = document.createElement('div');
+            categoryBadge.className = `opcode-category ${categoryId}`;
+            categoryBadge.textContent = labelMap[categoryId] ?? category.name;
+
+            header.appendChild(name);
+            header.appendChild(categoryBadge);
+
+            const syntax = document.createElement('div');
+            syntax.className = 'opcode-syntax';
+            syntax.textContent = opcode.syntax;
+
+            const description = document.createElement('div');
+            description.className = 'opcode-description';
+            description.textContent = opcode.description;
+
+            card.appendChild(header);
+            card.appendChild(syntax);
+            card.appendChild(description);
+            container.appendChild(card);
+        });
+    });
+
+    flyoutContent.appendChild(container);
+}
+
+
+
+// Keep track of open panels
+window.openPanels = new Set();
+
+// Toggle a panel
+window.toggleFlyout = function(type) {
+    const panel = document.getElementById(`${type}Panel`);
+    const toggle = document.querySelector(`.${type}-toggle`);
+
+    if (!panel) {
+        console.error(`Panel not found: ${type}Panel`);
+        return;
+    }
+    if (!toggle) {
+        console.error(`Toggle not found: ${type}-toggle`);
+        return;
+    }
+
+    const isOpen = panel.classList.contains('open');
+
+    // Close all other panels
+    ['options', 'info', 'instructions'].forEach(t => {
+        if (t !== type) {
+            const p = document.getElementById(`${t}Panel`);
+            const tog = document.querySelector(`.${t}-toggle`);
+            if (p && tog) {
+                p.classList.remove('open');
+                tog.classList.remove('panel-open');
+                openPanels.delete(t);
+            }
+        }
+    });
+
+    // Toggle clicked panel
+    panel.classList.toggle('open', !isOpen);
+    toggle.classList.toggle('panel-open', !isOpen);
+
+    if (!isOpen) {
+        openPanels.add(type);
+        // Load info content dynamically when opening
+        if (type === 'info' && panel.querySelector('.opcodes-container') === null) {
+            loadFXCoreOpcodes();
+        }
+    } else {
+        openPanels.delete(type);
+    }
+
+    updatePanelPositions();
+};
+
+// Optional: open a panel programmatically
+window.openFlyout = function(type) {
+    const panel = document.getElementById(`${type}Panel`);
+    if (!panel.classList.contains('open')) {
+        toggleFlyout(type);
+    }
+};
+
+// Close a panel programmatically
+window.closeFlyout = function(type) {
+    const panel = document.getElementById(`${type}Panel`);
+    const toggle = document.querySelector(`.${type}-toggle`);
+    if (panel && toggle && panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        toggle.classList.remove('panel-open');
+        openPanels.delete(type);
+        updatePanelPositions();
+    }
+};
+
+// Update the positions of the toggles to slide with panels
+window.updatePanelPositions = function() {
+    const optionsPanel = document.getElementById('optionsPanel');
+    const infoPanel = document.getElementById('infoPanel');
+    const instructionsPanel = document.getElementById('instructionsPanel');
+
+    const optionsToggle = document.querySelector('.options-toggle');
+    const infoToggle = document.querySelector('.info-toggle');
+    const instructionsToggle = document.querySelector('.instructions-toggle');
+
+    if (optionsPanel && optionsToggle)
+        optionsToggle.style.right = optionsPanel.classList.contains('open') ? '330px' : '0px';
+
+    if (infoPanel && infoToggle)
+        infoToggle.style.right = infoPanel.classList.contains('open') ? '330px' : '0px';
+
+    if (instructionsPanel && instructionsToggle)
+        instructionsToggle.style.right = instructionsPanel.classList.contains('open') ? '630px' : '0px';
+};
+
+// Close all panels with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && openPanels.size > 0) {
+        openPanels.forEach(type => closeFlyout(type));
+    }
+});
+
+
+
+
+    function handleThemeChange() {
+        const themeSelect = document.getElementById('darkModeSelect');
+        if (themeSelect) {
+            // Trigger the existing theme change logic
+            const event = new Event('change');
+            themeSelect.dispatchEvent(event);
+        }
+    } 
+
+</script>
+
+
 </body>
 
 </html>

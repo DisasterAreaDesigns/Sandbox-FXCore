@@ -280,9 +280,23 @@ button:disabled {
 }
 
 .shortcut {
-    margin-right: 20px;
-    white-space: nowrap;
+    display: flex;               /* horizontal layout */
+    justify-content: flex-start; /* align left */
+    gap: 10px;                   /* space between key and description */
+    margin: 2px 0;               /* vertical spacing */
+    font-size: 0.9em;
+    line-height: 1.4;
 }
+
+.shortcut .key {
+    width: 120px;                /* fixed width for keys, adjust as needed */
+    text-align: left;
+}
+
+.shortcut .desc {
+    flex: 1;                     /* take remaining space */
+}
+
 
 .app-icon {
     height: 64px;
@@ -812,4 +826,559 @@ body.dark-mode .header-bar::after {
 
 .windows-only {
     display: none;
+}
+
+/* =========================
+   Base Flyout Panel Styles
+   ========================= */
+.options-panel,
+.info-panel,
+#instructionsPanel {
+    position: fixed;
+    top: 0;
+    right: -330px; /* Hidden by default */
+    width: 300px;  /* Standard width for options/info */
+    height: 100vh;
+    background: var(--flyout-bg, #f8f9fa);
+    border-left: 1px solid var(--flyout-border, #dee2e6);
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    transition: right 0.3s ease;
+    z-index: 1000;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+#instructionsPanel {
+    width: 600px;
+    max-width: 80%;
+    right: -630px; /* hidden by default */
+}
+
+.options-panel {
+    max-width: 80%;
+}
+
+/* Open state for all panels */
+.options-panel.open,
+.info-panel.open,
+#instructionsPanel.open {
+    right: 0;
+}
+/* =========================
+   Flyout Toggles
+   ========================= */
+.options-toggle,
+.info-toggle,
+.instructions-toggle {
+    position: fixed;
+    right: 0px;
+    width: 30px;
+    height: 120px;
+    background: var(--toggle-bg, #4CAF50);
+    /*border: 1px solid var(--toggle-border, #138496);*/
+    border-radius: 6px 0 0 6px;
+    color: var(--toggle-text, white);
+    cursor: pointer;
+    z-index: 1001;
+    transform: translateY(-50%);
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 1px;
+    transition: right 0.3s ease, background-color 0.3s ease;
+}
+
+/* Toggle vertical positions */
+.options-toggle { 
+    top: 65%; 
+}
+
+.info-toggle { 
+    top: calc(65% + 140px); 
+}
+
+.instructions-toggle { 
+    top: calc(65% + 280px);
+}
+
+/* Hover effect */
+.options-toggle:hover,
+.info-toggle:hover,
+.instructions-toggle:hover {
+    background: var(--toggle-bg-hover, #45a049);
+}
+
+/* =========================
+   Panel Content & Headers
+   ========================= */
+.flyout-header,
+#instructionsPanel .flyout-header {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--flyout-border, #dee2e6);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.flyout-header h3,
+#instructionsPanel .flyout-header h3 {
+    margin: 0;
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+.flyout-content {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Form sections with better spacing */
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-section label,
+.form-section .field-label {
+    font-size: 0.95em;
+    font-weight: 500;
+    color: var(--flyout-text, #333);
+    margin-bottom: 4px;
+}
+
+.form-section .field-description,
+.form-section small {
+    font-size: 0.85em;
+    color: var(--flyout-text-muted, #666);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Buttons, inputs, selects in panels */
+.flyout-content button,
+.project-folder-button,
+.flyout-content select,
+.flyout-content input[type="text"] {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 5px;
+    border: 1px solid var(--flyout-border, #dee2e6);
+    background: var(--flyout-button-bg, #e9ecef);
+    color: var(--flyout-text, #333);
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+}
+
+.flyout-content button:hover,
+.project-folder-button:hover {
+    background: var(--flyout-button-hover, #dee2e6);
+    border-color: var(--flyout-border-hover, #bbb);
+}
+
+.flyout-content select,
+.flyout-content input[type="text"] {
+    background: var(--flyout-input-bg, #ffffff);
+    cursor: text;
+}
+
+.flyout-content select {
+    cursor: pointer;
+}
+
+/* Checkbox and radio groups */
+.checkbox-group,
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.checkbox-item,
+.radio-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+}
+
+/* Keyboard shortcuts section */
+.keyboard-shortcuts {
+    margin-top: 20px;
+}
+
+.shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--flyout-border-light, #f0f0f0);
+    font-size: 0.85em;
+}
+
+.shortcut-key {
+    font-family: 'Courier New', monospace;
+    background: var(--flyout-key-bg, #f8f9fa);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+/* Project folder and hardware option labels */
+.project-folder-label,
+.hw-option-label {
+    color: #666;
+    font-style: italic;
+    font-size: 0.88em;
+    margin-top: 4px;
+    display: block;
+}
+
+.hw-option-label-medium {
+    color: #666;
+    font-style: italic;
+    font-size: 0.88em;
+    margin-top: 4px;
+    display: block;
+}
+
+/* FXCore address input */
+.fxcore-address-input {
+    padding: 6px 10px;
+    border: 1px solid var(--flyout-border, #ccc);
+    border-radius: 4px;
+    background: var(--flyout-input-bg, #ffffff);
+    color: var(--flyout-text, #333);
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+/* Keyboard shortcuts section */
+.keyboard-shortcuts-section {
+    margin-top: 20px;
+}
+
+.platform-shortcuts {
+    display: block;
+}
+
+.shortcut {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--flyout-border-light, #f0f0f0);
+}
+
+.shortcut .key {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2em;
+    min-width: 120px;
+}
+
+.shortcut .desc {
+    font-size: 0.88em;
+    color: var(--flyout-text-muted, #666);
+}
+
+.shortcut:first-child {
+    border-bottom: 2px solid var(--flyout-border, #dee2e6);
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+
+.shortcut:first-child .key {
+    font-family: inherit;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+/* Section spacing */
+.flyout-section {
+    margin-bottom: 25px;
+}
+
+.flyout-section h4 {
+    margin: 0 0 15px 0;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--flyout-text, #333);
+    border-bottom: 1px solid var(--flyout-border-light, #f0f0f0);
+    padding-bottom: 8px;
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.options > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* =========================
+   Dark Mode
+   ========================= */
+body.dark-mode .options-panel,
+body.dark-mode .info-panel,
+body.dark-mode #instructionsPanel {
+    --flyout-bg: #2a2a2a;
+    --flyout-text: #e0e0e0;
+    --flyout-text-muted: #999;
+    --flyout-border: #444;
+    --flyout-border-light: #333;
+    --flyout-border-hover: #666;
+    --flyout-button-bg: #404040;
+    --flyout-button-hover: #505050;
+    --flyout-input-bg: #1e1e1e;
+    --flyout-key-bg: #333;
+}
+
+body.dark-mode .options-toggle,
+body.dark-mode .info-toggle,
+body.dark-mode .instructions-toggle {
+    --toggle-bg: #0d7377;
+    --toggle-bg-hover: #14a1a6;
+    --toggle-border: #0a5d61;
+    --toggle-text: #ffffff;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .form-section label,
+body.dark-mode .form-section .field-label {
+    color: var(--flyout-text, #e0e0e0);
+}
+
+body.dark-mode .shortcut-item {
+    border-bottom-color: var(--flyout-border-light, #333);
+}
+
+body.dark-mode .project-folder-label,
+body.dark-mode .hw-option-label,
+body.dark-mode .hw-option-label-medium {
+    color: #999;
+}
+
+body.dark-mode .fxcore-address-input {
+    border-color: var(--flyout-border, #444);
+    background: var(--flyout-input-bg, #1e1e1e);
+    color: var(--flyout-text, #e0e0e0);
+}
+
+body.dark-mode .shortcut {
+    border-bottom-color: var(--flyout-border-light, #333);
+}
+
+body.dark-mode .shortcut:first-child {
+    border-bottom-color: var(--flyout-border, #444);
+}
+
+body.dark-mode .shortcut .desc {
+    color: var(--flyout-text-muted, #999);
+}
+
+body.dark-mode .flyout-section h4 {
+    color: var(--flyout-text, #e0e0e0);
+    border-bottom-color: var(--flyout-border-light, #333);
+}
+
+/* =========================
+   FXCore Opcodes Flyout
+   ========================= */
+.opcodes-container {
+    font-family: 'Roboto', Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    padding: 20px;
+}
+
+.version-info {
+    text-align: center;
+    color: #7f8c8d;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+}
+
+/* Sticky nav with solid background */
+.opcode-nav-links {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
+    background-color: #fafafa;
+    width: 100%;
+    box-sizing: border-box;
+    border-bottom: 1px solid #e1e8ed;
+}
+
+/* Nav links styled like category badges */
+.opcode-nav-link {
+    color: #fff;
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.opcode-nav-link:hover { 
+    opacity: 0.85;
+    transform: translateY(-1px);
+}
+
+.opcode-nav-link.math-operations { background-color: #e74c3c; }
+.opcode-nav-link.copy-operations { background-color: #9b59b6; }
+.opcode-nav-link.load-store-operations { background-color: #3498db; }
+.opcode-nav-link.logic-operations { background-color: #27ae60; }
+.opcode-nav-link.jump-instructions { background-color: #f39c12; }
+.opcode-nav-link.extended-operations { background-color: #e91e63; }
+
+.opcode-nav-link.panel-open,
+.opcode-nav-link.active {
+    background: #007bff;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+/* =========================
+   Opcode Cards
+   ========================= */
+.opcode-card {
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #fafafa;
+    margin-bottom: 15px;
+    transition: all 0.2s ease;
+}
+
+.opcode-card:hover {
+    border-color: #3498db;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.opcode-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.opcode-name {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #2c3e50;
+    font-family: 'Courier New', monospace;
+    margin: 0;
+}
+
+.opcode-syntax {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    padding: 10px 12px;
+    border-radius: 5px;
+    margin-bottom: 12px;
+    font-weight: bold;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Category Badges */
+.opcode-category {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    white-space: nowrap;
+    color: white;
+    font-weight: 500;
+}
+
+.opcode-category.math-operations { background-color: #e74c3c; }
+.opcode-category.copy-operations { background-color: #9b59b6; }
+.opcode-category.load-store-operations { background-color: #3498db; }
+.opcode-category.logic-operations { background-color: #27ae60; }
+.opcode-category.jump-instructions { background-color: #f39c12; }
+.opcode-category.extended-operations { background-color: #e91e63; }
+
+.opcode-description {
+    color: #7f8c8d;
+    font-size: 0.9em;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #ecf0f1;
+    line-height: 1.5;
+}
+
+.opcode-section-header {
+    font-size: 1.4em;
+    color: #2c3e50;
+    margin: 25px 0 18px 0;
+    padding: 10px 0;
+    border-bottom: 2px solid #3498db;
+    scroll-margin-top: 100px;
+    font-weight: 600;
+}
+
+.opcode-section-header:first-of-type {
+    margin-top: 0;
+}
+
+/* Dark mode support for opcodes */
+body.dark-mode .opcodes-container { 
+    color: #e0e0e0; 
+}
+
+body.dark-mode .opcode-nav-links { 
+    background-color: #2a2a2a;
+    border-bottom-color: #444;
+}
+
+body.dark-mode .opcode-card { 
+    background-color: #2a2a2a; 
+    border-color: #444; 
+}
+
+body.dark-mode .opcode-card:hover { 
+    border-color: #0d7377;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .opcode-name,
+body.dark-mode .opcode-section-header { 
+    color: #e0e0e0; 
+}
+
+body.dark-mode .opcode-syntax { 
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode .opcode-description { 
+    color: #b0b0b0; 
+    border-top-color: #444; 
 }
