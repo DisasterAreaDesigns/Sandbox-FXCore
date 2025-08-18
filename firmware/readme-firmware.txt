@@ -2,7 +2,7 @@ FXCore Programmer with FT260 USB-I2C Bridge Emulation
 ======================================================
 
 This folder contains firmware for a dual-mode CircuitPython device that can function as:
-1. FXCore hex file programmer for SpinSemi DSP chips
+1. FXCore hex file programmer for Experimental Noize DSP chips
 2. FT260-compatible USB-I2C bridge emulator
 
 FOLDER STRUCTURE:
