@@ -1,6 +1,8 @@
 # FXCore Hex File Uploader with FT260 Emulation
-# Version 4.1 - Removed FT260 timeout (files checked at boot only)
-# Date: 2025-01-15
+# Version 4.4
+# Date: 2025-08-20
+# unifed buffer and programming functions
+# fixed issue with LED state in HID mode
 
 import board
 import busio
@@ -9,6 +11,44 @@ import neopixel
 import os
 import usb_hid
 import digitalio
+
+# DEBUG FLAG - Set to True to enable detailed debug output
+DEBUG_MODE = True
+
+# are we running from RAM?
+running = False
+
+# unified buffer for both HID and File mode
+class BufferManager:
+    def __init__(self):
+        # Pre-allocated reusable buffers - sized for max 1024 instructions
+        self.i2c_buffer = bytearray(4098)  # 1024 instructions * 4 bytes + 2 checksum = 4098 bytes
+        self.status_buffer = bytearray(12)  # For status reads
+        self.temp_buffer = bytearray(64)   # For small operations
+        self.hex_line_buffer = bytearray(50)  # For hex parsing
+    
+    def get_i2c_buffer(self, size):
+        """Get a view of the I2C buffer for the requested size"""
+        if size <= len(self.i2c_buffer):
+            # Clear only the portion we'll use
+            for i in range(size):
+                self.i2c_buffer[i] = 0
+            return memoryview(self.i2c_buffer[:size])
+        # Fallback for oversized requests
+        return bytearray(size)
+    
+    def get_status_buffer(self):
+        """Get pre-allocated status buffer"""
+        return self.status_buffer
+    
+    def get_temp_buffer(self, size):
+        """Get temporary buffer for small operations"""
+        if size <= len(self.temp_buffer):
+            return memoryview(self.temp_buffer[:size])
+        return bytearray(size)
+
+# Initialize buffer manager
+buffer_mgr = BufferManager()
 
 # FXCore I2C address
 FXCORE_ADDRESS = 0x30
@@ -28,18 +68,812 @@ PURPLE = (255, 0, 255)
 WHITE = (255, 255, 255)
 OFF = (0, 0, 0)
 
+def get_timestamp():
+    """Get current timestamp for logging"""
+    return f"T+{time.monotonic():.2f}s"
+
+def log_message(message):
+    """Log message - always prints to console"""
+    print(message)
+
+def debug_message(message):
+    """Debug message - only prints if DEBUG_MODE is True"""
+    if DEBUG_MODE:
+        print(f"DEBUG: {message}")
+
+def error_message(message):
+    """Error message - always prints to console with ERROR prefix"""
+    print(f"ERROR: {message}")
+
 # Initialize I2C bus on GP0 (SDA) and GP1 (SCL)
 try:
     i2c = busio.I2C(scl=board.GP1, sda=board.GP0)
-    print("I2C bus initialized on GP0 (SDA) and GP1 (SCL)")
-    print("NeoPixel initialized on GP16")
+    log_message("I2C bus initialized on GP0 (SDA) and GP1 (SCL)")
+    log_message("NeoPixel initialized on GP16")
     pixel[0] = OFF  # Start with LED off
 except Exception as e:
-    print(f"Error initializing I2C or NeoPixel: {e}")
+    error_message(f"Error initializing I2C or NeoPixel: {e}")
     while True:
         time.sleep(1)
 
+def is_executing_from_ram(status_info):
+    """
+    Detect if FXCore is executing from RAM based on status patterns.
+    When executing from RAM, status registers often return garbage/undefined values.
+    """
+    if not status_info:
+        return False
+    
+    # Check for common garbage patterns
+    transfer_state = status_info['transfer_state']
+    command_status = status_info['command_status']
+    device_id = status_info['device_id']
+    
+    # Pattern 1: All 0xFF (floating high)
+    if (transfer_state == 0xFF and command_status == 0xFF and device_id == 0xFFFF):
+        return True
+    
+    # Pattern 2: All 0x00 (floating low)
+    if (transfer_state == 0x00 and command_status == 0x00 and device_id == 0x0000):
+        return True
+    
+    # Pattern 3: Repeating patterns that indicate no valid communication
+    if (transfer_state == command_status and 
+        command_status == (device_id & 0xFF) and 
+        transfer_state != 0x20):  # 0x20 is a valid idle state
+        return True
+    
+    # Pattern 4: Device ID is clearly invalid for FXCore
+    if device_id == 0xFFFF or device_id == 0x0000:
+        return True
+    
+    return False
+
+def read_fxcore_status():
+    """Read the 12-byte status from FXCore and return parsed information"""
+    try:
+        while not i2c.try_lock():
+            pass
+        
+        # Use pre-allocated buffer instead of creating new one
+        status_bytes = buffer_mgr.get_status_buffer()
+        i2c.readfrom_into(FXCORE_ADDRESS, status_bytes)
+        i2c.unlock()
+        
+        # Parse according to FXCore documentation:
+        transfer_state = status_bytes[0]
+        command_status = status_bytes[1]
+        last_cmd_h = status_bytes[2]
+        last_cmd_l = status_bytes[3]
+        prog_slot_status = status_bytes[4] | (status_bytes[5] << 8)
+        device_id = status_bytes[6] | (status_bytes[7] << 8)
+        serial_num = (status_bytes[8] | (status_bytes[9] << 8) | 
+                     (status_bytes[10] << 16) | (status_bytes[11] << 24))
+        
+        status_info = {
+            'transfer_state': transfer_state,
+            'command_status': command_status,
+            'last_command': (last_cmd_h << 8) | last_cmd_l,
+            'program_slot_status': prog_slot_status,
+            'device_id': device_id,
+            'serial_number': serial_num,
+            'program_received': bool(transfer_state & 0x10),
+            'registers_received': bool(transfer_state & 0x08),
+            'mregs_received': bool(transfer_state & 0x04),
+            'sfrs_received': bool(transfer_state & 0x02),
+            'cregs_received': bool(transfer_state & 0x01)
+        }
+        
+        # Add RAM execution detection
+        status_info['is_executing_from_ram'] = is_executing_from_ram(status_info)
+        
+        return status_info
+        
+    except Exception as e:
+        error_message(f"Error reading FXCore status: {e}")
+        try:
+            i2c.unlock();
+        except:
+            pass
+        return None
+
+def log_fxcore_status(operation="Status Check"):
+    """Read and log FXCore status with improved RAM execution detection"""
+    status = read_fxcore_status()
+    if status:
+        # Check if executing from RAM using the improved detection
+        if status.get('is_executing_from_ram', False):
+            debug_message(f"{operation} - FXCore Status: EXECUTING FROM RAM (status registers contain garbage)")
+            return status
+            
+        debug_message(f"{operation} - FXCore Status:")
+        debug_message(f"  Transfer State: 0x{status['transfer_state']:02X}")
+        debug_message(f"  Command Status: 0x{status['command_status']:02X}")
+        debug_message(f"  Last Command: 0x{status['last_command']:04X}")
+        debug_message(f"  Program Slots: 0x{status['program_slot_status']:04X}")
+        debug_message(f"  Device ID: 0x{status['device_id']:04X}")
+        debug_message(f"  Serial Number: {status['serial_number']} (0x{status['serial_number']:08X})")
+    
+    return status
+
+def find_valid_hex_files():
+    """
+    Find and validate all hex files (output.hex and location files 0.hex-F.hex)
+    Returns: (output_hex_valid, location_files_dict)
+    """
+    location_files = {}
+    output_hex_valid = False
+    valid_names = [f"{i:X}.hex" for i in range(16)]  # 0.hex through F.hex
+    
+    try:
+        files = os.listdir()
+        
+        for filename in files:
+            # Check for output.hex
+            if filename == "output.hex":
+                try:
+                    with open(filename, 'r') as f:
+                        content = f.read().strip()
+                        if len(content) == 0:
+                            log_message("output.hex was found, zero bytes, skipping")
+                        elif not content.startswith(':'):
+                            error_message("Invalid hex file found: output.hex")
+                        else:
+                            output_hex_valid = True
+                except:
+                    pass
+            
+            # Check for location files (0.hex through F.hex)
+            elif filename.upper() in [name.upper() for name in valid_names]:
+                location = filename.upper().split('.')[0]
+                try:
+                    location_num = int(location, 16)
+                    try:
+                        with open(filename, 'r') as f:
+                            content = f.read().strip()
+                            if len(content) == 0:
+                                log_message(f"{filename} was found, zero bytes, skipping")
+                            elif not content.startswith(':'):
+                                error_message(f"Invalid hex file found: {filename}")
+                            else:
+                                location_files[location_num] = filename
+                    except:
+                        pass
+                except ValueError:
+                    pass
+    except:
+        pass
+    
+    return output_hex_valid, location_files
+
+
+def set_status_led(color):
+    """Set the status LED color"""
+    pixel[0] = color
+
+def blink_status_led(color, count=3, duration=0.2):
+    """Blink the status LED"""
+    for _ in range(count):
+        pixel[0] = color
+        time.sleep(duration)
+        pixel[0] = OFF
+        time.sleep(duration)
+
+def calculate_checksum(data):
+    """Calculate simple sum checksum of all bytes"""
+    return sum(data) & 0xFFFF
+
+def enter_prog_mode():
+    """Enter programming mode on the FXCore"""
+    try:
+        while not i2c.try_lock():
+            pass
+        
+        command = bytes([0xA5, 0x5A, FXCORE_ADDRESS])
+        i2c.writeto(FXCORE_ADDRESS, command)
+        debug_message("Entered programming mode")
+        
+        i2c.unlock()
+        time.sleep(0.1)
+        log_fxcore_status("After ENTER_PRG")
+        return True
+        
+    except OSError as e:
+        error_message(f"Error entering PROG mode: {e}")
+        try:
+            i2c.unlock();
+        except:
+            pass
+        return False
+
+def exit_prog_mode():
+    global running
+    """Exit programming mode and return to RUN mode"""
+    try:
+        while not i2c.try_lock():
+            pass
+        
+        command = bytes([0x5A, 0xA5])
+        i2c.writeto(FXCORE_ADDRESS, command)
+        debug_message("Exited programming mode - returned to RUN mode")
+
+        running = False
+        
+        i2c.unlock()
+        time.sleep(0.1)
+        log_fxcore_status("After EXIT_PRG")
+        return True
+        
+    except OSError as e:
+        error_message(f"Error exiting PROG mode: {e}")
+        try:
+            i2c.unlock();
+        except:
+            pass
+        return False
+
+def verify_hex_checksum(record_bytes):
+    """Verify Intel HEX record checksum"""
+    total_sum = sum(record_bytes) & 0xFF
+    return total_sum == 0
+
+def read_fxcore_hex_file(filename):
+    """Read and parse FXCore hex file using Intel HEX format with minimal memory usage"""
+    try:
+        with open(filename, 'r') as f:
+            content = f.read().strip()
+        
+        # Check for zero-byte file
+        if len(content) == 0:
+            log_message(f"{filename} was found, zero bytes, skipping")
+            return None
+        
+        # Check for basic hex file format
+        if not content.startswith(':'):
+            error_message(f"Invalid hex file found: {filename}")
+            return None
+        
+        # Continue with existing parsing...
+        lines = content.split('\n')
+        
+        # Instead of storing every byte in a dictionary, collect by ranges
+        mreg_data = bytearray()
+        creg_data = bytearray()
+        sfr_data = bytearray()
+        prog_data = bytearray()
+        
+        debug_message(f"Parsing Intel HEX records from {filename}...")
+        
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line.startswith(':'):
+                continue
+                
+            if len(line) < 11:
+                debug_message(f"Line {line_num}: Record too short, skipping")
+                continue
+                
+            try:
+                byte_count = int(line[1:3], 16)
+                address = int(line[3:7], 16) 
+                record_type = int(line[7:9], 16)
+                
+                expected_length = 11 + (byte_count * 2)
+                if len(line) != expected_length:
+                    debug_message(f"Line {line_num}: Length mismatch, expected {expected_length}, got {len(line)}")
+                    continue
+                
+                record_bytes = []
+                for i in range(1, len(line), 2):
+                    record_bytes.append(int(line[i:i+2], 16))
+                
+                if not verify_hex_checksum(record_bytes):
+                    error_message(f"Line {line_num}: Checksum error!")
+                    continue
+                
+                if record_type == 0x00:  # Data record
+                    # Extract data bytes
+                    data_bytes = []
+                    for i in range(byte_count):
+                        data_pos = 9 + (i * 2)
+                        data_byte = int(line[data_pos:data_pos+2], 16)
+                        data_bytes.append(data_byte)
+                    
+                    # Sort data directly into appropriate arrays based on address
+                    if 0x0000 <= address <= 0x07FF:
+                        # MREG data - extend array if needed
+                        while len(mreg_data) < (address - 0x0000) + len(data_bytes):
+                            mreg_data.append(0x00)
+                        for i, byte_val in enumerate(data_bytes):
+                            mreg_data[address - 0x0000 + i] = byte_val
+                            
+                    elif 0x0800 <= address <= 0x0FFF:
+                        # CREG data
+                        while len(creg_data) < (address - 0x0800) + len(data_bytes):
+                            creg_data.append(0x00)
+                        for i, byte_val in enumerate(data_bytes):
+                            creg_data[address - 0x0800 + i] = byte_val
+                            
+                    elif 0x1000 <= address <= 0x17FF:
+                        # SFR data
+                        while len(sfr_data) < (address - 0x1000) + len(data_bytes):
+                            sfr_data.append(0x00)
+                        for i, byte_val in enumerate(data_bytes):
+                            sfr_data[address - 0x1000 + i] = byte_val
+                            
+                    elif address >= 0x1800:
+                        # Program data - just append, we'll handle sparse addresses later
+                        # Calculate offset from start of program area
+                        prog_offset = address - 0x1800
+                        while len(prog_data) < prog_offset + len(data_bytes):
+                            prog_data.append(0x00)
+                        for i, byte_val in enumerate(data_bytes):
+                            prog_data[prog_offset + i] = byte_val
+                    
+                elif record_type == 0x01:  # End of file
+                    debug_message(f"Line {line_num}: End of file record")
+                    break
+                    
+            except ValueError as e:
+                error_message(f"Line {line_num}: Parse error - {e}")
+                continue
+            except MemoryError as e:
+                error_message(f"Line {line_num}: Memory error - hex file too large")
+                return None
+
+        debug_message(f"Extracted arrays: MREG={len(mreg_data)}, CREG={len(creg_data)}, "
+                   f"SFR={len(sfr_data)}, PROGRAM={len(prog_data)} bytes")
+        
+        # Convert program data to 32-bit instructions - be more careful about size
+        if len(prog_data) >= 2:
+            # Reserve last 2 bytes for checksum
+            instruction_bytes = len(prog_data) - 2
+        else:
+            instruction_bytes = len(prog_data)
+            
+        instructions = []
+        for i in range(0, instruction_bytes, 4):
+            if i + 3 < instruction_bytes:
+                instruction = (prog_data[i] |
+                             (prog_data[i+1] << 8) |
+                             (prog_data[i+2] << 16) |
+                             (prog_data[i+3] << 24))
+                instructions.append(instruction)
+        
+        debug_message(f"Program contains {len(instructions)} instructions")
+        
+        return {
+            'cregs': creg_data,
+            'mregs': mreg_data,
+            'sfrs': sfr_data, 
+            'instructions': instructions,
+            'program_data': prog_data,
+            'mreg_checksum': bytearray([0, 0]),
+            'creg_checksum': bytearray([0, 0])
+        }
+        
+    except Exception as e:
+        error_message(f"Error reading hex file {filename}: {e}")
+        return None
+
+def send_i2c_data(data, description):
+    """Send data over I2C as a single transfer"""
+    try:
+        while not i2c.try_lock():
+            pass
+        
+        try:
+            i2c.writeto(FXCORE_ADDRESS, data)
+            i2c.unlock()
+            debug_message(f"Sent {len(data)} bytes of {description} in single transfer")
+            return True
+        except OSError as e:
+            debug_message(f"Single transfer failed ({e}), trying chunked transfer...")
+            chunk_size = 32
+            for i in range(0, len(data), chunk_size):
+                chunk = data[i:i + chunk_size]
+                i2c.writeto(FXCORE_ADDRESS, chunk)
+                time.sleep(0.01)
+            
+            i2c.unlock()
+            debug_message(f"Sent {len(data)} bytes of {description} in {(len(data) + chunk_size - 1) // chunk_size} chunks")
+            return True
+        
+    except OSError as e:
+        error_message(f"Error sending {description}: {e}")
+        try:
+            i2c.unlock();
+        except:
+            pass
+        return False
+
+def send_command(cmd_bytes, description):
+    """Send a command to FXCore"""
+    try:
+        while not i2c.try_lock():
+            pass
+        
+        command = bytes(cmd_bytes)
+        i2c.writeto(FXCORE_ADDRESS, command)
+        hex_bytes = [f'0x{b:02X}' for b in cmd_bytes]
+        debug_message(f"Sent {description} command: {' '.join(hex_bytes)}")
+        
+        i2c.unlock()
+        time.sleep(0.01)
+        return True
+        
+    except OSError as e:
+        error_message(f"Error sending {description} command: {e}")
+        try:
+            i2c.unlock();
+        except:
+            pass
+        return False
+
+def send_cregs(cregs, original_checksum):
+    """Send CREG data to FXCore using pre-allocated buffer"""
+    if not send_command([0x01, 0x0F], "XFER_CREG"):
+        return False
+    
+    # Use pre-allocated buffer instead of creating new bytearray
+    data_buffer = buffer_mgr.get_i2c_buffer(66)  # 64 data + 2 checksum
+    
+    # Copy CREG data to buffer
+    copy_len = min(len(cregs), 64)
+    data_buffer[:copy_len] = cregs[:copy_len]
+    
+    # Pad with zeros if needed
+    if copy_len < 64:
+        for i in range(copy_len, 64):
+            data_buffer[i] = 0
+    
+    # Add checksum
+    if len(original_checksum) == 2 and (original_checksum[0] != 0 or original_checksum[1] != 0):
+        data_buffer[64:66] = original_checksum
+    else:
+        checksum = calculate_checksum(data_buffer[:64])
+        data_buffer[64] = checksum & 0xFF
+        data_buffer[65] = (checksum >> 8) & 0xFF
+    
+    success = send_i2c_data(data_buffer, f"CREG data (66 bytes)")
+    if success:
+        log_fxcore_status("After CREG transfer")
+    return success
+
+def send_mregs(mregs, original_checksum):
+    """Send MREG data to FXCore using pre-allocated buffer"""
+    if not send_command([0x04, 0x7F], "XFER_MREG"):
+        return False
+    
+    # Use pre-allocated buffer
+    data_buffer = buffer_mgr.get_i2c_buffer(514)  # 512 data + 2 checksum
+    
+    # Copy MREG data to buffer
+    copy_len = min(len(mregs), 512)
+    data_buffer[:copy_len] = mregs[:copy_len]
+    
+    # Pad with zeros if needed
+    if copy_len < 512:
+        for i in range(copy_len, 512):
+            data_buffer[i] = 0
+    
+    # Add checksum
+    if len(original_checksum) == 2 and (original_checksum[0] != 0 or original_checksum[1] != 0):
+        data_buffer[512:514] = original_checksum
+    else:
+        checksum = calculate_checksum(data_buffer[:512])
+        data_buffer[512] = checksum & 0xFF
+        data_buffer[513] = (checksum >> 8) & 0xFF
+    
+    success = send_i2c_data(data_buffer, f"MREG data (514 bytes)")
+    if success:
+        log_fxcore_status("After MREG transfer")
+    return success
+
+def send_sfrs(sfrs):
+    """Send SFR data to FXCore using pre-allocated buffer"""
+    if not send_command([0x02, 0x0B], "XFER_SFR"):
+        return False
+    
+    # Use pre-allocated buffer
+    data_buffer = buffer_mgr.get_i2c_buffer(52)  # 50 data + 2 checksum
+    
+    # Copy SFR data to buffer
+    copy_len = min(len(sfrs), 50)
+    data_buffer[:copy_len] = sfrs[:copy_len]
+    
+    # Pad with zeros if needed
+    if copy_len < 50:
+        for i in range(copy_len, 50):
+            data_buffer[i] = 0
+    
+    # Add checksum
+    checksum = calculate_checksum(data_buffer[:50])
+    data_buffer[50] = checksum & 0xFF
+    data_buffer[51] = (checksum >> 8) & 0xFF
+    
+    success = send_i2c_data(data_buffer, f"SFR data (52 bytes)")
+    if success:
+        log_fxcore_status("After SFR transfer")
+    return success
+
+def send_program_data(instructions, program_data):
+    """Send program data to FXCore using pre-allocated buffer"""
+    if len(instructions) == 0:
+        debug_message("No program instructions to send")
+        return False
+    
+    # Validate instruction count
+    if len(instructions) > 1024:
+        error_message(f"Too many instructions ({len(instructions)}), max is 1024")
+        return False
+        
+    num_instructions = len(instructions)
+    cmd_value = 0x0800 + (num_instructions - 1)
+    cmd_high = (cmd_value >> 8) & 0xFF
+    cmd_low = cmd_value & 0xFF
+    
+    if not send_command([cmd_high, cmd_low], f"XFER_PRG (0x{cmd_value:04X} for {num_instructions} instructions)"):
+        return False
+    
+    if isinstance(program_data, bytearray) and len(program_data) > len(instructions) * 4:
+        # Use existing program_data that already includes checksum
+        success = send_i2c_data(program_data, f"program data ({len(program_data)} bytes including checksum)")
+    else:
+        # Build program data using pre-allocated buffer
+        program_bytes_size = (num_instructions * 4) + 2  # instructions + 2 byte checksum
+        data_buffer = buffer_mgr.get_i2c_buffer(program_bytes_size)
+        
+        # Pack instructions into buffer (4 bytes each, little-endian)
+        for i, instruction in enumerate(instructions):
+            base_idx = i * 4
+            data_buffer[base_idx] = instruction & 0xFF
+            data_buffer[base_idx + 1] = (instruction >> 8) & 0xFF
+            data_buffer[base_idx + 2] = (instruction >> 16) & 0xFF
+            data_buffer[base_idx + 3] = (instruction >> 24) & 0xFF
+        
+        # Calculate and add checksum
+        program_data_portion = data_buffer[:num_instructions * 4]
+        checksum = calculate_checksum(program_data_portion)
+        data_buffer[num_instructions * 4] = checksum & 0xFF
+        data_buffer[num_instructions * 4 + 1] = (checksum >> 8) & 0xFF
+        
+        success = send_i2c_data(data_buffer, f"program data ({program_bytes_size} bytes with calculated checksum)")
+    
+    if success:
+        log_fxcore_status("After PROGRAM transfer")
+    return success
+
+def execute_from_ram():
+    """Execute the program from RAM"""
+    success = send_command([0x0D, 0x00], "EXEC_FROM_RAM")
+    if success:
+        log_fxcore_status("After EXEC_FROM_RAM")
+    return success
+
+def write_to_flash_location(location):
+    """Write the program to a specific flash location (0-15)"""
+    if location < 0 or location > 15:
+        error_message(f"Invalid flash location: {location}")
+        return False
+    
+    success = send_command([0x0C, location], f"WRITE_PRG to location {location:X}")
+    if success:
+        debug_message(f"Writing to FLASH location {location:X}, waiting 200ms...")
+        time.sleep(0.2)  # Wait for FLASH write to complete
+        log_fxcore_status(f"After WRITE_PRG to location {location:X}")
+    return success
+
+def send_return_0():
+    """Send RETURN_0 command to stop execution and return to STATE0"""
+    success = send_command([0x0E, 0x00], "RETURN_0")
+    if success:
+        log_fxcore_status("After RETURN_0")
+    return success
+
+# UNIFIED PROGRAMMING FUNCTION
+def execute_unified_programming(data_source, execution_mode="ram", flash_location=None):
+    """
+    Unified programming function for both file mode and FT260 mode
+    
+    Args:
+        data_source: Either a filename (string) or a dict with programming data
+        execution_mode: "ram" for RAM execution, "flash" for flash programming
+        flash_location: Location (0-15) for flash programming, ignored for RAM mode
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+
+    global running
+    
+    # Determine if we're working with file data or FT260 data
+    if isinstance(data_source, str):
+        # File mode - read and parse hex file
+        debug_message(f"Reading and parsing hex file: {data_source}")
+        fx_data = read_fxcore_hex_file(data_source)
+        if not fx_data:
+            error_message("Failed to read hex file")
+            blink_status_led(RED, 5)
+            return False
+        
+        cregs = fx_data['cregs']
+        mregs = fx_data['mregs'] 
+        sfrs = fx_data['sfrs']
+        instructions = fx_data['instructions']
+        program_data = fx_data.get('program_data', bytearray())
+        creg_checksum = fx_data.get('creg_checksum', bytearray())
+        mreg_checksum = fx_data.get('mreg_checksum', bytearray())
+        
+    else:
+        # FT260 mode - use provided data dict
+        cregs = data_source.get('cregs', bytearray())
+        mregs = data_source.get('mregs', bytearray())
+        sfrs = data_source.get('sfrs', bytearray())
+        instructions = data_source.get('instructions', [])
+        program_data = data_source.get('program_data', bytearray())
+        creg_checksum = data_source.get('creg_checksum', bytearray())
+        mreg_checksum = data_source.get('mreg_checksum', bytearray())
+    
+    # Set appropriate status LED based on mode
+    if execution_mode == "flash":
+        if isinstance(data_source, str):
+            log_message(f"Starting flash programming: {data_source} -> Location {flash_location:X}")
+        else:
+            log_message(f"Starting flash programming to location {flash_location:X}")
+        blink_status_led(PURPLE, 2)
+    else:
+        if isinstance(data_source, str):
+            log_message(f"Starting RAM execution: {data_source}")
+        else:
+            log_message("Starting RAM execution from FT260 data")
+        blink_status_led(BLUE, 2)
+    
+    # Initial status check
+    log_fxcore_status("Before programming")
+    
+    # Wait for FXCore to settle
+    debug_message("Waiting for FXCore to settle...")
+    time.sleep(0.5)
+    
+    # Enter programming mode
+    debug_message("Entering programming mode...")
+    if not enter_prog_mode():
+        error_message("Failed to enter programming mode")
+        blink_status_led(RED, 5)
+        return False
+    
+    time.sleep(0.1)
+    
+    # Send data in the correct order: CREG, MREG, SFR, PROGRAM
+    success = True
+    
+    # Send CREGs if available
+    if success and len(cregs) > 0:
+        debug_message("Uploading CREG data...")
+        if not send_cregs(cregs, creg_checksum):
+            success = False
+        else:
+            time.sleep(0.1)
+    
+    # Send MREGs if available
+    if success and len(mregs) > 0:
+        debug_message("Uploading MREG data...")
+        if not send_mregs(mregs, mreg_checksum):
+            success = False
+        else:
+            time.sleep(0.1)
+    
+    # Send SFRs if available
+    if success and len(sfrs) > 0:
+        debug_message("Uploading SFR data...")
+        if not send_sfrs(sfrs):
+            success = False
+        else:
+            time.sleep(0.1)
+    
+    # Send program data if available
+    if success and len(instructions) > 0:
+        debug_message("Uploading program data...")
+        if not send_program_data(instructions, program_data):
+            success = False
+        else:
+            time.sleep(0.1)
+    
+    if not success:
+        error_message("Failed to upload complete program data")
+        blink_status_led(RED, 5)
+        send_return_0()
+        exit_prog_mode()
+        return False
+    
+   # Execute based on mode
+    if execution_mode == "flash":
+        # Flash programming mode
+        if flash_location is None or flash_location < 0 or flash_location > 15:
+            error_message(f"Invalid flash location: {flash_location}")
+            blink_status_led(RED, 5)
+            send_return_0()
+            exit_prog_mode()
+            return False
+        
+        debug_message(f"Writing program to FLASH location {flash_location:X}...")
+        if not write_to_flash_location(flash_location):
+            error_message("Failed to write to FLASH")
+            blink_status_led(RED, 5)
+            send_return_0()
+            exit_prog_mode()
+            return False
+        
+        # Return to STATE0 and exit programming mode for flash
+        send_return_0()
+        time.sleep(0.1)
+        exit_prog_mode()
+        
+        # Success - indicate with solid green LED
+        set_status_led(GREEN)
+        log_message(f"SUCCESS: Program written to FLASH location {flash_location:X}")
+        debug_message("Programming complete. FXCore returned to RUN mode.")
+        
+    else:
+        # RAM execution mode
+        debug_message("Starting program execution from RAM...")
+        if not execute_from_ram():
+            error_message("Failed to execute program")
+            blink_status_led(RED, 5)
+            send_return_0()
+            exit_prog_mode()
+            return False
+        
+        # Success - set running flag and initial LED state
+        running = True  # This makes the main loop handle blinking
+        set_status_led(RED)  # Set initial red state
+        log_message("SUCCESS: Program is running from RAM")
+        debug_message("RED LED blinking indicates program is running from RAM")
+        debug_message("CLEAR HARDWARE to stop execution and return to normal operation")
+    
+    return True
+
+
+# Simplified file mode functions that use the unified function
+def program_location(location, filename):
+    """Program a specific location with a hex file (simplified wrapper)"""
+    return execute_unified_programming(filename, "flash", location)
+
+
+def run_ram_execution(filename="output.hex"):
+    """Run the complete upload and execution process for RAM execution (simplified wrapper)"""
+    return execute_unified_programming(filename, "ram")
+
+
+# Helper function to convert FT260 data to the format expected by unified function
+def prepare_ft260_data_for_unified(ft260_emulator):
+    """Convert FT260 emulator data to format expected by unified programming function"""
+    # Convert program data to instructions if needed
+    instructions = []
+    if len(ft260_emulator.program_data) >= 2:
+        program_payload = ft260_emulator.program_data[:-2]  # Everything except checksum
+        for i in range(0, len(program_payload), 4):
+            if i + 3 < len(program_payload):
+                instruction = (program_payload[i] |
+                             (program_payload[i+1] << 8) |
+                             (program_payload[i+2] << 16) |
+                             (program_payload[i+3] << 24))
+                instructions.append(instruction)
+    
+    return {
+        'cregs': ft260_emulator.creg_data[:64] if len(ft260_emulator.creg_data) >= 64 else bytearray(),
+        'mregs': ft260_emulator.mreg_data[:512] if len(ft260_emulator.mreg_data) >= 512 else bytearray(),
+        'sfrs': ft260_emulator.sfr_data[:50] if len(ft260_emulator.sfr_data) >= 50 else bytearray(),
+        'instructions': instructions,
+        'program_data': ft260_emulator.program_data,
+        'creg_checksum': ft260_emulator.creg_data[64:66] if len(ft260_emulator.creg_data) >= 66 else bytearray(),
+        'mreg_checksum': ft260_emulator.mreg_data[512:514] if len(ft260_emulator.mreg_data) >= 514 else bytearray()
+    }
+
+
 # Smart FT260 Emulator Class - Fixed command parsing
+# we accept HID reports 0xA1, 0xC0, 0xC2, 0xD0
 class SmartFT260Emulator:
     def __init__(self):
         # Find our custom FT260 HID device
@@ -50,11 +884,11 @@ class SmartFT260Emulator:
                 break
         
         if not self.hid_device:
-            print("FT260 HID device not found. Check boot.py configuration.")
+            debug_message("FT260 HID device not found. Check boot.py configuration.")
             self.enabled = False
         else:
             self.enabled = True
-            print("✓ Smart FT260 Emulator ready")
+            log_message("✓ Smart FT260 Emulator ready")
         
         # State tracking
         self.i2c_status = 0x20  # I2C idle status
@@ -68,15 +902,33 @@ class SmartFT260Emulator:
         self.expecting_data = None  # What type of data we're expecting next
         self.data_remaining = 0     # How many bytes remaining for current transfer
     
+    # Use same buffers for both modes
     def reset_programming_state(self):
-        """Reset all programming data buffers"""
-        self.mreg_data = bytearray()
-        self.creg_data = bytearray()
-        self.sfr_data = bytearray()
-        self.program_data = bytearray()
+        """Reset all programming data buffers - reuse existing buffers"""
+        # Instead of creating new bytearrays, clear existing ones
+        if hasattr(self, 'mreg_data'):
+            self.mreg_data[:] = bytearray()  # Clear in place
+        else:
+            self.mreg_data = bytearray()
+        
+        if hasattr(self, 'creg_data'):
+            self.creg_data[:] = bytearray()
+        else:
+            self.creg_data = bytearray()
+        
+        if hasattr(self, 'sfr_data'):
+            self.sfr_data[:] = bytearray()
+        else:
+            self.sfr_data = bytearray()
+        
+        if hasattr(self, 'program_data'):
+            self.program_data[:] = bytearray()
+        else:
+            self.program_data = bytearray()
+            
         self.expecting_data = None
         self.data_remaining = 0
-        print("FT260: Programming state reset")
+        debug_message("FT260: Programming state reset")
 
     
     def get_last_received_report(self):
@@ -109,7 +961,7 @@ class SmartFT260Emulator:
             return True
             
         except Exception as e:
-            print(f"FT260: Error sending input report 0x{report_id:02X}: {e}")
+            error_message(f"FT260: Error sending input report 0x{report_id:02X}: {e}")
             return False
     
     def handle_output_report_c2(self, data):
@@ -120,7 +972,7 @@ class SmartFT260Emulator:
         i2c_addr = data[0]
         bytes_to_read = data[2] | (data[3] << 8)
         
-        print(f"FT260: I2C Read: 0x{i2c_addr:02X}, {bytes_to_read} bytes")
+        debug_message(f"FT260: I2C Read: 0x{i2c_addr:02X}, {bytes_to_read} bytes")
         
         # Perform actual I2C read
         read_data = None
@@ -156,10 +1008,10 @@ class SmartFT260Emulator:
             response_data[0] = min(bytes_to_read, len(read_data))  # Byte count
             for i in range(min(bytes_to_read, len(read_data))):
                 response_data[1 + i] = read_data[i]
-            print("FT260: ✓ Read successful")
+            debug_message("FT260: ✓ Read successful")
         else:
             response_data[0] = 0  # Failed read
-            print("FT260: ✗ Read failed")
+            debug_message("FT260: ✗ Read failed")
         
         self.send_input_report(0xC2, response_data)
     
@@ -202,13 +1054,13 @@ class SmartFT260Emulator:
                     
                     if not is_valid_command:
                         # This has flag 0x06 but doesn't look like a command, treat as data
-                        print(f"FT260: Data for {self.expecting_data} (flag 0x{i2c_flag:02X}): {len(write_data)} bytes")
+                        debug_message(f"FT260: Data for {self.expecting_data} (flag 0x{i2c_flag:02X}): {len(write_data)} bytes")
                         self.handle_programming_data(write_data)
                         return True
                 # Continue to command parsing below
             else:
                 # This is data continuation (not a command)
-                print(f"FT260: Data continuation for {self.expecting_data} (flag 0x{i2c_flag:02X}): {len(write_data)} bytes")
+                debug_message(f"FT260: Data continuation for {self.expecting_data} (flag 0x{i2c_flag:02X}): {len(write_data)} bytes")
                 self.handle_programming_data(write_data)
                 return True
         
@@ -220,11 +1072,11 @@ class SmartFT260Emulator:
         payload_data = write_data[2:] if len(write_data) > 2 else bytearray()
         
         cmd = (cmd_high << 8) | cmd_low
-        print(f"FT260: Command 0x{cmd_high:02X} 0x{cmd_low:02X} (0x{cmd:04X}) with {len(payload_data)} payload bytes")
+        debug_message(f"FT260: Command 0x{cmd_high:02X} 0x{cmd_low:02X} (0x{cmd:04X}) with {len(payload_data)} payload bytes")
         
         # Enter programming mode
         if cmd_high == 0xA5 and cmd_low == 0x5A:
-            print("FT260: ENTER_PRG command detected")
+            debug_message("FT260: ENTER_PRG command detected")
             self.in_programming_mode = True
             self.reset_programming_state()
             enter_prog_mode()  # Actually execute the command
@@ -232,14 +1084,14 @@ class SmartFT260Emulator:
         
         # Exit programming mode
         elif cmd_high == 0x5A and cmd_low == 0xA5:
-            print("FT260: EXIT_PRG command detected")
+            debug_message("FT260: EXIT_PRG command detected")
             self.in_programming_mode = False
             exit_prog_mode()  # Actually execute the command
             return True
         
         # MREG transfer - correct command is 0x04 0x7F (128 registers, 0x7F = 127 but 0-indexed)
         elif cmd_high == 0x04 and cmd_low == 0x7F:
-            print("FT260: XFER_MREG command detected")
+            debug_message("FT260: XFER_MREG command detected")
             self.expecting_data = "MREG"
             self.data_remaining = 514  # 512 bytes + 2 byte checksum
             # If there's payload data with the command, process it
@@ -249,7 +1101,7 @@ class SmartFT260Emulator:
         
         # CREG transfer - must be exactly 0x01 0x0F
         elif cmd_high == 0x01 and cmd_low == 0x0F:
-            print("FT260: XFER_CREG command detected")
+            debug_message("FT260: XFER_CREG command detected")
             self.expecting_data = "CREG"
             self.data_remaining = 66   # 64 bytes + 2 byte checksum
             # If there's payload data with the command, process it
@@ -259,7 +1111,7 @@ class SmartFT260Emulator:
         
         # SFR transfer - must be exactly 0x02 0x0B
         elif cmd_high == 0x02 and cmd_low == 0x0B:
-            print("FT260: XFER_SFR command detected")
+            debug_message("FT260: XFER_SFR command detected")
             self.expecting_data = "SFR"
             self.data_remaining = 52   # 50 bytes + 2 byte checksum
             # If there's payload data with the command, process it
@@ -269,10 +1121,10 @@ class SmartFT260Emulator:
         
         # Program transfer - 0x08xx range (0x0800 + num_instructions - 1)
         elif cmd_high == 0x08 or (cmd_high == 0x09) or (cmd_high == 0x0A) or (cmd_high == 0x0B):
-            # This covers the range 0x0800 to 0x0BFF which should handle most reasonable program sizes
+            # This covers the range 0x0800 to 0x0BFF which should handle all program sizes
             num_instructions = cmd - 0x0800 + 1
             num_bytes = num_instructions * 4  # Each instruction is 4 bytes
-            print(f"FT260: XFER_PRG command detected for {num_instructions} instructions ({num_bytes} bytes)")
+            debug_message(f"FT260: XFER_PRG command detected for {num_instructions} instructions ({num_bytes} bytes)")
             self.expecting_data = "PROGRAM"
             self.data_remaining = num_bytes + 2  # program bytes + 2 byte checksum
             # If there's payload data with the command, process it
@@ -282,20 +1134,20 @@ class SmartFT260Emulator:
         
         # Execute from RAM
         elif cmd_high == 0x0D and cmd_low == 0x00:
-            print("FT260: EXEC_FROM_RAM command detected")
+            debug_message("FT260: EXEC_FROM_RAM command detected")
             self.execute_programming()
             return True
         
         # Write to flash
         elif cmd_high == 0x0C:
             location = cmd_low
-            print(f"FT260: WRITE_PRG to location {location:X} command detected")
+            debug_message(f"FT260: WRITE_PRG to location {location:X} command detected")
             self.execute_programming_to_flash(location)
             return True
         
         # Return to STATE0
         elif cmd_high == 0x0E and cmd_low == 0x00:
-            print("FT260: RETURN_0 command detected")
+            debug_message("FT260: RETURN_0 command detected")
             send_return_0()  # Actually execute the command
             return True
         
@@ -304,26 +1156,26 @@ class SmartFT260Emulator:
     def handle_programming_data(self, data):
         """Handle programming data based on what we're expecting"""
         if not self.expecting_data:
-            print("FT260: Received data but not expecting any")
+            debug_message("FT260: Received data but not expecting any")
             return
         
         bytes_to_take = min(len(data), self.data_remaining)
         
         if self.expecting_data == "MREG":
             self.mreg_data.extend(data[:bytes_to_take])
-            print(f"FT260: Added {bytes_to_take} bytes to MREG buffer (total: {len(self.mreg_data)})")
+            debug_message(f"FT260: Added {bytes_to_take} bytes to MREG buffer (total: {len(self.mreg_data)})")
         
         elif self.expecting_data == "CREG":
             self.creg_data.extend(data[:bytes_to_take])
-            print(f"FT260: Added {bytes_to_take} bytes to CREG buffer (total: {len(self.creg_data)})")
+            debug_message(f"FT260: Added {bytes_to_take} bytes to CREG buffer (total: {len(self.creg_data)})")
         
         elif self.expecting_data == "SFR":
             self.sfr_data.extend(data[:bytes_to_take])
-            print(f"FT260: Added {bytes_to_take} bytes to SFR buffer (total: {len(self.sfr_data)})")
+            debug_message(f"FT260: Added {bytes_to_take} bytes to SFR buffer (total: {len(self.sfr_data)})")
         
         elif self.expecting_data == "PROGRAM":
             self.program_data.extend(data[:bytes_to_take])
-            print(f"FT260: Added {bytes_to_take} bytes to PROGRAM buffer (total: {len(self.program_data)})")
+            debug_message(f"FT260: Added {bytes_to_take} bytes to PROGRAM buffer (total: {len(self.program_data)})")
         
         self.data_remaining -= bytes_to_take
         
@@ -338,179 +1190,31 @@ class SmartFT260Emulator:
                 total = len(self.program_data)
             else:
                 total = 0
-            print(f"FT260: {self.expecting_data} data complete ({total} total bytes)")
+            debug_message(f"FT260: {self.expecting_data} data complete ({total} total bytes)")
             self.expecting_data = None
             self.data_remaining = 0
     
     def execute_programming(self):
-        """Execute the collected programming data (RAM execution) - use same functions as file mode"""
-        print("FT260: Starting programming execution...")
-        print(f"Data collected - MREG: {len(self.mreg_data)}, CREG: {len(self.creg_data)}, SFR: {len(self.sfr_data)}, Program: {len(self.program_data)} bytes")
+        """Execute the collected programming data (RAM execution) - use unified function"""
+        debug_message("FT260: Starting programming execution...")
+        debug_message(f"Data collected - MREG: {len(self.mreg_data)}, CREG: {len(self.creg_data)}, SFR: {len(self.sfr_data)}, Program: {len(self.program_data)} bytes")
         
-        # Set status to indicate programming
-        blink_status_led(BLUE, 2)
+        # Prepare data for unified function
+        unified_data = prepare_ft260_data_for_unified(self)
         
-        # Initial status check
-        log_fxcore_status("Before FT260 programming")
-        
-        # Enter programming mode using the same function as file mode
-        if not enter_prog_mode():
-            print("FT260: Failed to enter programming mode")
-            blink_status_led(RED, 5)
-            return False
-        
-        success = True
-        
-        # Send CREG data if available - use exact same function as file mode
-        if len(self.creg_data) >= 66:  # 64 data + 2 checksum
-            creg_payload = self.creg_data[:64]
-            creg_checksum = self.creg_data[64:66]
-            print(f"FT260: Sending CREG data ({len(creg_payload)} bytes + checksum)")
-            if not send_cregs(creg_payload, creg_checksum):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        # Send MREG data if available - use exact same function as file mode  
-        if success and len(self.mreg_data) >= 514:  # 512 data + 2 checksum
-            mreg_payload = self.mreg_data[:512]
-            mreg_checksum = self.mreg_data[512:514]
-            print(f"FT260: Sending MREG data ({len(mreg_payload)} bytes + checksum)")
-            if not send_mregs(mreg_payload, mreg_checksum):
-                success = False
-            else:
-                time.sleep(0.1)
-        elif len(self.mreg_data) > 0:
-            print(f"FT260: Warning - MREG data incomplete: {len(self.mreg_data)} bytes (expected 514)")
-        
-        # Send SFR data if available - use exact same function as file mode
-        if success and len(self.sfr_data) >= 50:  # At least 50 bytes
-            sfr_payload = self.sfr_data[:50]
-            print(f"FT260: Sending SFR data ({len(sfr_payload)} bytes)")
-            if not send_sfrs(sfr_payload):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        # Send program data if available - use exact same function as file mode
-        if success and len(self.program_data) >= 2:  # At least checksum
-            program_payload = self.program_data[:-2]  # Everything except checksum
-            instructions = []
-            # Convert to 32-bit instructions exactly like file mode
-            for i in range(0, len(program_payload), 4):
-                if i + 3 < len(program_payload):
-                    instruction = (program_payload[i] |
-                                 (program_payload[i+1] << 8) |
-                                 (program_payload[i+2] << 16) |
-                                 (program_payload[i+3] << 24))
-                    instructions.append(instruction)
-            
-            print(f"FT260: Sending PROGRAM data ({len(instructions)} instructions, {len(self.program_data)} total bytes)")
-            if not send_program_data(instructions, self.program_data):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        if success:
-            # Execute from RAM using the same function as file mode
-            if execute_from_ram():
-                set_status_led(RED)  # Indicate running
-                print("FT260: ✓ Programming successful - running from RAM")
-            else:
-                success = False
-        
-        if not success:
-            print("FT260: ✗ Programming failed")
-            blink_status_led(RED, 5)
-            send_return_0()
-            exit_prog_mode()
-        
-        return success
+        # Use unified programming function
+        return execute_unified_programming(unified_data, "ram")
     
     def execute_programming_to_flash(self, location):
-        """Execute the collected programming data (Flash programming) - use same functions as file mode"""
-        print(f"FT260: Starting flash programming to location {location:X}...")
+        """Execute the collected programming data (Flash programming) - use unified function"""
+        debug_message(f"FT260: Starting flash programming to location {location:X}...")
+        debug_message(f"Data collected - MREG: {len(self.mreg_data)}, CREG: {len(self.creg_data)}, SFR: {len(self.sfr_data)}, Program: {len(self.program_data)} bytes")
         
-        # Set status to indicate programming
-        blink_status_led(PURPLE, 2)
+        # Prepare data for unified function
+        unified_data = prepare_ft260_data_for_unified(self)
         
-        print(f"Data collected - MREG: {len(self.mreg_data)}, CREG: {len(self.creg_data)}, SFR: {len(self.sfr_data)}, Program: {len(self.program_data)} bytes")
-        
-        # Enter programming mode using the same function as file mode
-        if not enter_prog_mode():
-            print("FT260: Failed to enter programming mode")
-            blink_status_led(RED, 5)
-            return False
-        
-        success = True
-        
-        # Send data in the exact same order as file mode: CREG, MREG, SFR, PROGRAM
-        
-        # Send CREG data if available
-        if len(self.creg_data) >= 66:
-            creg_payload = self.creg_data[:64]
-            creg_checksum = self.creg_data[64:66]
-            if not send_cregs(creg_payload, creg_checksum):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        # Send MREG data if available  
-        if success and len(self.mreg_data) >= 514:
-            mreg_payload = self.mreg_data[:512]
-            mreg_checksum = self.mreg_data[512:514]
-            if not send_mregs(mreg_payload, mreg_checksum):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        # Send SFR data if available
-        if success and len(self.sfr_data) >= 52:
-            sfr_payload = self.sfr_data[:50]
-            if not send_sfrs(sfr_payload):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        # Send program data if available
-        if success and len(self.program_data) >= 2:
-            program_payload = self.program_data[:-2]
-            instructions = []
-            for i in range(0, len(program_payload), 4):
-                if i + 3 < len(program_payload):
-                    instruction = (program_payload[i] |
-                                 (program_payload[i+1] << 8) |
-                                 (program_payload[i+2] << 16) |
-                                 (program_payload[i+3] << 24))
-                    instructions.append(instruction)
-            
-            if not send_program_data(instructions, self.program_data):
-                success = False
-            else:
-                time.sleep(0.1)
-        
-        if success:
-            # Write to flash location using the same function as file mode
-            if write_to_flash_location(location):
-                set_status_led(GREEN)  # Indicate success
-                print(f"FT260: ✓ Flash programming successful - location {location:X}")
-                # Return to normal mode using same functions as file mode
-                send_return_0()
-                time.sleep(0.1)
-                exit_prog_mode()
-            else:
-                success = False
-                print(f"FT260: ✗ Flash write failed - location {location:X}")
-                blink_status_led(RED, 5)
-                send_return_0()
-                exit_prog_mode()
-        
-        if not success:
-            blink_status_led(RED, 5)
-            send_return_0()
-            exit_prog_mode()
-        
-        return success
+        # Use unified programming function
+        return execute_unified_programming(unified_data, "flash", location)
     
     def handle_output_report_d0(self, data):
         """Handle Output Report 0xD0 - Intercept ALL D0 reports for smart programming"""
@@ -522,7 +1226,7 @@ class SmartFT260Emulator:
         byte_count = data[2]  # Exact number of I2C payload bytes
         write_data = data[3:3+byte_count]  # Extract exactly the right amount of data
         
-        print(f"FT260: D0 Report - I2C addr 0x{i2c_addr:02X}, flag 0x{i2c_flag:02X}, {byte_count} bytes")
+        debug_message(f"FT260: D0 Report - I2C addr 0x{i2c_addr:02X}, flag 0x{i2c_flag:02X}, {byte_count} bytes")
         
         # Check if this is targeting the FXCore
         if i2c_addr == FXCORE_ADDRESS:
@@ -533,7 +1237,7 @@ class SmartFT260Emulator:
                 return
         
         # If not FXCore or not a programming command, pass through normally
-        print(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {' '.join([f'0x{b:02X}' for b in write_data[:min(8, len(write_data))]])}{'...' if len(write_data) > 8 else ''}")
+        debug_message(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {' '.join([f'0x{b:02X}' for b in write_data[:min(8, len(write_data))]])}{'...' if len(write_data) > 8 else ''}")
         
         try:
             while not i2c.try_lock():
@@ -542,17 +1246,17 @@ class SmartFT260Emulator:
             try:
                 i2c.writeto(i2c_addr, bytes(write_data))
                 self.i2c_status = 0x20  # Success
-                print("FT260: ✓ Pass-through write successful")
+                debug_message("FT260: ✓ Pass-through write successful")
                 
             except OSError:
                 self.i2c_status = 0x26  # Error
-                print("FT260: ✗ Pass-through write failed")
+                debug_message("FT260: ✗ Pass-through write failed")
             finally:
                 i2c.unlock()
                 
         except Exception:
             self.i2c_status = 0x26
-            print("FT260: ✗ Pass-through write error")
+            debug_message("FT260: ✗ Pass-through write error")
             try:
                 i2c.unlock()
             except:
@@ -569,17 +1273,17 @@ class SmartFT260Emulator:
                 blink_status_led(YELLOW, 1, 0.005)
                 
                 if not self.active:
-                    print("FT260: Smart bridge mode activated")
+                    debug_message("FT260: Smart bridge mode activated")
                     self.active = True
                 
                 # Route to appropriate handler
                 if report_id == 0xA1:
                     # A1 reports pass through (status/control)
-                    print("FT260: A1 report - resetting")
+                    debug_message("FT260: A1 report - resetting")
                     stop_execution()
                 elif report_id == 0xC0:
                     # C0 reports pass through  
-                    print("FT260: C0 report - passing through")
+                    debug_message("FT260: C0 report - passing through")
                 elif report_id == 0xC2:
                     # C2 reports are I2C reads - pass through
                     self.handle_output_report_c2(data)
@@ -590,751 +1294,71 @@ class SmartFT260Emulator:
                 return True  # Processed a report
                 
         except Exception as e:
-            print(f"FT260: Error processing reports: {e}")
+            error_message(f"FT260: Error processing reports: {e}")
         
         return False  # No report processed
         
 # Initialize FT260 Emulator
 ft260 = SmartFT260Emulator()
 
-def get_timestamp():
-    """Get current timestamp for logging"""
-    return f"T+{time.monotonic():.2f}s"
-
-def log_message(message):
-    """Log message to results.txt with timestamp"""
-    log_entry = f"{message}"
-    print(log_entry)
-
-def read_fxcore_status():
-    """Read the 12-byte status from FXCore and return parsed information"""
-    try:
-        while not i2c.try_lock():
-            pass
-        
-        # Read 12 bytes of status
-        status_bytes = bytearray(12)
-        i2c.readfrom_into(FXCORE_ADDRESS, status_bytes)
-        i2c.unlock()
-        
-        # Parse according to FXCore documentation:
-        transfer_state = status_bytes[0]
-        command_status = status_bytes[1]
-        last_cmd_h = status_bytes[2]
-        last_cmd_l = status_bytes[3]
-        prog_slot_status = status_bytes[4] | (status_bytes[5] << 8)  # Little-endian
-        device_id = status_bytes[6] | (status_bytes[7] << 8)        # Little-endian
-        serial_num = (status_bytes[8] | (status_bytes[9] << 8) | 
-                     (status_bytes[10] << 16) | (status_bytes[11] << 24))  # Little-endian
-        
-        status_info = {
-            'transfer_state': transfer_state,
-            'command_status': command_status,
-            'last_command': (last_cmd_h << 8) | last_cmd_l,  # This stays big-endian per doc
-            'program_slot_status': prog_slot_status,
-            'device_id': device_id,
-            'serial_number': serial_num,
-            'program_received': bool(transfer_state & 0x10),
-            'registers_received': bool(transfer_state & 0x08),
-            'mregs_received': bool(transfer_state & 0x04),
-            'sfrs_received': bool(transfer_state & 0x02),
-            'cregs_received': bool(transfer_state & 0x01)
-        }
-        
-        return status_info
-        
-    except Exception as e:
-        log_message(f"Error reading FXCore status: {e}")
-        try:
-            i2c.unlock();
-        except:
-            pass
-        return None
-
-def log_fxcore_status(operation="Status Check"):
-    """Read and log FXCore status"""
-    status = read_fxcore_status()
-    if status:
-        # Check if we got all 0xFF (likely executing from RAM)
-        if (status['transfer_state'] == 0xFF and 
-            status['command_status'] == 0xFF and 
-            status['device_id'] == 0xFFFF):
-            log_message(f"{operation} - FXCore Status: EXECUTING FROM RAM (no status available)")
-            return status
-            
-        log_message(f"{operation} - FXCore Status:")
-        log_message(f"  Transfer State: 0x{status['transfer_state']:02X}")
-        log_message(f"  Command Status: 0x{status['command_status']:02X}")
-        log_message(f"  Last Command: 0x{status['last_command']:04X}")
-        log_message(f"  Program Slots: 0x{status['program_slot_status']:04X}")
-        log_message(f"  Device ID: 0x{status['device_id']:04X}")
-        log_message(f"  Serial Number: {status['serial_number']} (0x{status['serial_number']:08X})")
-    
-    return status
-
-def find_location_hex_files():
-    """Find hex files named 0.hex through F.hex for location programming"""
-    location_files = {}
-    valid_names = [f"{i:X}.hex" for i in range(16)]  # 0.hex through F.hex
-    
-    try:
-        files = os.listdir()
-        for filename in files:
-            if filename.upper() in [name.upper() for name in valid_names]:
-                # Get the location number (0-F)
-                location = filename.upper().split('.')[0]
-                try:
-                    location_num = int(location, 16)
-                    # Check if file has content
-                    try:
-                        with open(filename, 'r') as f:
-                            content = f.read().strip()
-                            if len(content) > 0:
-                                location_files[location_num] = filename
-                    except:
-                        pass
-                except ValueError:
-                    pass
-    except:
-        pass
-    
-    return location_files
-
-def check_output_hex_exists():
-    """Check if output.hex exists and has content"""
-    try:
-        if "output.hex" in os.listdir():
-            try:
-                with open("output.hex", 'r') as f:
-                    content = f.read().strip()
-                    return len(content) > 0
-            except:
-                return False
-        return False
-    except:
-        return False
-
-def set_status_led(color):
-    """Set the status LED color"""
-    pixel[0] = color
-
-def blink_status_led(color, count=3, duration=0.2):
-    """Blink the status LED"""
-    for _ in range(count):
-        pixel[0] = color
-        time.sleep(duration)
-        pixel[0] = OFF
-        time.sleep(duration)
-
-def calculate_checksum(data):
-    """Calculate simple sum checksum of all bytes"""
-    return sum(data) & 0xFFFF
-
-def enter_prog_mode():
-    """Enter programming mode on the FXCore"""
-    try:
-        while not i2c.try_lock():
-            pass
-        
-        command = bytes([0xA5, 0x5A, FXCORE_ADDRESS])
-        i2c.writeto(FXCORE_ADDRESS, command)
-        log_message("Entered programming mode")
-        
-        i2c.unlock()
-        time.sleep(0.1)
-        log_fxcore_status("After ENTER_PRG")
-        return True
-        
-    except OSError as e:
-        log_message(f"Error entering PROG mode: {e}")
-        try:
-            i2c.unlock();
-        except:
-            pass
-        return False
-
-def exit_prog_mode():
-    """Exit programming mode and return to RUN mode"""
-    try:
-        while not i2c.try_lock():
-            pass
-        
-        command = bytes([0x5A, 0xA5])
-        i2c.writeto(FXCORE_ADDRESS, command)
-        log_message("Exited programming mode - returned to RUN mode")
-        
-        i2c.unlock()
-        time.sleep(0.1)
-        log_fxcore_status("After EXIT_PRG")
-        return True
-        
-    except OSError as e:
-        log_message(f"Error exiting PROG mode: {e}")
-        try:
-            i2c.unlock();
-        except:
-            pass
-        return False
-
-def verify_hex_checksum(record_bytes):
-    """Verify Intel HEX record checksum"""
-    total_sum = sum(record_bytes) & 0xFF
-    return total_sum == 0
-
-def read_fxcore_hex_file(filename):
-    """Read and parse FXCore hex file using Intel HEX format"""
-    try:
-        with open(filename, 'r') as f:
-            lines = f.readlines()
-        
-        all_data = {}
-        log_message(f"Parsing Intel HEX records from {filename}...")
-        
-        for line_num, line in enumerate(lines, 1):
-            line = line.strip()
-            if not line.startswith(':'):
-                continue
-                
-            if len(line) < 11:
-                log_message(f"Line {line_num}: Record too short, skipping")
-                continue
-                
-            try:
-                byte_count = int(line[1:3], 16)
-                address = int(line[3:7], 16) 
-                record_type = int(line[7:9], 16)
-                
-                expected_length = 11 + (byte_count * 2)
-                if len(line) != expected_length:
-                    log_message(f"Line {line_num}: Length mismatch, expected {expected_length}, got {len(line)}")
-                    continue
-                
-                record_bytes = []
-                for i in range(1, len(line), 2):
-                    record_bytes.append(int(line[i:i+2], 16))
-                
-                if not verify_hex_checksum(record_bytes):
-                    log_message(f"Line {line_num}: Checksum error!")
-                    continue
-                
-                if record_type == 0x00:  # Data record
-                    data_bytes = []
-                    for i in range(byte_count):
-                        data_pos = 9 + (i * 2)
-                        data_byte = int(line[data_pos:data_pos+2], 16)
-                        data_bytes.append(data_byte)
-                        all_data[address + i] = data_byte
-                    
-                elif record_type == 0x01:  # End of file
-                    log_message(f"Line {line_num}: End of file record")
-                    break
-                    
-            except ValueError as e:
-                log_message(f"Line {line_num}: Parse error - {e}")
-                continue
-        
-        # Extract data arrays by address ranges
-        # MREG data: 0x0000 - 0x07FF
-        mreg_addresses = [addr for addr in all_data.keys() if 0x0000 <= addr <= 0x07FF]
-        mreg_addresses.sort()
-        mreg_data = bytearray()
-        if mreg_addresses:
-            for addr in range(min(mreg_addresses), max(mreg_addresses) + 1):
-                if addr in all_data:
-                    mreg_data.append(all_data[addr])
-                else:
-                    mreg_data.append(0x00)
-        
-        # CREG data: 0x0800 - 0x0FFF  
-        creg_addresses = [addr for addr in all_data.keys() if 0x0800 <= addr <= 0x0FFF]
-        creg_addresses.sort()
-        creg_data = bytearray()
-        if creg_addresses:
-            for addr in range(min(creg_addresses), max(creg_addresses) + 1):
-                if addr in all_data:
-                    creg_data.append(all_data[addr])
-                else:
-                    creg_data.append(0x00)
-        
-        # SFR data: 0x1000 - 0x17FF
-        sfr_addresses = [addr for addr in all_data.keys() if 0x1000 <= addr <= 0x17FF]
-        sfr_addresses.sort()
-        sfr_data = bytearray()
-        if sfr_addresses:
-            for addr in range(min(sfr_addresses), max(sfr_addresses) + 1):
-                if addr in all_data:
-                    sfr_data.append(all_data[addr])
-                else:
-                    sfr_data.append(0x00)
-        
-        # Program data: 0x1800 and above
-        prog_addresses = [addr for addr in all_data.keys() if addr >= 0x1800]
-        prog_addresses.sort()
-        prog_data = bytearray()
-        if prog_addresses:
-            for addr in range(min(prog_addresses), max(prog_addresses) + 1):
-                if addr in all_data:
-                    prog_data.append(all_data[addr])
-                else:
-                    prog_data.append(0x00)
-        
-        log_message(f"Extracted arrays: MREG={len(mreg_data)}, CREG={len(creg_data)}, "
-                   f"SFR={len(sfr_data)}, PROGRAM={len(prog_data)} bytes")
-        
-        # Convert program data to 32-bit instructions
-        instruction_bytes = len(prog_data) - 2 if len(prog_data) >= 2 else len(prog_data)
-        instructions = []
-        for i in range(0, instruction_bytes, 4):
-            if i + 3 < instruction_bytes:
-                instruction = (prog_data[i] |
-                             (prog_data[i+1] << 8) |
-                             (prog_data[i+2] << 16) |
-                             (prog_data[i+3] << 24))
-                instructions.append(instruction)
-        
-        log_message(f"Program contains {len(instructions)} instructions")
-        
-        return {
-            'cregs': creg_data,
-            'mregs': mreg_data,
-            'sfrs': sfr_data, 
-            'instructions': instructions,
-            'program_data': prog_data,
-            'mreg_checksum': bytearray([0, 0]),
-            'creg_checksum': bytearray([0, 0])
-        }
-        
-    except Exception as e:
-        log_message(f"Error reading hex file {filename}: {e}")
-        return None
-
-def send_i2c_data(data, description):
-    """Send data over I2C as a single transfer"""
-    try:
-        while not i2c.try_lock():
-            pass
-        
-        try:
-            i2c.writeto(FXCORE_ADDRESS, data)
-            i2c.unlock()
-            log_message(f"Sent {len(data)} bytes of {description} in single transfer")
-            return True
-        except OSError as e:
-            log_message(f"Single transfer failed ({e}), trying chunked transfer...")
-            chunk_size = 32
-            for i in range(0, len(data), chunk_size):
-                chunk = data[i:i + chunk_size]
-                i2c.writeto(FXCORE_ADDRESS, chunk)
-                time.sleep(0.01)
-            
-            i2c.unlock()
-            log_message(f"Sent {len(data)} bytes of {description} in {(len(data) + chunk_size - 1) // chunk_size} chunks")
-            return True
-        
-    except OSError as e:
-        log_message(f"Error sending {description}: {e}")
-        try:
-            i2c.unlock();
-        except:
-            pass
-        return False
-
-def send_command(cmd_bytes, description):
-    """Send a command to FXCore"""
-    try:
-        while not i2c.try_lock():
-            pass
-        
-        command = bytes(cmd_bytes)
-        i2c.writeto(FXCORE_ADDRESS, command)
-        hex_bytes = [f'0x{b:02X}' for b in cmd_bytes]
-        log_message(f"Sent {description} command: {' '.join(hex_bytes)}")
-        
-        i2c.unlock()
-        time.sleep(0.01)
-        return True
-        
-    except OSError as e:
-        log_message(f"Error sending {description} command: {e}")
-        try:
-            i2c.unlock();
-        except:
-            pass
-        return False
-
-def send_cregs(cregs, original_checksum):
-    """Send CREG data to FXCore"""
-    if not send_command([0x01, 0x0F], "XFER_CREG"):
-        return False
-    
-    creg_data = bytearray(cregs)
-    if len(creg_data) < 64:
-        creg_data.extend(bytearray(64 - len(creg_data)))
-    elif len(creg_data) > 64:
-        creg_data = creg_data[:64]
-    
-    if len(original_checksum) == 2 and (original_checksum[0] != 0 or original_checksum[1] != 0):
-        data_with_checksum = creg_data + bytearray(original_checksum)
-    else:
-        checksum = calculate_checksum(creg_data)
-        data_with_checksum = creg_data
-        data_with_checksum.append(checksum & 0xFF)
-        data_with_checksum.append((checksum >> 8) & 0xFF)
-    
-    success = send_i2c_data(data_with_checksum, f"CREG data ({len(data_with_checksum)} bytes)")
-    if success:
-        log_fxcore_status("After CREG transfer")
-    return success
-
-def send_mregs(mregs, original_checksum):
-    """Send MREG data to FXCore"""
-    if not send_command([0x04, 0x7F], "XFER_MREG"):
-        return False
-    
-    mreg_data = bytearray(mregs)
-    if len(mreg_data) < 512:
-        mreg_data.extend(bytearray(512 - len(mreg_data)))
-    elif len(mreg_data) > 512:
-        mreg_data = mreg_data[:512]
-    
-    if len(original_checksum) == 2 and (original_checksum[0] != 0 or original_checksum[1] != 0):
-        data_with_checksum = mreg_data + bytearray(original_checksum)
-    else:
-        checksum = calculate_checksum(mreg_data)
-        data_with_checksum = mreg_data
-        data_with_checksum.append(checksum & 0xFF)
-        data_with_checksum.append((checksum >> 8) & 0xFF)
-    
-    success = send_i2c_data(data_with_checksum, f"MREG data ({len(data_with_checksum)} bytes)")
-    if success:
-        log_fxcore_status("After MREG transfer")
-    return success
-
-def send_sfrs(sfrs):
-    """Send SFR data to FXCore"""
-    if not send_command([0x02, 0x0B], "XFER_SFR"):
-        return False
-    
-    sfr_data = bytearray(sfrs)
-    if len(sfr_data) < 50:
-        sfr_data.extend(bytearray(50 - len(sfr_data)))
-    elif len(sfr_data) > 50:
-        sfr_data = sfr_data[:50]
-    
-    checksum = calculate_checksum(sfr_data)
-    data_with_checksum = sfr_data
-    data_with_checksum.append(checksum & 0xFF)
-    data_with_checksum.append((checksum >> 8) & 0xFF)
-    
-    success = send_i2c_data(data_with_checksum, f"SFR data ({len(data_with_checksum)} bytes)")
-    if success:
-        log_fxcore_status("After SFR transfer")
-    return success
-
-def send_program_data(instructions, program_data):
-    """Send program data to FXCore"""
-    if len(instructions) == 0:
-        log_message("No program instructions to send")
-        return False
-        
-    num_instructions = len(instructions)
-    cmd_value = 0x0800 + (num_instructions - 1)
-    cmd_high = (cmd_value >> 8) & 0xFF
-    cmd_low = cmd_value & 0xFF
-    
-    if not send_command([cmd_high, cmd_low], f"XFER_PRG (0x{cmd_value:04X} for {num_instructions} instructions)"):
-        return False
-    
-    if isinstance(program_data, bytearray) and len(program_data) > len(instructions) * 4:
-        success = send_i2c_data(program_data, f"program data ({len(program_data)} bytes including checksum)")
-    else:
-        program_bytes = bytearray()
-        for instruction in instructions:
-            program_bytes.append(instruction & 0xFF)
-            program_bytes.append((instruction >> 8) & 0xFF)
-            program_bytes.append((instruction >> 16) & 0xFF)
-            program_bytes.append((instruction >> 24) & 0xFF)
-        
-        checksum = calculate_checksum(program_bytes)
-        program_bytes.append(checksum & 0xFF)
-        program_bytes.append((checksum >> 8) & 0xFF)
-        
-        success = send_i2c_data(program_bytes, f"program data ({len(program_bytes)} bytes with calculated checksum)")
-    
-    if success:
-        log_fxcore_status("After PROGRAM transfer")
-    return success
-
-def execute_from_ram():
-    """Execute the program from RAM"""
-    success = send_command([0x0D, 0x00], "EXEC_FROM_RAM")
-    if success:
-        log_fxcore_status("After EXEC_FROM_RAM")
-    return success
-
-def write_to_flash_location(location):
-    """Write the program to a specific flash location (0-15)"""
-    if location < 0 or location > 15:
-        log_message(f"Invalid flash location: {location}")
-        return False
-    
-    success = send_command([0x0C, location], f"WRITE_PRG to location {location:X}")
-    if success:
-        log_message(f"Writing to FLASH location {location:X}, waiting 200ms...")
-        time.sleep(0.2)  # Wait for FLASH write to complete
-        log_fxcore_status(f"After WRITE_PRG to location {location:X}")
-    return success
-
-def send_return_0():
-    """Send RETURN_0 command to stop execution and return to STATE0"""
-    success = send_command([0x0E, 0x00], "RETURN_0")
-    if success:
-        log_fxcore_status("After RETURN_0")
-    return success
-
-def program_location(location, filename):
-    """Program a specific location with a hex file"""
-    log_message(f"Starting location programming: {filename} -> Location {location:X}")
-    
-    # Indicate starting programming process
-    blink_status_led(PURPLE, 2)
-    
-    # Initial status check
-    log_fxcore_status("Initial state")
-    
-    # Wait for FXCore to settle
-    log_message("Waiting for FXCore to settle...")
-    time.sleep(0.5)
-    
-    # Read and parse hex file
-    log_message(f"Reading and parsing hex file: {filename}")
-    fx_data = read_fxcore_hex_file(filename)
-    if not fx_data:
-        log_message("Failed to read hex file")
-        blink_status_led(RED, 5)
-        return False
-    
-    # Enter programming mode
-    log_message("Entering programming mode...")
-    if not enter_prog_mode():
-        log_message("Failed to enter programming mode")
-        blink_status_led(RED, 5)
-        return False
-    
-    time.sleep(0.1)
-    
-    # Send data in the correct order
-    success = True
-    
-    # Send CREGs
-    if success and len(fx_data['cregs']) > 0:
-        log_message("Uploading CREG data...")
-        if not send_cregs(fx_data['cregs'], fx_data.get('creg_checksum', bytearray())):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    # Send MREGs
-    if success and len(fx_data['mregs']) > 0:
-        log_message("Uploading MREG data...")
-        if not send_mregs(fx_data['mregs'], fx_data.get('mreg_checksum', bytearray())):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    # Send SFRs
-    if success and len(fx_data['sfrs']) > 0:
-        log_message("Uploading SFR data...")
-        if not send_sfrs(fx_data['sfrs']):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    # Send program (must be last)
-    if success:
-        log_message("Uploading program data...")
-        program_data = fx_data.get('program_data', bytearray())
-        if not send_program_data(fx_data['instructions'], program_data):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    if not success:
-        log_message("Failed to upload complete program data")
-        blink_status_led(RED, 5)
-        send_return_0()
-        exit_prog_mode()
-        return False
-    
-    # Write to FLASH location
-    log_message(f"Writing program to FLASH location {location:X}...")
-    if not write_to_flash_location(location):
-        log_message("Failed to write to FLASH")
-        blink_status_led(RED, 5)
-        send_return_0()
-        exit_prog_mode()
-        return False
-    
-    # Return to STATE0 and exit programming mode
-    send_return_0()
-    time.sleep(0.1)
-    exit_prog_mode()
-    
-    # Success - indicate with solid green LED
-    set_status_led(GREEN)
-    
-    log_message(f"SUCCESS: Program from {filename} written to FLASH location {location:X}")
-    log_message("Programming complete. FXCore returned to RUN mode.")
-    
-    return True
-
-def run_ram_execution(filename="output.hex"):
-    """Run the complete upload and execution process for RAM execution"""
-    log_message(f"Starting RAM execution: {filename}")
-    
-    # Indicate starting upload process
-    blink_status_led(BLUE, 2)
-    
-    # Initial status check
-    log_fxcore_status("Initial state")
-    
-    # Wait for FXCore to settle
-    log_message("Waiting for FXCore to settle...")
-    time.sleep(0.5)
-    
-    # Read and parse hex file
-    log_message(f"Reading and parsing hex file: {filename}")
-    fx_data = read_fxcore_hex_file(filename)
-    if not fx_data:
-        log_message("Failed to read hex file")
-        blink_status_led(RED, 5)
-        return False
-    
-    # Enter programming mode
-    log_message("Entering programming mode...")
-    if not enter_prog_mode():
-        log_message("Failed to enter programming mode")
-        blink_status_led(RED, 5)
-        return False
-    
-    time.sleep(0.1)
-    
-    # Send data in the correct order
-    success = True
-    
-    # Send CREGs
-    if success:
-        log_message("Uploading CREG data...")
-        if not send_cregs(fx_data['cregs'], fx_data.get('creg_checksum', bytearray())):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    # Send MREGs
-    if success:
-        log_message("Uploading MREG data...")
-        if not send_mregs(fx_data['mregs'], fx_data.get('mreg_checksum', bytearray())):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    # Send SFRs
-    if success:
-        log_message("Uploading SFR data...")
-        if not send_sfrs(fx_data['sfrs']):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    # Send program (must be last)
-    if success:
-        log_message("Uploading program data...")
-        program_data = fx_data.get('program_data', bytearray())
-        if not send_program_data(fx_data['instructions'], program_data):
-            success = False
-        else:
-            time.sleep(0.1)
-    
-    if not success:
-        log_message("Failed to upload complete program data")
-        blink_status_led(RED, 5)
-        send_return_0()
-        exit_prog_mode()
-        return False
-    
-    # Execute from RAM
-    log_message("Starting program execution from RAM...")
-    if not execute_from_ram():
-        log_message("Failed to execute program")
-        blink_status_led(RED, 5)
-        send_return_0()
-        exit_prog_mode()
-        return False
-    
-    # Success - indicate running state with solid red LED
-    set_status_led(RED)
-    
-    log_message("SUCCESS: Program is running from RAM")
-    log_message("RED LED indicates program is running from RAM")
-    log_message("CLEAR HARDWARE to stop execution and return to normal operation")
-    
-    return True
-
 def stop_execution():
     """Stop program execution and return to normal operation"""
-    log_message("Stopping program execution...")
+    debug_message("Stopping program execution...")
     
     # Send RETURN_0 to stop execution
     send_return_0()
     time.sleep(0.1)
     
-    # Exit programming mode
+    # Exit programming mode, also clears running flag
     exit_prog_mode()
     
     # Turn off LED
     set_status_led(OFF)
     
-    log_message("Program stopped and returned to normal operation")
+    debug_message("Program stopped and returned to normal operation")
 
 def main():
-    print("FXCore Enhanced Hex Programmer with FT260 Emulation")
-    print("===================================================")
-    print("- NeoPixel on GP16 shows status:")
-    print("  * RED = Program running from RAM")
-    print("  * GREEN = Location programming successful")
-    print("  * PURPLE = Location programming in progress") 
-    print("  * BLUE = RAM upload in progress")
-    print("  * OFF = Normal operation")
-    print("- Place output.hex for RAM execution")
-    print("- Place 0.hex through F.hex for location programming")
-    print("- FT260 USB-I2C Bridge emulation available")
-    print()
+
+    global running
+    
+    log_message("FXCore Enhanced Hex Programmer with FT260 Emulation")
+    log_message("===================================================")
+    log_message("- NeoPixel on GP16 shows status:")
+    log_message("  * RED = Program running from RAM")
+    log_message("  * GREEN = Location programming successful")
+    log_message("  * PURPLE = Location programming in progress") 
+    log_message("  * BLUE = RAM upload in progress")
+    log_message("  * OFF = Normal operation")
+    log_message("- Place output.hex for RAM execution")
+    log_message("- Place 0.hex through F.hex for location programming")
+    log_message("- FT260 USB-I2C Bridge emulation available")
+    log_message("")
     
     # Turn off LED initially
     set_status_led(OFF)
-    
-    running = False
+
+    running = False # init running flag
     
     # Always return to STATE0 on boot
-    print("Ensuring STATE0 on startup...")
+    debug_message("Ensuring STATE0 on startup...")
     stop_execution()
     time.sleep(0.1)
     
-    # Check for location-specific hex files (0.hex through F.hex) at boot
-    location_files = find_location_hex_files()
+    # Find all valid hex files at boot
+    output_hex_valid, location_files = find_valid_hex_files()
     
     # Process any location files found at boot
     if location_files:
         for location, filename in location_files.items():
             log_message(f"Boot-time location file detected: {filename} for location {location:X}")
-            print(f"Found {filename} - programming location {location:X}...")
+            log_message(f"Found {filename} - programming location {location:X}...")
             
             if program_location(location, filename):
-                print(f"Successfully programmed location {location:X}")
+                log_message(f"Successfully programmed location {location:X}")
                 # Keep green LED on for a few seconds to show success
                 time.sleep(3)
             else:
-                print(f"Failed to program location {location:X}")
+                error_message(f"Failed to program location {location:X}")
                 # Keep red LED on for a few seconds to show failure
                 time.sleep(3)
             
@@ -1342,35 +1366,40 @@ def main():
             set_status_led(OFF)
     
     # Check for output.hex (RAM execution) at boot
-    output_hex_exists = check_output_hex_exists()
-    if output_hex_exists:
-        print("output.hex found at boot - starting RAM execution...")
+    if output_hex_valid:
+        log_message("output.hex found at boot - starting RAM execution...")
         if run_ram_execution():
             running = True
     
+    last_blink_time = 0
+    blink_interval = 0.5
+    
     while True:
         try:
-            # Process FT260 emulation (always process)
+            current_time = time.monotonic()
+            
+            # High-frequency FT260 processing
             ft260_processed = ft260.process_reports()
             
-            # Handle RAM execution LED blinking if running
-            if running:
-                # Still running - blink red LED
+            # Handle LED blinking with timing control
+            if running and (current_time - last_blink_time >= blink_interval):
                 current_color = pixel[0]
                 if current_color == RED:
                     set_status_led((128, 0, 0))  # Dimmer red
                 else:
                     set_status_led(RED)  # Full red
-                time.sleep(0.5)
+                last_blink_time = current_time
+            
+            # Minimal delay - responsive to FT260 but not CPU-intensive
+            if ft260_processed:
+                time.sleep(0.0001)  # Very short delay after processing
             else:
-                # Not running - minimal delay for FT260 processing
-                time.sleep(0.001)
+                time.sleep(0.001)   # Slightly longer when idle
                 
         except KeyboardInterrupt:
-            log_message("Program interrupted by user")
             break
         except Exception as e:
-            log_message(f"Unexpected error in main loop: {e}")
+            error_message(f"Unexpected error in main loop: {e}")
             set_status_led(OFF)
             time.sleep(2)
 
@@ -1379,15 +1408,14 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nProgram interrupted")
-        log_message("Program terminated by user")
+        log_message("\nProgram interrupted")
+        debug_message("Program terminated by user")
         stop_execution()
         if 'i2c' in globals():
             i2c.deinit()
-        print("I2C bus released")
+        log_message("I2C bus released")
     except Exception as e:
         set_status_led(OFF)
-        log_message(f"Fatal error: {e}")
-        print(f"Fatal error: {e}")
+        error_message(f"Fatal error: {e}")
         if 'i2c' in globals():
             i2c.deinit()
