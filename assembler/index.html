@@ -24,8 +24,8 @@
             <div class="icon-container">
                 <a href="https://sandboxpedal.com" target="_blank" rel="noopener noreferrer">
                     <svg class="app-icon" width="64" height="64" viewBox="0 0 64 64">
-                        <rect width="64" height="64"  rx="4" ry="4" fill="currentColor"/>
-                        <text x="32" y="40"text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
+                        <rect width="64" height="64" rx="4" ry="4" fill="currentColor" />
+                        <text x="32" y="40" text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
                 <span class="build">build 16</span>
@@ -51,83 +51,6 @@
             <div id="editor" style="width: 100%; height: 400px;"></div>
         </div>
 
-<!--         <div class="editor-help-text">
-            <label class="windows-only">
-                <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
-                <span class="shortcut"><strong>Ctrl+F</strong> Find</span>
-                <span class="shortcut"><strong>Ctrl+Shift+F</strong> Replace</span>
-                <span class="shortcut"><strong>F3</strong> Find Next</span>
-                <span class="shortcut"><strong>Alt+A</strong>  Assemble</span>
-                <span class="shortcut"><strong>Alt+C</strong>  Exit Run from RAM</span>
-                <span class="shortcut"><strong>Alt+D</strong>  Download Hex / Run from RAM</span>
-            </label>
-            <label class="mac-only">
-                <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
-                <span class="shortcut"><strong>⌘+F</strong> Find</span>
-                <span class="shortcut"><strong>⌘+⌥+F</strong> Replace</span>
-                <span class="shortcut"><strong>F3</strong> Find Next</span>
-                <span class="shortcut"><strong>⌃+A</strong>  Assemble</span>
-                <span class="shortcut"><strong>⌃+C</strong>  Exit Run from RAM</span>
-                <span class="shortcut"><strong>⌃+D</strong>  Download Hex / Run from RAM</span>
-            </label>
-        </div> -->
-
-        <!-- Editor Options Section -->
-<!--         <div class="editor-options-section">
-            <h3 onclick="toggleEditorOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
-                <span id="editorOptionsToggle">▶</span> Editor Options
-            </h3>
-            <div id="editorOptionsContent" class="editor-options-content collapsed">
-                <div class="options">
-                    <div class="project-folder-section">
-                        <button id="projectFolderBtn" class="project-folder-button" onclick="selectProjectDirectory()">
-                            Select Project Folder
-                        </button>
-                        <span id="projectFolderLabel" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
-                    </div><br>
-                    <label>
-                        <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()"> Large editor window
-                    </label>
-                    <label>
-                        <input type="checkbox" id="minimapToggle" onchange="toggleMinimapWithSave()"> Show editor mini-map
-                    </label>
-                    <label>
-                        <input type="checkbox" id="debugToggle" onchange="toggleDebugPresetWithSave()"> Show full build results
-                    </label>
-                    <label>
-                        <label>
-                            Theme: 
-                            <select id="darkModeSelect">
-                                <option value="system">System</option>
-                                <option value="light">Light</option>
-                                <option value="dark">Dark</option>
-                            </select>
-                        </label>
-                    </label>
-                </div> -->
-<!--                 <div class="editor-help-text">
-                    <label class="windows-only">
-                        <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
-                        <span class="shortcut"><strong>Ctrl+F</strong> Find</span>
-                        <span class="shortcut"><strong>Ctrl+Shift+F</strong> Replace</span>
-                        <span class="shortcut"><strong>F3</strong> Find Next</span>
-                        <span class="shortcut"><strong>Alt+A</strong>  Assemble</span>
-                        <span class="shortcut"><strong>Alt+C</strong>  Exit Run from RAM</span>
-                        <span class="shortcut"><strong>Alt+D</strong>  Download Hex / Run from RAM</span>
-                    </label>
-                    <label class="mac-only">
-                        <span class="shortcut"><strong>Keyboard Shortcuts:</strong></span>
-                        <span class="shortcut"><strong>⌘+F</strong> Find</span>
-                        <span class="shortcut"><strong>⌘+⌥+F</strong> Replace</span>
-                        <span class="shortcut"><strong>F3</strong> Find Next</span>
-                        <span class="shortcut"><strong>⌃+A</strong>  Assemble</span>
-                        <span class="shortcut"><strong>⌃+C</strong>  Exit Run from RAM</span>
-                        <span class="shortcut"><strong>⌃+D</strong>  Download Hex / Run from RAM</span>
-                    </label>
-                </div> -->
-<!--             </div>
-        </div> -->
-
         <div>
             <button onclick="assembleFXCore()">Assemble</button>
             <button onclick="downloadPlainHex()" id="downloadPlainHexBtn" disabled>Download HEX</button>
@@ -143,42 +66,8 @@
 
         <!-- Hardware Options Section -->
         <div class="hardware-options-section">
-            <!-- <h3 onclick="toggleHardwareOptions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
-                <span id="hardwareOptionsToggle">▶</span> Hardware Options -->
-                <span id="hardwareConnectionStatus" style="font-weight: normal; color: #666; margin-left: 10px; font-size: 0.9em;">No connection</span>
+            <span id="hardwareConnectionStatus" style="font-weight: normal; color: #666; margin-left: 10px; font-size: 0.9em;">No connection</span>
             </h3>
-<!--             <div id="hardwareOptionsContent" class="hardware-options-content collapsed">
-                <div class="output-controls">
-                    <div>
-                        <button onclick="cycleHWModeWithSave()" id="HWModeBtn">Select Hardware Mode</button>
-                        <span id="HWModeDisplay" style="margin-left: 10px; color: #666; font-style: italic;">HID mode</span>
-                    </div><br />
-                    <div id="FileModeDiv" style="display: none;">
-                        <div>
-                            <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
-                            <span id="outputDirDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No directory selected</span>
-                        </div><br />
-                        <div>
-                            <button onclick="serialConnect()">Select Serial Port</button>
-                            <span id="serialPortDisplay" style="margin-left: 10px; color: #666; font-style: italic;">No port selected</span>
-                        </div><br />
-                        <div>
-                            <button onclick="cycleProgramTargetWithSave()" id="programTargetBtn">Select Program Target</button>
-                            <span id="programTargetDisplay" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
-                        </div>
-                    </div>
-                    <div id="HidModeDiv" style="display: block;">
-                        <div>
-                            <label>FXCore address (hex WITH leading 0x):</label>
-                            <input type="text" id="FXcoreAddr" size="8" value="0x30" style="margin-left: 10px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </div><br />
-                        <div>
-                            <button onclick="cycleProgramTargetWithSave()" id="programTargetBtnHid">Select Program Target</button>
-                            <span id="programTargetDisplayHid" style="margin-left: 10px; color: #666; font-style: italic;">Run from RAM</span>
-                        </div>
-                    </div>
-                </div>
-            </div> -->
         </div>
 
         <div class="download-buttons">
@@ -203,347 +92,314 @@
             </div>
         </div>
 
-<!--         <div class="instructions-section">
-            <h3 onclick="toggleInstructions()" style="cursor: pointer; user-select: none; margin-bottom: 10px;">
-                <span id="instructionsToggle">▶</span> Instructions & Help
-            </h3>
-            <div id="instructionsContent" class="instructions-content collapsed">
-                <div class="instructions-text">
-                    <div>
-                        <h4>Getting Started</h4>
-                        <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions. Generated machine code may be saved locally for later use, or sent to a <b>SandboxFX</b> hardware target to hear the results.</p>
-                        <ul>
-                            <li><i>Enter FXCore source code into the editor area, or select a file or example. Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
-                            <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
-                            <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with <b>SandboxFX</b> hardware</i></li>
-                            <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
-                        </ul>
-                        <h4>Connecting to Hardware</h4>
-                        <p><i>Connect your <b>SandboxFX</b> pedal to your computer using a suitable USB cable. A new removable drive labeled <b>SANDBOX-FX</b> should appear.</i></p>
-                        <ul>
-                            <li>Press the <b>Connect</b> button, then select the <b>SandboxFX</b> device from the list. You may need to allow this web app to access USB devices.</li>
-                            <li><i>Press the <b>Run from RAM</b> button to audition your assembled program on your <b>SandboxFX</b></i></li>
-                            <li><i>Press <b>Exit Run from RAM</b> to return to normal operation when finished</i></li>
-                            <li><i>Open the <b>Hardware Options</b> panel and tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write. This will save the assembled code to the slot and will persist even if the power is removed.</i></li>
-                        </ul>
-                        <h4>Troubleshooting</h4>
-                        <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting. Scroll up to the top to see previous messages</p>
-                        <ul>
-                            <li>Error information not helpful</i> - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
-                            <li>File transfer problems - <i>ensure proper directory permissions</i></li>
-                            <li>Assembly errors - <i>check syntax and register usage</i></li>
-                            <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
-                        </ul>
-                        <h4>What do these Options do?</h4>
-                        <p>These are some settings that change various editor and hardware settings</p>
-                        <ul>
-                            <h3>Editor Options</h3>
-                            <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
-                            <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
-                            <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
-                            <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
-                        </ul>
-                        <ul>
-                            <h3>Hardware Options</h3>
-                            <li>Select Hardware Mode: <i>Toggles communication mode between USB-HID and USB Disk Mode</i></li>
-                            <li>File - Select Output Directory: <i>Specify the folder location of your <b>SandboxFX</b> hardware (typically /SANDBOX-FX)</i></li>
-                            <li>File - Select Serial Port: <i>Open <b>SandboxFX</b> serial port to allow hardware debugging information</i></li>
-                            <li>HID - FXCore address: <i>Set I2C address of FXCore IC, defaults to 0x30</i></li>
-                            <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on <b>SandboxFX</b> hardware</i></li>
-                        </ul>
-                    </div>
-                </div>
-            </div> -->
-
-            <!-- Modal dialogs for user prompts -->
-            <div id="confirmModal" class="modal">
-                <div class="modal-content">
-                    <h3 id="confirmTitle">Confirm Action</h3>
-                    <p id="confirmMessage">Are you sure you want to proceed?</p>
-                    <div class="modal-buttons">
-                        <button class="btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
-                        <button class="btn-primary" id="confirmOkBtn">OK</button>
-                    </div>
+        <!-- Modal dialogs for user prompts -->
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3 id="confirmTitle">Confirm Action</h3>
+                <p id="confirmMessage">Are you sure you want to proceed?</p>
+                <div class="modal-buttons">
+                    <button class="btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
+                    <button class="btn-primary" id="confirmOkBtn">OK</button>
                 </div>
             </div>
-
-            <div id="threeChoiceModal" class="modal">
-                <div class="modal-content">
-                    <h3 id="threeChoiceTitle">Unsaved Changes</h3>
-                    <p id="threeChoiceMessage">You have unsaved changes. What would you like to do?</p>
-                    <div class="modal-buttons">
-                        <button class="btn-secondary" id="threeChoiceCancelBtn">Cancel</button>
-                        <button class="btn-danger" id="threeChoiceDiscardBtn">Discard</button>
-                        <button class="btn-primary" id="threeChoiceSaveBtn">Save</button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="inputModal" class="modal">
-                <div class="modal-content">
-                    <h3 id="inputTitle">Input Required</h3>
-                    <label for="modalInput" id="inputLabel">Please enter a value:</label>
-                    <input type="text" id="modalInput" placeholder="Enter value...">
-                    <div class="modal-buttons">
-                        <button class="btn-secondary" onclick="closeModal('inputModal')">Cancel</button>
-                        <button class="btn-primary" id="inputOkBtn">OK</button>
-                    </div>
-                </div>
-            </div>
-
-            <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 11px; color: #666; line-height: 1.4;">
-                <p><strong>MIT License</strong></p>
-                <p>FXCore Sandbox Editor by Disaster Area Designs, <a href="https://github.com/DisasterAreaDesigns/Sandbox-FXCore" style="color: #666;">https://github.com/DisasterAreaDesigns/Sandbox-FXCore</a><br>
-                    Copyright (c) 2025-present by Disaster Area Designs LLC</p>
-                <p>Uses portions of fxcoreasmlite by Experimental Noize, <a href="https://experimentalnoize.com" style="color: #666;">https://experimentalnoize.com</a><br>
-                    Copyright (c) 2019-present Experimental Noize</p>
-                <p>Uses monaco-editor by Microsoft, <a href="https://github.com/microsoft/monaco-editor" style="color: #666;">https://github.com/microsoft/monaco-editor</a><br>
-                    Copyright (c) 2016-present Microsoft Corporation</p>
-                <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-                    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-                    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-                    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-                    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-                    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-                    SOFTWARE.</p>
-                <p>This web application stores user settings on this computer in local storage.  We don't collect information or any personal data from our users.</p>
-            </footer>
-
-            <!-- FXCore Assembler Scripts -->
-            <script src="ui.js"></script>
-            <script src="examples.js"></script>
-            <script src="debug_config.js"></script>
-            <script src="common.js"></script>
-            <script src="reserved_words.js"></script>
-            <script src="registers.js"></script>
-            <script src="mnemonic.js"></script>
-            <script src="shunting_yard.js"></script>
-            <script src="line_parse.js"></script>
-            <script src="intel_hex.js"></script>
-            <script src="symbol_table.js"></script>
-            <script src="fxcore_ic.js"></script>
-            <script src="assembler.js"></script>
-            <script src="program.js"></script>
-            <script src="FT260_wrap.js"></script>
-            <script src="FXCoreProgrammer.js"></script>
-            <script src="FXCoreTargets.js"></script>
-            <script src="FXCoreFunctions.js"></script>
-            <script src="user-preferences.js"></script>
-            <script src="opcodes.js"></script>
-
-            <script>
-                // Global variables and functions to integrate FXCore with Monaco editor
-                let assembledData = null;
-
-                FXCoreTargets.FXCore_I2C = 0x30; // default FXCore device address, can be changed in above text input
-
-                // watch for board connection
-                navigator.hid.addEventListener('connect', (event) => {
-                    console.log(`HID device connected`);
-                    updateBuildResultsButtons();
-                    updateHardwareConnectionStatus();
-                });
-
-                // watch for board disconnection
-                navigator.hid.addEventListener('disconnect', (event) => {
-                    const device = event.device;
-                    if (device === FXCoreTargets.device) {
-                        console.log(`FXCore device disconnected`);
-                        FXCoreTargets.device = null;
-                        // document.getElementById("FXCoreRFRButton").disabled = true;
-                        // document.getElementById("FXCoreExitRFRButton").disabled = true;
-                        // document.getElementById("FXCorePrgButton").disabled = true;
-                        // document.getElementById("FXCoreConnectButton").disabled = false;
-                        // document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
-                        isRunningFromRAM = false; // Reset state on disconnect
-                        updateHardwareConnectionStatus(); // update text on main page
-                        updateBuildResultsButtons(); // update main buttons
-                    }
-                });
-
-                // Sync both program target displays
-                function syncProgramTargetDisplays() {
-                    const display1 = document.getElementById('programTargetDisplay');
-                    const display2 = document.getElementById('programTargetDisplayHid');
-                    const text = selectedProgram === 'ram' ? 'Run from RAM' : `Program ${selectedProgram}`;
-
-                    if (display1) display1.textContent = text;
-                    if (display2) display2.textContent = text;
-                }
-
-                // Override the cycleProgramTarget to sync both displays
-                const originalCycleProgramTarget = window.cycleProgramTarget;
-                window.cycleProgramTarget = function() {
-                    originalCycleProgramTarget();
-                    syncProgramTargetDisplays();
-                };
-
-                // Toggle functions for new sections
-                function toggleEditorOptions() {
-                    const editorOptionsContent = document.getElementById('editorOptionsContent');
-                    const editorOptionsToggle = document.getElementById('editorOptionsToggle');
-
-                    if (editorOptionsContent.classList.contains('collapsed')) {
-                        editorOptionsContent.classList.remove('collapsed');
-                        editorOptionsToggle.textContent = '▼';
-                    } else {
-                        editorOptionsContent.classList.add('collapsed');
-                        editorOptionsToggle.textContent = '▶';
-                    }
-                }
-
-                function toggleHardwareOptions() {
-                    const hardwareOptionsContent = document.getElementById('hardwareOptionsContent');
-                    const hardwareOptionsToggle = document.getElementById('hardwareOptionsToggle');
-
-                    if (hardwareOptionsContent.classList.contains('collapsed')) {
-                        hardwareOptionsContent.classList.remove('collapsed');
-                        hardwareOptionsToggle.textContent = '▼';
-                    } else {
-                        hardwareOptionsContent.classList.add('collapsed');
-                        hardwareOptionsToggle.textContent = '▶';
-                    }
-                }
-
-                // Add listener for system dark mode changes
-                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-                    const darkModeToggle = document.getElementById('darkModeToggle');
-                    if (darkModeToggle && editor) {
-                        darkModeToggle.checked = e.matches;
-                        const theme = e.matches ? 'fxcoreDark' : 'fxcoreTheme';
-                        monaco.editor.setTheme(theme);
-                        document.body.classList.toggle('dark-mode', e.matches);
-                    }
-                });
-
-                // Initialize the FXCore assembler when the page loads
-                document.addEventListener('DOMContentLoaded', function() {
-                    DEBUG.reset();
-
-                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-                    
-                    // Show/hide platform-specific shortcuts
-                    if (isMac) {
-                        document.querySelectorAll('.mac-only').forEach(el => {
-                            el.style.display = 'block';
-                        });
-                        document.querySelectorAll('.windows-only').forEach(el => {
-                            el.style.display = 'none';
-                        });
-                    } else {
-                        document.querySelectorAll('.windows-only').forEach(el => {
-                            el.style.display = 'block';
-                        });
-                        document.querySelectorAll('.mac-only').forEach(el => {
-                            el.style.display = 'none';
-                        });
-                    }
-
-                    // Initialize with HID mode by default
-                    selectedHW = 'hid';
-                    document.getElementById('HWModeDisplay').textContent = 'HID mode';
-                    document.getElementById('FileModeDiv').style.display = 'none';
-                    document.getElementById('HidModeDiv').style.display = 'block';
-
-                    updateDownloadButtonText();
-                    updateProgramTargetDisplay();
-                    updateClearHardwareButton();
-                    updateBuildResultsButtons(); // Initialize button states
-                    updatePlainHexButton(); // Initialize plain HEX button state
-                    updateHardwareConnectionStatus();
-                    initializeChangeDetection();
-                    syncProgramTargetDisplays(); // Sync both displays on load
-
-                    // Override FXCoreAssembler.logMessage to work with our DOM structure
-                    if (typeof FXCoreAssembler !== 'undefined') {
-                        FXCoreAssembler.logMessage = function(message, type = 'info') {
-                            const timestamp = new Date().toLocaleTimeString();
-                            const outputArea = document.getElementById('output');
-                            const messagesArea = document.getElementById('messages');
-
-                            // Log to console for debugging
-                            console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
-                        };
-                    }
-
-                    initializePreferences();
-                    DEBUG.showConfig();
-
-                    console.log('FXCore assembler libraries loaded');
-                });
-
-                document.addEventListener('keydown', function(event) {
-
-                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-
-                    const monacoHasFocus = document.activeElement?.closest('.monaco-editor');
-
-                    // Only prevent browser shortcuts when Monaco is NOT in focus
-                    // add whatever commands windows is using when I figure that out
-                    if (!monacoHasFocus) {
-                        if (isMac && event.metaKey) {
-                            switch(event.code) {
-                                case 'KeyF':
-                                    if (event.altKey) {
-                                        // Prevent Cmd+Opt+F (Replace)
-                                        event.preventDefault();
-                                        editor.getAction('editor.action.startFindReplaceAction').run();
-                                        return;
-                                    } else {
-                                        // Prevent Cmd+F (Find)
-                                        event.preventDefault();
-                                        editor.getAction('actions.find').run();
-                                        return;
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-
-                    // enable these shortcuts on an OS basis
-                    if (isMac) {
-                        if (event.ctrlKey) {
-                            switch(event.key.toLowerCase()) {
-                                case 'd':
-                                    event.preventDefault(); // Prevents browser's default bookmark
-                                    downloadHex();
-                                    break;
-                                case 'c':
-                                    event.preventDefault();
-                                    exitRunFromRam();
-                                    break;
-                                case 'a':
-                                    event.preventDefault();
-                                    assembleFXCore();
-                                    break;
-                            }
-                        }
-                    }
-                    else {
-                        if (event.altKey) {
-                            switch(event.key.toLowerCase()) {
-                                case 'd':
-                                    event.preventDefault(); // Prevents browser's default bookmark
-                                    downloadHex();
-                                    break;
-                                case 'c':
-                                    event.preventDefault();
-                                    exitRunFromRam();
-                                    break;
-                                case 'a':
-                                    event.preventDefault();
-                                    assembleFXCore();
-                                    break;
-                            }
-                        }
-                    }
-                });
-            </script>
         </div>
 
-<div class="options-toggle" onclick="toggleFlyout('options')">OPTIONS</div>
-<div class="info-toggle" onclick="toggleFlyout('info')">INFO</div>
-<div class="instructions-toggle" onclick="toggleFlyout('instructions')">HELP</div>
+        <div id="threeChoiceModal" class="modal">
+            <div class="modal-content">
+                <h3 id="threeChoiceTitle">Unsaved Changes</h3>
+                <p id="threeChoiceMessage">You have unsaved changes. What would you like to do?</p>
+                <div class="modal-buttons">
+                    <button class="btn-secondary" id="threeChoiceCancelBtn">Cancel</button>
+                    <button class="btn-danger" id="threeChoiceDiscardBtn">Discard</button>
+                    <button class="btn-primary" id="threeChoiceSaveBtn">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="inputModal" class="modal">
+            <div class="modal-content">
+                <h3 id="inputTitle">Input Required</h3>
+                <label for="modalInput" id="inputLabel">Please enter a value:</label>
+                <input type="text" id="modalInput" placeholder="Enter value...">
+                <div class="modal-buttons">
+                    <button class="btn-secondary" onclick="closeModal('inputModal')">Cancel</button>
+                    <button class="btn-primary" id="inputOkBtn">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 11px; color: #666; line-height: 1.4;">
+            <p><strong>MIT License</strong></p>
+            <p>FXCore Sandbox Editor by Disaster Area Designs, <a href="https://github.com/DisasterAreaDesigns/Sandbox-FXCore" style="color: #666;">https://github.com/DisasterAreaDesigns/Sandbox-FXCore</a><br>
+                Copyright (c) 2025-present by Disaster Area Designs LLC</p>
+            <p>Uses portions of fxcoreasmlite by Experimental Noize, <a href="https://experimentalnoize.com" style="color: #666;">https://experimentalnoize.com</a><br>
+                Copyright (c) 2019-present Experimental Noize</p>
+            <p>Uses monaco-editor by Microsoft, <a href="https://github.com/microsoft/monaco-editor" style="color: #666;">https://github.com/microsoft/monaco-editor</a><br>
+                Copyright (c) 2016-present Microsoft Corporation</p>
+            <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+                IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+                FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+                AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+                LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+                OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+                SOFTWARE.</p>
+            <p>This web application stores user settings on this computer in local storage. We don't collect information or any personal data from our users.</p>
+        </footer>
+
+        <!-- FXCore Assembler Scripts -->
+        <script src="ui.js"></script>
+        <script src="examples.js"></script>
+        <script src="debug_config.js"></script>
+        <script src="common.js"></script>
+        <script src="reserved_words.js"></script>
+        <script src="registers.js"></script>
+        <script src="mnemonic.js"></script>
+        <script src="shunting_yard.js"></script>
+        <script src="line_parse.js"></script>
+        <script src="intel_hex.js"></script>
+        <script src="symbol_table.js"></script>
+        <script src="fxcore_ic.js"></script>
+        <script src="assembler.js"></script>
+        <script src="program.js"></script>
+        <script src="FT260_wrap.js"></script>
+        <script src="FXCoreProgrammer.js"></script>
+        <script src="FXCoreTargets.js"></script>
+        <script src="FXCoreFunctions.js"></script>
+        <script src="user-preferences.js"></script>
+
+        <script>
+            // Global variables and functions to integrate FXCore with Monaco editor
+            let assembledData = null;
+
+            FXCoreTargets.FXCore_I2C = 0x30; // default FXCore device address, can be changed in above text input
+
+            // watch for board connection
+            navigator.hid.addEventListener('connect', (event) => {
+                console.log(`HID device connected`);
+                updateBuildResultsButtons();
+                updateHardwareConnectionStatus();
+            });
+
+            // watch for board disconnection
+            navigator.hid.addEventListener('disconnect', (event) => {
+                const device = event.device;
+                if (device === FXCoreTargets.device) {
+                    console.log(`FXCore device disconnected`);
+                    FXCoreTargets.device = null;
+                    // document.getElementById("FXCoreRFRButton").disabled = true;
+                    // document.getElementById("FXCoreExitRFRButton").disabled = true;
+                    // document.getElementById("FXCorePrgButton").disabled = true;
+                    // document.getElementById("FXCoreConnectButton").disabled = false;
+                    // document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
+                    isRunningFromRAM = false; // Reset state on disconnect
+                    updateHardwareConnectionStatus(); // update text on main page
+                    updateBuildResultsButtons(); // update main buttons
+                }
+            });
+
+            // Sync both program target displays
+            function syncProgramTargetDisplays() {
+                const display1 = document.getElementById('programTargetDisplay');
+                const display2 = document.getElementById('programTargetDisplayHid');
+                const text = selectedProgram === 'ram' ? 'Run from RAM' : `Program ${selectedProgram}`;
+
+                if (display1) display1.textContent = text;
+                if (display2) display2.textContent = text;
+            }
+
+            // synd dropdowns
+            function setProgramTargetWithSave(targetValue) {
+                if (typeof setProgramTarget === 'function') {
+                    setProgramTarget(targetValue);
+                }
+                userPrefs.save();
+            }
+
+            // Keep the old function for backwards compatibility if needed:
+            function cycleProgramTargetWithSave() {
+                if (typeof cycleProgramTarget === 'function') {
+                    cycleProgramTarget();
+                }
+                userPrefs.save();
+            }
+
+            function syncProgramTargetDropdowns() {
+                const dropdown1 = document.getElementById('programTargetDropdown');
+                const dropdown2 = document.getElementById('programTargetDropdownHid');
+                
+                if (dropdown1 && selectedProgram) {
+                    dropdown1.value = selectedProgram;
+                }
+                if (dropdown2 && selectedProgram) {
+                    dropdown2.value = selectedProgram;
+                }
+            }
+
+            // Toggle functions for new sections
+            function toggleEditorOptions() {
+                const editorOptionsContent = document.getElementById('editorOptionsContent');
+                const editorOptionsToggle = document.getElementById('editorOptionsToggle');
+
+                if (editorOptionsContent.classList.contains('collapsed')) {
+                    editorOptionsContent.classList.remove('collapsed');
+                    editorOptionsToggle.textContent = '▼';
+                } else {
+                    editorOptionsContent.classList.add('collapsed');
+                    editorOptionsToggle.textContent = '▶';
+                }
+            }
+
+            function toggleHardwareOptions() {
+                const hardwareOptionsContent = document.getElementById('hardwareOptionsContent');
+                const hardwareOptionsToggle = document.getElementById('hardwareOptionsToggle');
+
+                if (hardwareOptionsContent.classList.contains('collapsed')) {
+                    hardwareOptionsContent.classList.remove('collapsed');
+                    hardwareOptionsToggle.textContent = '▼';
+                } else {
+                    hardwareOptionsContent.classList.add('collapsed');
+                    hardwareOptionsToggle.textContent = '▶';
+                }
+            }
+
+            // Add listener for system dark mode changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                const darkModeToggle = document.getElementById('darkModeToggle');
+                if (darkModeToggle && editor) {
+                    darkModeToggle.checked = e.matches;
+                    const theme = e.matches ? 'fxcoreDark' : 'fxcoreTheme';
+                    monaco.editor.setTheme(theme);
+                    document.body.classList.toggle('dark-mode', e.matches);
+                }
+            });
+
+            // Initialize the FXCore assembler when the page loads
+            document.addEventListener('DOMContentLoaded', function() {
+                DEBUG.reset();
+
+                const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+                // Show/hide platform-specific shortcuts
+                if (isMac) {
+                    document.querySelectorAll('.mac-only').forEach(el => {
+                        el.style.display = 'block';
+                    });
+                    document.querySelectorAll('.windows-only').forEach(el => {
+                        el.style.display = 'none';
+                    });
+                } else {
+                    document.querySelectorAll('.windows-only').forEach(el => {
+                        el.style.display = 'block';
+                    });
+                    document.querySelectorAll('.mac-only').forEach(el => {
+                        el.style.display = 'none';
+                    });
+                }
+
+                // Initialize with HID mode by default
+                selectedHW = 'hid';
+                document.getElementById('HWModeDisplay').textContent = 'HID mode';
+                document.getElementById('FileModeDiv').style.display = 'none';
+                document.getElementById('HidModeDiv').style.display = 'block';
+
+                updateDownloadButtonText();
+                // updateProgramTargetDisplay();
+                updateClearHardwareButton();
+                updateBuildResultsButtons(); // Initialize button states
+                updatePlainHexButton(); // Initialize plain HEX button state
+                updateHardwareConnectionStatus();
+                initializeChangeDetection();
+                syncProgramTargetDisplays(); // Sync both displays on load
+
+                // Override FXCoreAssembler.logMessage to work with our DOM structure
+                if (typeof FXCoreAssembler !== 'undefined') {
+                    FXCoreAssembler.logMessage = function(message, type = 'info') {
+                        const timestamp = new Date().toLocaleTimeString();
+                        const outputArea = document.getElementById('output');
+                        const messagesArea = document.getElementById('messages');
+
+                        // Log to console for debugging
+                        console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+                    };
+                }
+
+                initializePreferences();
+                DEBUG.showConfig();
+
+                console.log('FXCore assembler libraries loaded');
+            });
+
+            document.addEventListener('keydown', function(event) {
+
+                const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+                const monacoHasFocus = document.activeElement?.closest('.monaco-editor');
+
+                // Only prevent browser shortcuts when Monaco is NOT in focus
+                // add whatever commands windows is using when I figure that out
+                if (!monacoHasFocus) {
+                    if (isMac && event.metaKey) {
+                        switch (event.code) {
+                            case 'KeyF':
+                                if (event.altKey) {
+                                    // Prevent Cmd+Opt+F (Replace)
+                                    event.preventDefault();
+                                    editor.getAction('editor.action.startFindReplaceAction').run();
+                                    return;
+                                } else {
+                                    // Prevent Cmd+F (Find)
+                                    event.preventDefault();
+                                    editor.getAction('actions.find').run();
+                                    return;
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                // enable these shortcuts on an OS basis
+                if (isMac) {
+                    if (event.ctrlKey) {
+                        switch (event.key.toLowerCase()) {
+                            case 'd':
+                                event.preventDefault(); // Prevents browser's default bookmark
+                                downloadHex();
+                                break;
+                            case 'c':
+                                event.preventDefault();
+                                exitRunFromRam();
+                                break;
+                            case 'a':
+                                event.preventDefault();
+                                assembleFXCore();
+                                break;
+                        }
+                    }
+                } else {
+                    if (event.altKey) {
+                        switch (event.key.toLowerCase()) {
+                            case 'd':
+                                event.preventDefault(); // Prevents browser's default bookmark
+                                downloadHex();
+                                break;
+                            case 'c':
+                                event.preventDefault();
+                                exitRunFromRam();
+                                break;
+                            case 'a':
+                                event.preventDefault();
+                                assembleFXCore();
+                                break;
+                        }
+                    }
+                }
+            });
+        </script>
+    </div>
+
+    <div class="options-toggle" onclick="toggleFlyout('options')">OPTIONS</div>
+    <div class="info-toggle" onclick="toggleFlyout('info')">INFO</div>
+    <div class="instructions-toggle" onclick="toggleFlyout('instructions')">HELP</div>
 
 
     <div id="optionsPanel" class="options-panel">
@@ -555,142 +411,176 @@
             <div class="flyout-section">
                 <h4>Editor Options</h4>
                 <div class="options">
-                <div class="project-folder-section">
-                    <button id="projectFolderBtn" class="project-folder-button" onclick="selectProjectDirectory()">
-                        Select Project Folder
-                    </button>
-                    <span id="projectFolderLabel" class="project-folder-label">No directory selected</span>
-                </div>
-                
-                <label>
-                    <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()"> 
-                    Large editor window
-                </label>
-                
-                <label>
-                    <input type="checkbox" id="minimapToggle" onchange="toggleMinimapWithSave()"> 
-                    Show editor mini-map
-                </label>
-                
-                <label>
-                    <input type="checkbox" id="debugToggle" onchange="toggleDebugPresetWithSave()"> 
-                    Show full build results
-                </label>
-                
-                <label>
-                    Theme: 
-                    <select id="darkModeSelect" onchange="handleThemeChange()">
-                        <option value="system">System</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
-                </label>
-            </div>
-        </div>
-        
-        <div class="flyout-section">
-            <h4>Hardware Options</h4>
-            <div class="options">
-                <div>
-                    <button onclick="cycleHWModeWithSave()" id="HWModeBtn">Select Hardware Mode</button>
-                    <span id="HWModeDisplay" class="hw-option-label-medium">HID mode</span>
-                </div>
-                
-                <div id="FileModeDiv" style="display: none;">
-                    <div>
-                        <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
-                        <span id="outputDirDisplay" class="hw-option-label-medium">No directory selected</span>
+                    <div class="project-folder-section">
+                        <button id="projectFolderBtn" class="project-folder-button" onclick="selectProjectDirectory()">
+                            Select Project Folder
+                        </button>
+                        <span id="projectFolderLabel" class="project-folder-label">No directory selected</span>
                     </div>
-                    
-                    <div>
-                        <button onclick="serialConnect()">Select Serial Port</button>
-                        <span id="serialPortDisplay" class="hw-option-label-medium">No port selected</span>
-                    </div>
-                    
-                    <div>
-                        <button onclick="cycleProgramTargetWithSave()" id="programTargetBtn">Select Program Target</button>
-                        <span id="programTargetDisplay" class="hw-option-label-medium">Run from RAM</span>
-                    </div>
-                </div>
-                
-                <div id="HidModeDiv" style="display: block;">
-                    <div>
-                        <label>FXCore address</label>
-<input type="text" id="FXcoreAddr" size="8" value="0x30" class="fxcore-address-input">
-<span class="project-folder-label">HEX with leading 0x</span>
-                    </div><br>
-                    
-                    <div>
-                        <button onclick="cycleProgramTargetWithSave()" id="programTargetBtnHid">Select Program Target</button>
-                        <span id="programTargetDisplayHid" class="hw-option-label-medium">Run from RAM</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flyout-section">
-   <div>
-    <label class="windows-only">
-        <span class="shortcut">
-            <span class="key"><strong>Keyboard Shortcuts:</strong></span>
-            <span class="desc"></span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>Ctrl+F</strong></span>
-            <span class="desc">Find</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>Ctrl+Shift+F</strong></span>
-            <span class="desc">Replace</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>F3</strong></span>
-            <span class="desc">Find Next</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>Alt+A</strong></span>
-            <span class="desc">Assemble</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>Alt+C</strong></span>
-            <span class="desc">Exit Run from RAM</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>Alt+D</strong></span>
-            <span class="desc">Download Hex / Run from RAM</span>
-        </span>
-    </label>
 
-    <label class="mac-only">
-        <span class="shortcut">
-            <span class="key"><strong>Keyboard Shortcuts:</strong></span>
-            <span class="desc"></span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>⌘+F</strong></span>
-            <span class="desc">Find</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>⌘+⌥+F</strong></span>
-            <span class="desc">Replace</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>F3</strong></span>
-            <span class="desc">Find Next</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>⌃+A</strong></span>
-            <span class="desc">Assemble</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>⌃+C</strong></span>
-            <span class="desc">Exit Run from RAM</span>
-        </span>
-        <span class="shortcut">
-            <span class="key"><strong>⌃+D</strong></span>
-            <span class="desc">Download Hex / Run from RAM</span>
-        </span>
-    </label>
-</div>
+                    <label>
+                        <input type="checkbox" id="editorHeightToggle" onchange="toggleEditorHeightWithSave()">
+                        Large editor window
+                    </label>
+
+                    <label>
+                        <input type="checkbox" id="minimapToggle" onchange="toggleMinimapWithSave()">
+                        Show editor mini-map
+                    </label>
+
+                    <label>
+                        <input type="checkbox" id="debugToggle" onchange="toggleDebugPresetWithSave()">
+                        Show full build results
+                    </label>
+
+                    <label>
+                        Theme:
+                        <select id="darkModeSelect" onchange="handleThemeChange()">
+                            <option value="system">System</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Hardware Options</h4>
+                <div class="options">
+                    <div>
+                        <button onclick="cycleHWModeWithSave()" id="HWModeBtn">Select Hardware Mode</button>
+                        <span id="HWModeDisplay" class="hw-option-label-medium">HID mode</span>
+                    </div>
+                    
+                    <div id="FileModeDiv" style="display: none;">
+                        <div>
+                            <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
+                            <span id="outputDirDisplay" class="hw-option-label-medium">No directory selected</span>
+                        </div>
+                        
+                        <div>
+                            <button onclick="serialConnect()">Select Serial Port</button>
+                            <span id="serialPortDisplay" class="hw-option-label-medium">No port selected</span>
+                        </div>
+                        
+                        <div>
+                            <select id="programTargetDropdown" onchange="setProgramTargetWithSave(this.value)">
+                                <option value="ram">Run from RAM</option>
+                                <option value="0">Flash Slot 0</option>
+                                <option value="1">Flash Slot 1</option>
+                                <option value="2">Flash Slot 2</option>
+                                <option value="3">Flash Slot 3</option>
+                                <option value="4">Flash Slot 4</option>
+                                <option value="5">Flash Slot 5</option>
+                                <option value="6">Flash Slot 6</option>
+                                <option value="7">Flash Slot 7</option>
+                                <option value="8">Flash Slot 8</option>
+                                <option value="9">Flash Slot 9</option>
+                                <option value="10">Flash Slot 10</option>
+                                <option value="11">Flash Slot 11</option>
+                                <option value="12">Flash Slot 12</option>
+                                <option value="13">Flash Slot 13</option>
+                                <option value="14">Flash Slot 14</option>
+                                <option value="15">Flash Slot 15</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="HidModeDiv" style="display: block;">
+                        <div>
+                            <label>FXCore address</label>
+                            <input type="text" id="FXcoreAddr" size="8" value="0x30" class="fxcore-address-input">
+                            <span class="project-folder-label">HEX with leading 0x</span>
+                        </div><br>
+                        <div>
+                            <select id="programTargetDropdownHid" onchange="setProgramTargetWithSave(this.value)">
+                                <option value="ram">Run from RAM</option>
+                                <option value="0">Flash Slot 0</option>
+                                <option value="1">Flash Slot 1</option>
+                                <option value="2">Flash Slot 2</option>
+                                <option value="3">Flash Slot 3</option>
+                                <option value="4">Flash Slot 4</option>
+                                <option value="5">Flash Slot 5</option>
+                                <option value="6">Flash Slot 6</option>
+                                <option value="7">Flash Slot 7</option>
+                                <option value="8">Flash Slot 8</option>
+                                <option value="9">Flash Slot 9</option>
+                                <option value="10">Flash Slot 10</option>
+                                <option value="11">Flash Slot 11</option>
+                                <option value="12">Flash Slot 12</option>
+                                <option value="13">Flash Slot 13</option>
+                                <option value="14">Flash Slot 14</option>
+                                <option value="15">Flash Slot 15</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <div class="flyout-section">
+            <div>
+                <label class="windows-only">
+                    <span class="shortcut">
+                        <span class="key"><strong>Keyboard Shortcuts:</strong></span>
+                        <span class="desc"></span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>Ctrl+F</strong></span>
+                        <span class="desc">Find</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>Ctrl+Shift+F</strong></span>
+                        <span class="desc">Replace</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>F3</strong></span>
+                        <span class="desc">Find Next</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>Alt+A</strong></span>
+                        <span class="desc">Assemble</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>Alt+C</strong></span>
+                        <span class="desc">Exit Run from RAM</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>Alt+D</strong></span>
+                        <span class="desc">Download Hex / Run from RAM</span>
+                    </span>
+                </label>
+
+                <label class="mac-only">
+                    <span class="shortcut">
+                        <span class="key"><strong>Keyboard Shortcuts:</strong></span>
+                        <span class="desc"></span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>⌘+F</strong></span>
+                        <span class="desc">Find</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>⌘+⌥+F</strong></span>
+                        <span class="desc">Replace</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>F3</strong></span>
+                        <span class="desc">Find Next</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>⌃+A</strong></span>
+                        <span class="desc">Assemble</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>⌃+C</strong></span>
+                        <span class="desc">Exit Run from RAM</span>
+                    </span>
+                    <span class="shortcut">
+                        <span class="key"><strong>⌃+D</strong></span>
+                        <span class="desc">Download Hex / Run from RAM</span>
+                    </span>
+                </label>
+            </div>
 
         </div>
     </div>
@@ -706,56 +596,56 @@
     </div>
 
     <div id="instructionsPanel" class="info-panel">
-    <!-- <button class="close-btn" onclick="closeFlyout('instructions')">&times;</button> -->
-    <div class="flyout-header">
-        <h3>Instructions & Help</h3>
-    </div>
-    <div class="flyout-content">
-        <div class="instructions-text">
-            <h4>Getting Started</h4>
-            <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions. Generated machine code may be saved locally for later use, or sent to a <b>SandboxFX</b> hardware target to hear the results.</p>
-            <ul>
-                <li><i>Enter FXCore source code into the editor area, or select a file or example. Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
-                <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
-                <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with <b>SandboxFX</b> hardware</i></li>
-                <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
-            </ul>
-            <h4>Connecting to Hardware</h4>
-            <p><i>Connect your <b>SandboxFX</b> pedal to your computer using a suitable USB cable. A new removable drive labeled <b>SANDBOX-FX</b> should appear.</i></p>
-            <ul>
-                <li>Press the <b>Connect</b> button, then select the <b>SandboxFX</b> device from the list. You may need to allow this web app to access USB devices.</li>
-                <li><i>Press the <b>Run from RAM</b> button to audition your assembled program on your <b>SandboxFX</b></i></li>
-                <li><i>Press <b>Exit Run from RAM</b> to return to normal operation when finished</i></li>
-                <li><i>Open the <b>Hardware Options</b> panel and tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write. This will save the assembled code to the slot and will persist even if the power is removed.</i></li>
-            </ul>
-            <h4>Troubleshooting</h4>
-            <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting. Scroll up to the top to see previous messages</p>
-            <ul>
-                <li>Error information not helpful - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
-                <li>File transfer problems - <i>ensure proper directory permissions</i></li>
-                <li>Assembly errors - <i>check syntax and register usage</i></li>
-                <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
-            </ul>
-            <h4>What do these Options do?</h4>
-            <p>These are some settings that change various editor and hardware settings</p>
-            <ul>
-                <h3>Editor Options</h3>
-                <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
-                <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
-                <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
-                <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
-            </ul>
-            <ul>
-                <h3>Hardware Options</h3>
-                <li>Select Hardware Mode: <i>Toggles communication mode between USB-HID and USB Disk Mode</i></li>
-                <li>File - Select Output Directory: <i>Specify the folder location of your <b>SandboxFX</b> hardware (typically /SANDBOX-FX)</i></li>
-                <li>File - Select Serial Port: <i>Open <b>SandboxFX</b> serial port to allow hardware debugging information</i></li>
-                <li>HID - FXCore address: <i>Set I2C address of FXCore IC, defaults to 0x30</i></li>
-                <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on <b>SandboxFX</b> hardware</i></li>
-            </ul>
+        <!-- <button class="close-btn" onclick="closeFlyout('instructions')">&times;</button> -->
+        <div class="flyout-header">
+            <h3>Instructions & Help</h3>
+        </div>
+        <div class="flyout-content">
+            <div class="instructions-text">
+                <h4>Getting Started</h4>
+                <p>This web application is designed to assemble FXCoreASM assembly code into machine instructions. Generated machine code may be saved locally for later use, or sent to a <b>SandboxFX</b> hardware target to hear the results.</p>
+                <ul>
+                    <li><i>Enter FXCore source code into the editor area, or select a file or example. Press the <b>Assemble</b> button to verify and assemble the code into a HEX file</i></li>
+                    <li><i>Press the <b>Download HEX</b> to save the resulting HEX file to your local Downloads folder. Check the <b>Build Results</b> for success or error messages.</i></li>
+                    <li><i><b>Download C Headers</b> outputs the assembled data in a C Header format for use with more advanced applications and is not used with <b>SandboxFX</b> hardware</i></li>
+                    <li><i>When satisfied with your source code, press the <b>Save Source...</b> button to download a local copy.</i></li>
+                </ul>
+                <h4>Connecting to Hardware</h4>
+                <p><i>Connect your <b>SandboxFX</b> pedal to your computer using a suitable USB cable. A new removable drive labeled <b>SANDBOX-FX</b> should appear.</i></p>
+                <ul>
+                    <li>Press the <b>Connect</b> button, then select the <b>SandboxFX</b> device from the list. You may need to allow this web app to access USB devices.</li>
+                    <li><i>Press the <b>Run from RAM</b> button to audition your assembled program on your <b>SandboxFX</b></i></li>
+                    <li><i>Press <b>Exit Run from RAM</b> to return to normal operation when finished</i></li>
+                    <li><i>Open the <b>Hardware Options</b> panel and tap the <b>Select Program Target</b> to choose one of the 16 available program locations to write. This will save the assembled code to the slot and will persist even if the power is removed.</i></li>
+                </ul>
+                <h4>Troubleshooting</h4>
+                <p>Errors and warnings will appear in the Build Results window and are often helpful for troubleshooting. Scroll up to the top to see previous messages</p>
+                <ul>
+                    <li>Error information not helpful - use <b>Editor Options - Show full build results</b> to see more detailed info</li>
+                    <li>File transfer problems - <i>ensure proper directory permissions</i></li>
+                    <li>Assembly errors - <i>check syntax and register usage</i></li>
+                    <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
+                </ul>
+                <h4>What do these Options do?</h4>
+                <p>These are some settings that change various editor and hardware settings</p>
+                <ul>
+                    <h3>Editor Options</h3>
+                    <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
+                    <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
+                    <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
+                    <li>Enable dark mode: <i>Use dark colour theme, follows system theme</i></li>
+                </ul>
+                <ul>
+                    <h3>Hardware Options</h3>
+                    <li>Select Hardware Mode: <i>Toggles communication mode between USB-HID and USB Disk Mode</i></li>
+                    <li>File - Select Output Directory: <i>Specify the folder location of your <b>SandboxFX</b> hardware (typically /SANDBOX-FX)</i></li>
+                    <li>File - Select Serial Port: <i>Open <b>SandboxFX</b> serial port to allow hardware debugging information</i></li>
+                    <li>HID - FXCore address: <i>Set I2C address of FXCore IC, defaults to 0x30</i></li>
+                    <li>Select Program Target: <i>Press to select <b>Run from RAM</b> target or a program slot on <b>SandboxFX</b> hardware</i></li>
+                </ul>
+            </div>
         </div>
     </div>
-</div>
 
 
     <script>
@@ -766,8 +656,7 @@
             "categories": {
                 "math-operations": {
                     "name": "Math Operations",
-                    "opcodes": [
-                        {
+                    "opcodes": [{
                             "name": "ABS",
                             "syntax": "ABS CREG",
                             "description": "Absolute value operation on a core register"
@@ -916,8 +805,7 @@
                 },
                 "copy-operations": {
                     "name": "Copy Operations",
-                    "opcodes": [
-                        {
+                    "opcodes": [{
                             "name": "CPY_CC",
                             "syntax": "CPY_CC CREG, CREG",
                             "description": "Copy core register to core register"
@@ -951,8 +839,7 @@
                 },
                 "load-store-operations": {
                     "name": "Load/Store Operations",
-                    "opcodes": [
-                        {
+                    "opcodes": [{
                             "name": "RDACC64U",
                             "syntax": "RDACC64U CREG",
                             "description": "Read upper 32 bits of 64-bit accumulator to register"
@@ -1016,8 +903,7 @@
                 },
                 "logic-operations": {
                     "name": "Logic Operations",
-                    "opcodes": [
-                        {
+                    "opcodes": [{
                             "name": "INV",
                             "syntax": "INV CREG",
                             "description": "Invert all bits in register"
@@ -1056,8 +942,7 @@
                 },
                 "jump-instructions": {
                     "name": "Jump Instructions",
-                    "opcodes": [
-                        {
+                    "opcodes": [{
                             "name": "JGEZ",
                             "syntax": "JGEZ CREG, ADDROFFSET",
                             "description": "Jump if register value is greater than or equal to zero"
@@ -1091,8 +976,7 @@
                 },
                 "extended-operations": {
                     "name": "Extended Operations",
-                    "opcodes": [
-                        {
+                    "opcodes": [{
                             "name": "APA",
                             "syntax": "APA IMM8D, ADDR",
                             "description": "All-pass filter A with immediate coefficient and delay address"
@@ -1157,198 +1041,200 @@
             }
         };
 
-function loadFXCoreOpcodes() {
-    const flyoutContent = document.querySelector('#infoPanel .flyout-content');
-    if (!flyoutContent) return;
+        function loadFXCoreOpcodes() {
+            const flyoutContent = document.querySelector('#infoPanel .flyout-content');
+            if (!flyoutContent) return;
 
-    flyoutContent.innerHTML = '';
+            flyoutContent.innerHTML = '';
 
-    const container = document.createElement('div');
-    container.className = 'opcodes-container';
+            const container = document.createElement('div');
+            container.className = 'opcodes-container';
 
-    // Sticky, wrapping nav
-    const navLinks = document.createElement('div');
-    navLinks.className = 'opcode-nav-links';
+            // Sticky, wrapping nav
+            const navLinks = document.createElement('div');
+            navLinks.className = 'opcode-nav-links';
 
-    // Map your actual (hyphenated) category IDs → short labels
-    const labelMap = {
-        'math-operations': 'MATH',
-        'copy-operations': 'COPY',
-        'load-store-operations': 'LOAD / STORE',
-        'logic-operations': 'LOGIC',
-        'jump-instructions': 'JUMP',
-        'extended-operations': 'EXTENDED'
-    };
+            // Map your actual (hyphenated) category IDs → short labels
+            const labelMap = {
+                'math-operations': 'MATH',
+                'copy-operations': 'COPY',
+                'load-store-operations': 'LOAD / STORE',
+                'logic-operations': 'LOGIC',
+                'jump-instructions': 'JUMP',
+                'extended-operations': 'EXTENDED'
+            };
 
-    Object.entries(fxcoreData.categories).forEach(([categoryId, category]) => {
-        const link = document.createElement('a');
-        link.href = `#${categoryId}`;
-        link.className = `opcode-nav-link ${categoryId}`;
-        link.textContent = labelMap[categoryId] ?? category.name;
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const el = document.getElementById(categoryId);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            Object.entries(fxcoreData.categories).forEach(([categoryId, category]) => {
+                const link = document.createElement('a');
+                link.href = `#${categoryId}`;
+                link.className = `opcode-nav-link ${categoryId}`;
+                link.textContent = labelMap[categoryId] ?? category.name;
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const el = document.getElementById(categoryId);
+                    if (el) el.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                });
+                navLinks.appendChild(link);
+            });
+
+            container.appendChild(navLinks);
+
+            Object.entries(fxcoreData.categories).forEach(([categoryId, category]) => {
+                const sectionHeader = document.createElement('div');
+                sectionHeader.className = 'opcode-section-header';
+                sectionHeader.id = categoryId;
+                sectionHeader.textContent = labelMap[categoryId] ?? category.name;
+                container.appendChild(sectionHeader);
+
+                category.opcodes.forEach(opcode => {
+                    const card = document.createElement('div');
+                    card.className = 'opcode-card';
+
+                    const header = document.createElement('div');
+                    header.className = 'opcode-header';
+
+                    const name = document.createElement('div');
+                    name.className = 'opcode-name';
+                    name.textContent = opcode.name;
+
+                    const categoryBadge = document.createElement('div');
+                    categoryBadge.className = `opcode-category ${categoryId}`;
+                    categoryBadge.textContent = labelMap[categoryId] ?? category.name;
+
+                    header.appendChild(name);
+                    header.appendChild(categoryBadge);
+
+                    const syntax = document.createElement('div');
+                    syntax.className = 'opcode-syntax';
+                    syntax.textContent = opcode.syntax;
+
+                    const description = document.createElement('div');
+                    description.className = 'opcode-description';
+                    description.textContent = opcode.description;
+
+                    card.appendChild(header);
+                    card.appendChild(syntax);
+                    card.appendChild(description);
+                    container.appendChild(card);
+                });
+            });
+
+            flyoutContent.appendChild(container);
+        }
+
+
+
+        // Keep track of open panels
+        window.openPanels = new Set();
+
+        // Toggle a panel
+        window.toggleFlyout = function(type) {
+            const panel = document.getElementById(`${type}Panel`);
+            const toggle = document.querySelector(`.${type}-toggle`);
+
+            if (!panel) {
+                console.error(`Panel not found: ${type}Panel`);
+                return;
+            }
+            if (!toggle) {
+                console.error(`Toggle not found: ${type}-toggle`);
+                return;
+            }
+
+            const isOpen = panel.classList.contains('open');
+
+            // Close all other panels
+            ['options', 'info', 'instructions'].forEach(t => {
+                if (t !== type) {
+                    const p = document.getElementById(`${t}Panel`);
+                    const tog = document.querySelector(`.${t}-toggle`);
+                    if (p && tog) {
+                        p.classList.remove('open');
+                        tog.classList.remove('panel-open');
+                        openPanels.delete(t);
+                    }
+                }
+            });
+
+            // Toggle clicked panel
+            panel.classList.toggle('open', !isOpen);
+            toggle.classList.toggle('panel-open', !isOpen);
+
+            if (!isOpen) {
+                openPanels.add(type);
+                // Load info content dynamically when opening
+                if (type === 'info' && panel.querySelector('.opcodes-container') === null) {
+                    loadFXCoreOpcodes();
+                }
+            } else {
+                openPanels.delete(type);
+            }
+
+            updatePanelPositions();
+        };
+
+        // Optional: open a panel programmatically
+        window.openFlyout = function(type) {
+            const panel = document.getElementById(`${type}Panel`);
+            if (!panel.classList.contains('open')) {
+                toggleFlyout(type);
+            }
+        };
+
+        // Close a panel programmatically
+        window.closeFlyout = function(type) {
+            const panel = document.getElementById(`${type}Panel`);
+            const toggle = document.querySelector(`.${type}-toggle`);
+            if (panel && toggle && panel.classList.contains('open')) {
+                panel.classList.remove('open');
+                toggle.classList.remove('panel-open');
+                openPanels.delete(type);
+                updatePanelPositions();
+            }
+        };
+
+        // Update the positions of the toggles to slide with panels
+        window.updatePanelPositions = function() {
+            const optionsPanel = document.getElementById('optionsPanel');
+            const infoPanel = document.getElementById('infoPanel');
+            const instructionsPanel = document.getElementById('instructionsPanel');
+
+            const optionsToggle = document.querySelector('.options-toggle');
+            const infoToggle = document.querySelector('.info-toggle');
+            const instructionsToggle = document.querySelector('.instructions-toggle');
+
+            if (optionsPanel && optionsToggle)
+                optionsToggle.style.right = optionsPanel.classList.contains('open') ? '330px' : '0px';
+
+            if (infoPanel && infoToggle)
+                infoToggle.style.right = infoPanel.classList.contains('open') ? '330px' : '0px';
+
+            if (instructionsPanel && instructionsToggle)
+                instructionsToggle.style.right = instructionsPanel.classList.contains('open') ? '630px' : '0px';
+        };
+
+        // Close all panels with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && openPanels.size > 0) {
+                openPanels.forEach(type => closeFlyout(type));
+            }
         });
-        navLinks.appendChild(link);
-    });
-
-    container.appendChild(navLinks);
-
-    Object.entries(fxcoreData.categories).forEach(([categoryId, category]) => {
-        const sectionHeader = document.createElement('div');
-        sectionHeader.className = 'opcode-section-header';
-        sectionHeader.id = categoryId;
-        sectionHeader.textContent = labelMap[categoryId] ?? category.name;
-        container.appendChild(sectionHeader);
-
-        category.opcodes.forEach(opcode => {
-            const card = document.createElement('div');
-            card.className = 'opcode-card';
-
-            const header = document.createElement('div');
-            header.className = 'opcode-header';
-
-            const name = document.createElement('div');
-            name.className = 'opcode-name';
-            name.textContent = opcode.name;
-
-            const categoryBadge = document.createElement('div');
-            categoryBadge.className = `opcode-category ${categoryId}`;
-            categoryBadge.textContent = labelMap[categoryId] ?? category.name;
-
-            header.appendChild(name);
-            header.appendChild(categoryBadge);
-
-            const syntax = document.createElement('div');
-            syntax.className = 'opcode-syntax';
-            syntax.textContent = opcode.syntax;
-
-            const description = document.createElement('div');
-            description.className = 'opcode-description';
-            description.textContent = opcode.description;
-
-            card.appendChild(header);
-            card.appendChild(syntax);
-            card.appendChild(description);
-            container.appendChild(card);
-        });
-    });
-
-    flyoutContent.appendChild(container);
-}
 
 
 
-// Keep track of open panels
-window.openPanels = new Set();
 
-// Toggle a panel
-window.toggleFlyout = function(type) {
-    const panel = document.getElementById(`${type}Panel`);
-    const toggle = document.querySelector(`.${type}-toggle`);
-
-    if (!panel) {
-        console.error(`Panel not found: ${type}Panel`);
-        return;
-    }
-    if (!toggle) {
-        console.error(`Toggle not found: ${type}-toggle`);
-        return;
-    }
-
-    const isOpen = panel.classList.contains('open');
-
-    // Close all other panels
-    ['options', 'info', 'instructions'].forEach(t => {
-        if (t !== type) {
-            const p = document.getElementById(`${t}Panel`);
-            const tog = document.querySelector(`.${t}-toggle`);
-            if (p && tog) {
-                p.classList.remove('open');
-                tog.classList.remove('panel-open');
-                openPanels.delete(t);
+        function handleThemeChange() {
+            const themeSelect = document.getElementById('darkModeSelect');
+            if (themeSelect) {
+                // Trigger the existing theme change logic
+                const event = new Event('change');
+                themeSelect.dispatchEvent(event);
             }
         }
-    });
-
-    // Toggle clicked panel
-    panel.classList.toggle('open', !isOpen);
-    toggle.classList.toggle('panel-open', !isOpen);
-
-    if (!isOpen) {
-        openPanels.add(type);
-        // Load info content dynamically when opening
-        if (type === 'info' && panel.querySelector('.opcodes-container') === null) {
-            loadFXCoreOpcodes();
-        }
-    } else {
-        openPanels.delete(type);
-    }
-
-    updatePanelPositions();
-};
-
-// Optional: open a panel programmatically
-window.openFlyout = function(type) {
-    const panel = document.getElementById(`${type}Panel`);
-    if (!panel.classList.contains('open')) {
-        toggleFlyout(type);
-    }
-};
-
-// Close a panel programmatically
-window.closeFlyout = function(type) {
-    const panel = document.getElementById(`${type}Panel`);
-    const toggle = document.querySelector(`.${type}-toggle`);
-    if (panel && toggle && panel.classList.contains('open')) {
-        panel.classList.remove('open');
-        toggle.classList.remove('panel-open');
-        openPanels.delete(type);
-        updatePanelPositions();
-    }
-};
-
-// Update the positions of the toggles to slide with panels
-window.updatePanelPositions = function() {
-    const optionsPanel = document.getElementById('optionsPanel');
-    const infoPanel = document.getElementById('infoPanel');
-    const instructionsPanel = document.getElementById('instructionsPanel');
-
-    const optionsToggle = document.querySelector('.options-toggle');
-    const infoToggle = document.querySelector('.info-toggle');
-    const instructionsToggle = document.querySelector('.instructions-toggle');
-
-    if (optionsPanel && optionsToggle)
-        optionsToggle.style.right = optionsPanel.classList.contains('open') ? '330px' : '0px';
-
-    if (infoPanel && infoToggle)
-        infoToggle.style.right = infoPanel.classList.contains('open') ? '330px' : '0px';
-
-    if (instructionsPanel && instructionsToggle)
-        instructionsToggle.style.right = instructionsPanel.classList.contains('open') ? '630px' : '0px';
-};
-
-// Close all panels with Escape key
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape' && openPanels.size > 0) {
-        openPanels.forEach(type => closeFlyout(type));
-    }
-});
-
-
-
-
-    function handleThemeChange() {
-        const themeSelect = document.getElementById('darkModeSelect');
-        if (themeSelect) {
-            // Trigger the existing theme change logic
-            const event = new Event('change');
-            themeSelect.dispatchEvent(event);
-        }
-    } 
-
-</script>
+    </script>
 
 
 </body>

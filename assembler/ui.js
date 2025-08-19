@@ -683,17 +683,17 @@ function initializeChangeDetection() {
 }
 
 // Function to update the program target display
-function updateProgramTargetDisplay() {
-    const display = document.getElementById('programTargetDisplay');
-    if (selectedProgram === 'ram') {
-        display.textContent = 'Run from RAM';
-    } else {
-        display.textContent = `Program ${selectedProgram}`;
-    }
+// function updateProgramTargetDisplay() {
+//     const display = document.getElementById('programTargetDisplay');
+//     if (selectedProgram === 'ram') {
+//         display.textContent = 'Run from RAM';
+//     } else {
+//         display.textContent = `Program ${selectedProgram}`;
+//     }
     
-    // Update build results buttons when program target changes
-    updateBuildResultsButtons();
-}
+//     // Update build results buttons when program target changes
+//     updateBuildResultsButtons();
+// }
 
 // Function to update download button text based on current settings
 function updateDownloadButtonText() {
@@ -707,20 +707,45 @@ function updateDownloadButtonText() {
     }
 }
 
-// Function to cycle through program targets
+// Function to set program target directly
+function setProgramTarget(targetValue) {
+    const targets = ['ram', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
+    
+    // Validate the target value
+    if (targets.includes(targetValue)) {
+        selectedProgram = targetValue;
+        
+        // Update both dropdown selections to keep them synchronized
+        syncProgramTargetDropdowns();
+        
+        // updateProgramTargetDisplay();
+        syncProgramTargetDisplays(); // Use the existing sync function for displays
+        updateDownloadButtonText();
+        updateBuildResultsButtons(); // Update button text immediately when target changes
+        updateHardwareConnectionStatus(); // Update detailed status
+        console.log('Selected program:', selectedProgram);
+    } else {
+        console.error('Invalid program target:', targetValue);
+    }
+}
+
+// Keep the original cycling function if needed elsewhere - testing
 function cycleProgramTarget() {
     const targets = ['ram', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
     const currentIndex = targets.indexOf(selectedProgram);
     const nextIndex = (currentIndex + 1) % targets.length;
     selectedProgram = targets[nextIndex];
     
-    updateProgramTargetDisplay();
+    // Update both dropdown selections to keep them synchronized
+    syncProgramTargetDropdowns();
+    
+    // updateProgramTargetDisplay();
+    syncProgramTargetDisplays(); // Use the existing sync function for displays
     updateDownloadButtonText();
     updateBuildResultsButtons(); // Update button text immediately when target changes
     updateHardwareConnectionStatus(); // Update detailed status
     console.log('Selected program:', selectedProgram);
 }
-
 // Track run from RAM state
 let isRunningFromRAM = false;
 
@@ -744,7 +769,7 @@ function updateBuildResultsButtons() {
                 downloadHexBtn.disabled = !isConnected || !hasAssembledData || isRunningFromRAM;
                 downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
             } else {
-                downloadHexBtn.textContent = `Program Slot ${selectedProgram}`;
+                downloadHexBtn.textContent = `Flash Slot ${selectedProgram}`;
                 // Grayed out if disconnected or no assembly
                 downloadHexBtn.disabled = !isConnected || !hasAssembledData;
                 downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
@@ -778,7 +803,7 @@ function updateBuildResultsButtons() {
                 downloadHexBtn.disabled = !isDirectorySelected || !hasAssembledData || isRunningFromRAM;
                 downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
             } else {
-                downloadHexBtn.textContent = `Program Slot ${selectedProgram}`;
+                downloadHexBtn.textContent = `Flash Slot ${selectedProgram}`;
                 // Grayed out if no directory selected or no assembled data
                 downloadHexBtn.disabled = !isDirectorySelected || !hasAssembledData;
                 downloadHexBtn.style.opacity = downloadHexBtn.disabled ? '0.6' : '1';
