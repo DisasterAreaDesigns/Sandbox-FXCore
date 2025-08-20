@@ -13,7 +13,7 @@ The user writes code in the editor application, then uses the programming interf
 
 This works fine but is platform dependent and the text editor lacked polish compared to other IDE packages.  Initial releases of the application were also very slow when loading new code, though this was fixed later.
 
-We persuaded Frank to write a command-line version of the assembler, so that it could be called from an external editor.  This makes the development tool set program-agnostic but still platform-dependent for Windows only.  We released a package using a portable version of the excellent open-source text editor Notepad++, integrated with syntax highlighting for FXCore ASM and a copy of the CLI assembler.  This then replaced the dedicated SpinASM IDE for offical purposes.
+We persuaded Frank to write a command-line version of the assembler, so that it could be called from an external editor.  This makes the development tool set program-agnostic but still platform-dependent for Windows only.  We released a package using a portable version of the excellent open-source text editor Notepad++, integrated with syntax highlighting for FXCore ASM and a copy of the CLI assembler.  This then replaced the dedicated FXCore IDE for offical purposes.
 
 Next, Frank ported the CLI assembler to Mac systems, with versions published for both Intel and Apple Silicon machines.  We then created a set of packages for Sublime Text 3, our preferred editor.  All of these packages are available on the Experimental Noize website as of this writing.
 
