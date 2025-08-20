@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hex to MIDI SysEx Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-display {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-input-display:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .file-input-display.has-file {
+            border-style: solid;
+            background: #e8f4f8;
+            border-color: #28a745;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .destination-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .destination-option {
+            position: relative;
+        }
+
+        .destination-option input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .destination-option label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+            text-align: center;
+        }
+
+        .destination-option input[type="checkbox"]:checked + label {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .destination-icon {
+            font-size: 2em;
+            margin-bottom: 8px;
+        }
+
+        .midi-controls {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+
+        .midi-controls.active {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .midi-device-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e9ecef;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 500;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📡 Hex to MIDI SysEx</h1>
+            <p>Convert and send hex files to multiple destinations</p>
+        </div>
+
+        <form id="conversionForm">
+            <div class="form-group">
+                <label for="hexFile">Select Hex File:</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="hexFile" class="file-input" accept=".hex,.txt" required>
+                    <div class="file-input-display" id="fileDisplay">
+                        <span class="file-icon">📁</span>
+                        <span id="fileName">Choose a hex file...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Output Destinations:</label>
+                <div class="destination-grid">
+                    <div class="destination-option">
+                        <input type="checkbox" id="downloadSyx" value="download">
+                        <label for="downloadSyx">
+                            <div class="destination-icon">💾</div>
+                            <div>Download SYX</div>
+                        </label>
+                    </div>
+                    <div class="destination-option">
+                        <input type="checkbox" id="midiSend" value="midi">
+                        <label for="midiSend">
+                            <div class="destination-icon">🎹</div>
+                            <div>MIDI Device</div>
+                        </label>
+                    </div>
+                    <div class="destination-option">
+                        <input type="checkbox" id="copyClipboard" value="clipboard">
+                        <label for="copyClipboard">
+                            <div class="destination-icon">📋</div>
+                            <div>Clipboard</div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="midi-controls" id="midiControls">
+                <h3>🎵 MIDI Configuration</h3>
+                <label for="midiDevice">Select MIDI Output Device:</label>
+                <select id="midiDevice" class="midi-device-select">
+                    <option value="">No MIDI devices available</option>
+                </select>
+                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                    <button type="button" id="cancelUpload" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9em;">
+                        Cancel Upload
+                    </button>
+                    <button type="button" id="exitRunFromRam" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9em;">
+                        Exit Run from RAM
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button type="button" id="convertBtn" class="btn btn-primary">
+                    🚀 Convert & Send
+                </button>
+                <button type="button" id="clearBtn" class="btn btn-secondary">
+                    🗑️ Clear
+                </button>
+            </div>
+        </form>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="status" id="statusMessage"></div>
+    </div>
+
+    <script>
+        class HexToMidiConverter {
+            constructor() {
+                this.midiAccess = null;
+                this.selectedDevice = null;
+                this.initializeElements();
+                this.initializeMIDI();
+                this.setupEventListeners();
+            }
+
+            initializeElements() {
+                this.hexFileInput = document.getElementById('hexFile');
+                this.fileDisplay = document.getElementById('fileDisplay');
+                this.fileName = document.getElementById('fileName');
+                this.midiControls = document.getElementById('midiControls');
+                this.midiDeviceSelect = document.getElementById('midiDevice');
+                this.convertBtn = document.getElementById('convertBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.cancelUploadBtn = document.getElementById('cancelUpload');
+                this.exitRunFromRamBtn = document.getElementById('exitRunFromRam');
+                this.statusMessage = document.getElementById('statusMessage');
+                this.progressBar = document.getElementById('progressBar');
+                this.progressFill = document.getElementById('progressFill');
+            }
+
+            async initializeMIDI() {
+                try {
+                    if (navigator.requestMIDIAccess) {
+                        this.midiAccess = await navigator.requestMIDIAccess({ sysex: true });
+                        this.updateMIDIDeviceList();
+                        this.midiAccess.onstatechange = () => this.updateMIDIDeviceList();
+                        this.showStatus('MIDI access granted', 'success');
+                    } else {
+                        this.showStatus('WebMIDI not supported in this browser', 'error');
+                    }
+                } catch (error) {
+                    this.showStatus('MIDI access denied: ' + error.message, 'error');
+                }
+            }
+
+            updateMIDIDeviceList() {
+                const outputs = Array.from(this.midiAccess.outputs.values());
+                this.midiDeviceSelect.innerHTML = '';
+
+                if (outputs.length === 0) {
+                    this.midiDeviceSelect.innerHTML = '<option value="">No MIDI devices available</option>';
+                } else {
+                    outputs.forEach(output => {
+                        const option = document.createElement('option');
+                        option.value = output.id;
+                        option.textContent = output.name;
+                        this.midiDeviceSelect.appendChild(option);
+                    });
+                }
+            }
+
+            setupEventListeners() {
+                this.hexFileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                
+                document.getElementById('midiSend').addEventListener('change', (e) => {
+                    this.midiControls.classList.toggle('active', e.target.checked);
+                });
+
+                this.convertBtn.addEventListener('click', () => this.handleConvert());
+                this.clearBtn.addEventListener('click', () => this.handleClear());
+                this.cancelUploadBtn.addEventListener('click', () => this.handleCancelUpload());
+                this.exitRunFromRamBtn.addEventListener('click', () => this.handleExitRunFromRam());
+            }
+
+            handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.fileName.textContent = file.name;
+                    this.fileDisplay.classList.add('has-file');
+                } else {
+                    this.fileName.textContent = 'Choose a hex file...';
+                    this.fileDisplay.classList.remove('has-file');
+                }
+            }
+
+            // Convert hex file content to SysEx format (based on your Python hex2syx function)
+            hex2syx(hexContent) {
+                const messages = [];
+                const lines = hexContent.split('\n').map(line => line.trim()).filter(line => line);
+
+                for (const line of lines) {
+                    const outbuf = [];
+                    // Write SysEx header: F0 00 02 17 5A
+                    outbuf.push(0xF0, 0x00, 0x02, 0x17, 0x5A);
+                    
+                    // Convert payload hex nibbles to ASCII hex (skip first character like in Python)
+                    for (let i = 1; i < line.length; i++) {
+                        const hexNibble = line[i];
+                        const hexNibbleSyx = hexNibble.charCodeAt(0);
+                        outbuf.push(hexNibbleSyx);
+                    }
+                    
+                    // Write SysEx trailer
+                    outbuf.push(0xF7);
+                    
+                    messages.push(new Uint8Array(outbuf));
+                }
+
+                return messages;
+            }
+
+            async handleConvert() {
+                const file = this.hexFileInput.files[0];
+                if (!file) {
+                    this.showStatus('Please select a hex file', 'error');
+                    return;
+                }
+
+                const selectedDestinations = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(cb => cb.value);
+
+                if (selectedDestinations.length === 0) {
+                    this.showStatus('Please select at least one output destination', 'error');
+                    return;
+                }
+
+                try {
+                    this.showProgress(0);
+                    this.convertBtn.disabled = true;
+                    
+                    const hexContent = await this.readFileAsText(file);
+                    this.showProgress(30);
+                    
+                    const syxData = this.hex2syx(hexContent);
+                    this.showProgress(60);
+
+                    // Process each selected destination
+                    for (const destination of selectedDestinations) {
+                        await this.processDestination(destination, syxData);
+                    }
+
+                    this.showProgress(100);
+                    this.showStatus('Conversion and sending completed successfully!', 'success');
+
+                } catch (error) {
+                    this.showStatus('Error: ' + error.message, 'error');
+                } finally {
+                    this.convertBtn.disabled = false;
+                    setTimeout(() => this.hideProgress(), 2000);
+                }
+            }
+
+            async processDestination(destination, syxData) {
+                switch (destination) {
+                    case 'download':
+                        this.downloadSyxFile(syxData);
+                        break;
+                    case 'midi':
+                        await this.sendToMIDI(syxData);
+                        break;
+                    case 'clipboard':
+                        await this.copyToClipboard(syxData);
+                        break;
+                }
+            }
+
+            downloadSyxFile(syxData) {
+                const blob = new Blob([syxData], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'converted.syx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            async sendToMIDI(syxData) {
+                const deviceId = this.midiDeviceSelect.value;
+                if (!deviceId) {
+                    throw new Error('Please select a MIDI device');
+                }
+
+                const output = this.midiAccess.outputs.get(deviceId);
+                if (!output) {
+                    throw new Error('Selected MIDI device not found');
+                }
+
+                // Send each SysEx message separately with a small delay
+                for (let i = 0; i < syxData.length; i++) {
+                    output.send(syxData[i]);
+                    // Small delay between messages to prevent buffer overflow
+                    if (i < syxData.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+                
+                this.showStatus(`${syxData.length} SysEx messages sent to ${output.name}`, 'info');
+            }
+
+            async copyToClipboard(syxData) {
+                // Combine all messages and convert to hex string
+                const allBytes = [];
+                for (const msg of syxData) {
+                    allBytes.push(...msg);
+                }
+                
+                const hexString = allBytes
+                    .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+                    .join(' ');
+                
+                try {
+                    await navigator.clipboard.writeText(hexString);
+                    this.showStatus('SysEx data copied to clipboard as hex', 'info');
+                } catch (error) {
+                    throw new Error('Failed to copy to clipboard: ' + error.message);
+                }
+            }
+
+            async handleCancelUpload() {
+                const deviceId = this.midiDeviceSelect.value;
+                if (!deviceId) {
+                    this.showStatus('Please select a MIDI device', 'error');
+                    return;
+                }
+
+                try {
+                    const output = this.midiAccess.outputs.get(deviceId);
+                    if (output) {
+                        // Send cancel message: F0 00 02 17 5B F7 (based on your Python code)
+                        const cancelMsg = new Uint8Array([0xF0, 0x00, 0x02, 0x17, 0x5B, 0xF7]);
+                        output.send(cancelMsg);
+                        this.showStatus('Upload cancelled', 'info');
+                    }
+                } catch (error) {
+                    this.showStatus('Error cancelling upload: ' + error.message, 'error');
+                }
+            }
+
+            async handleExitRunFromRam() {
+                const deviceId = this.midiDeviceSelect.value;
+                if (!deviceId) {
+                    this.showStatus('Please select a MIDI device', 'error');
+                    return;
+                }
+
+                try {
+                    const output = this.midiAccess.outputs.get(deviceId);
+                    if (output) {
+                        // Send exit run from RAM message: F0 00 02 17 5B F7 (same as cancel)
+                        const exitMsg = new Uint8Array([0xF0, 0x00, 0x02, 0x17, 0x5B, 0xF7]);
+                        output.send(exitMsg);
+                        this.showStatus('Exit run from RAM command sent', 'info');
+                    }
+                } catch (error) {
+                    this.showStatus('Error sending exit command: ' + error.message, 'error');
+                }
+            }
+
+            handleClear() {
+                this.hexFileInput.value = '';
+                this.fileName.textContent = 'Choose a hex file...';
+                this.fileDisplay.classList.remove('has-file');
+                document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                this.midiControls.classList.remove('active');
+                this.hideStatus();
+                this.hideProgress();
+            }
+
+            readFileAsText(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = e => reject(new Error('Failed to read file'));
+                    reader.readAsText(file);
+                });
+            }
+
+            showStatus(message, type) {
+                this.statusMessage.textContent = message;
+                this.statusMessage.className = `status ${type}`;
+                this.statusMessage.style.display = 'block';
+            }
+
+            hideStatus() {
+                this.statusMessage.style.display = 'none';
+            }
+
+            showProgress(percent) {
+                this.progressBar.style.display = 'block';
+                this.progressFill.style.width = percent + '%';
+            }
+
+            hideProgress() {
+                this.progressBar.style.display = 'none';
+                this.progressFill.style.width = '0%';
+            }
+        }
+
+        // Initialize the application when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new HexToMidiConverter();
+        });
+    </script>
+</body>
+</html>
