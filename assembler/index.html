@@ -403,7 +403,6 @@
 
 
     <div id="optionsPanel" class="options-panel">
-        <!-- <button class="close-btn" onclick="closeFlyout('options')">&times;</button> -->
         <div class="flyout-header">
             <h3>Options</h3>
         </div>
@@ -453,17 +452,17 @@
                     </div>
                     
                     <div id="FileModeDiv" style="display: none;">
-                        <div>
+                        <!-- <div> -->
                             <button onclick="selectOutputDirectory()" id="selectDirBtn">Select Output Directory</button>
-                            <span id="outputDirDisplay" class="hw-option-label-medium">No directory selected</span>
-                        </div>
+                            <span id="outputDirDisplay" class="hw-option-label">No directory selected</span>
+                        <!-- </div> -->
                         
-                        <div>
+                        <!-- <div> -->
                             <button onclick="serialConnect()">Select Serial Port</button>
-                            <span id="serialPortDisplay" class="hw-option-label-medium">No port selected</span>
-                        </div>
+                            <span id="serialPortDisplay" class="hw-option-label">No port selected</span>
+                        <!-- </div> -->
                         
-                        <div>
+                        <!-- <div> -->
                             <select id="programTargetDropdown" onchange="setProgramTargetWithSave(this.value)">
                                 <option value="ram">Run from RAM</option>
                                 <option value="0">Flash Slot 0</option>
@@ -483,14 +482,14 @@
                                 <option value="14">Flash Slot 14</option>
                                 <option value="15">Flash Slot 15</option>
                             </select>
-                        </div>
+                        <!-- </div> -->
                     </div>
 
                     <div id="HidModeDiv" style="display: block;">
                         <div>
                             <label>FXCore address</label>
                             <input type="text" id="FXcoreAddr" size="8" value="0x30" class="fxcore-address-input">
-                            <span class="project-folder-label">HEX with leading 0x</span>
+                            <span class="project-folder-label">HEX with leading 0x, default 0x30</span>
                         </div><br>
                         <div>
                             <select id="programTargetDropdownHid" onchange="setProgramTargetWithSave(this.value)">
@@ -517,71 +516,71 @@
                 </div>
             </div>
 
-        <div class="flyout-section">
-            <div>
-                <label class="windows-only">
-                    <span class="shortcut">
-                        <span class="key"><strong>Keyboard Shortcuts:</strong></span>
-                        <span class="desc"></span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>Ctrl+F</strong></span>
-                        <span class="desc">Find</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>Ctrl+Shift+F</strong></span>
-                        <span class="desc">Replace</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>F3</strong></span>
-                        <span class="desc">Find Next</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>Alt+A</strong></span>
-                        <span class="desc">Assemble</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>Alt+C</strong></span>
-                        <span class="desc">Exit Run from RAM</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>Alt+D</strong></span>
-                        <span class="desc">Download Hex / Run from RAM</span>
-                    </span>
-                </label>
+            <div class="flyout-section">
+                <div>
+                    <label class="windows-only">
+                        <span class="shortcut">
+                            <span class="key"><strong>Keyboard Shortcuts:</strong></span>
+                            <span class="desc"></span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Ctrl+F</strong></span>
+                            <span class="desc">Find</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Ctrl+Shift+F</strong></span>
+                            <span class="desc">Replace</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>F3</strong></span>
+                            <span class="desc">Find Next</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Alt+A</strong></span>
+                            <span class="desc">Assemble</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Alt+C</strong></span>
+                            <span class="desc">Exit Run from RAM</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Alt+D</strong></span>
+                            <span class="desc">Download Hex / Run from RAM</span>
+                        </span>
+                    </label>
 
-                <label class="mac-only">
-                    <span class="shortcut">
-                        <span class="key"><strong>Keyboard Shortcuts:</strong></span>
-                        <span class="desc"></span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>⌘+F</strong></span>
-                        <span class="desc">Find</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>⌘+⌥+F</strong></span>
-                        <span class="desc">Replace</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>F3</strong></span>
-                        <span class="desc">Find Next</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>⌃+A</strong></span>
-                        <span class="desc">Assemble</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>⌃+C</strong></span>
-                        <span class="desc">Exit Run from RAM</span>
-                    </span>
-                    <span class="shortcut">
-                        <span class="key"><strong>⌃+D</strong></span>
-                        <span class="desc">Download Hex / Run from RAM</span>
-                    </span>
-                </label>
+                    <label class="mac-only">
+                        <span class="shortcut">
+                            <span class="key"><strong>Keyboard Shortcuts:</strong></span>
+                            <span class="desc"></span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌘+F</strong></span>
+                            <span class="desc">Find</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌘+⌥+F</strong></span>
+                            <span class="desc">Replace</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>F3</strong></span>
+                            <span class="desc">Find Next</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌃+A</strong></span>
+                            <span class="desc">Assemble</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌃+C</strong></span>
+                            <span class="desc">Exit Run from RAM</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌃+D</strong></span>
+                            <span class="desc">Download Hex / Run from RAM</span>
+                        </span>
+                    </label>
+                </div>
             </div>
-
         </div>
     </div>
 

@@ -995,6 +995,20 @@ body.dark-mode .header-bar::after {
     cursor: pointer;
 }
 
+/*#FileModeDiv {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}*/
+
+#FileModeDiv .hw-option-label {
+    margin-bottom: 14px; /* Creates space after each label */
+}
+
+#FileModeDiv .hw-option-label:last-child {
+    margin-bottom: 0; /* Remove margin from the last label */
+}
+
 /* Checkbox and radio groups */
 .checkbox-group,
 .radio-group {
@@ -1038,14 +1052,6 @@ body.dark-mode .header-bar::after {
 /* Project folder and hardware option labels */
 .project-folder-label,
 .hw-option-label {
-    color: #666;
-    font-style: italic;
-    font-size: 0.88em;
-    margin-top: 4px;
-    display: block;
-}
-
-.hw-option-label-medium {
     color: #666;
     font-style: italic;
     font-size: 0.88em;
@@ -1171,8 +1177,7 @@ body.dark-mode .shortcut-item {
 }
 
 body.dark-mode .project-folder-label,
-body.dark-mode .hw-option-label,
-body.dark-mode .hw-option-label-medium {
+body.dark-mode .hw-option-label {
     color: #999;
 }
 
