@@ -162,6 +162,18 @@ class UserPreferences {
         }
 
         // Program target
+        // if (prefs.programTarget !== selectedProgram) {
+        //     selectedProgram = prefs.programTarget;
+        //     if (typeof updateProgramTargetDisplay === 'function') {
+        //         updateProgramTargetDisplay();
+        //     }
+        //     if (window.syncProgramTargetDisplays) {
+        //         window.syncProgramTargetDisplays();
+        //     }
+        // }
+
+
+        // Program target
         if (prefs.programTarget !== selectedProgram) {
             selectedProgram = prefs.programTarget;
             if (typeof updateProgramTargetDisplay === 'function') {
@@ -170,7 +182,13 @@ class UserPreferences {
             if (window.syncProgramTargetDisplays) {
                 window.syncProgramTargetDisplays();
             }
+            // ADD THIS LINE:
+            if (window.syncProgramTargetDropdowns) {
+                window.syncProgramTargetDropdowns();
+            }
         }
+
+
 
         // Update UI elements if functions exist
         if (typeof updateHardwareConnectionStatus === 'function') {

@@ -47,7 +47,7 @@ FT260_HID_DESCRIPTOR = bytes([
     0x91, 0x02,              # Output (Data, Variable, Absolute)
     
     # Output Report 0xDF (Alternative I2C Write - for compatibility)
-    0x85, 0xDF,              # Report ID (0xDF)
+    0x85, 0xDE,              # Report ID (0xDF)
     0x09, 0x07,              # Usage (0x07)
     0x95, 0x3F,              # Report Count (63)
     0x75, 0x08,              # Report Size (8 bits)
@@ -63,10 +63,10 @@ ft260_hid = usb_hid.Device(
     usage=0x01,
     report_ids=(
         0xA1,  # Feature: Configuration
-        0xC0,  # Feature: I2C Status
+        0xC0,  # Feature: I2C Status - must have this or the host program fails
         0xC2,  # Input/Output: I2C Read Data/Request
         0xD0,  # Output: I2C Write Commands (all sizes)
-        0xDF,  # Output: Alternative I2C Write (for compatibility)
+        0xDE,  # Output: Alternative I2C Write (for compatibility) not used
         0x01   # Reserved for future use
     ),
     in_report_lengths=(
