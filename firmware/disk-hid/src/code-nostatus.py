@@ -251,7 +251,7 @@ def set_status_led(color):
     """Set the status LED color"""
     pixel[0] = color
 
-def blink_status_led(color, count=3, duration=0.2):
+def blink_status_led(color, count=3, duration=0.01):
     """Blink the status LED"""
     for _ in range(count):
         pixel[0] = color
@@ -473,7 +473,7 @@ def send_i2c_data(data, description):
             for i in range(0, len(data), chunk_size):
                 chunk = data[i:i + chunk_size]
                 i2c.writeto(FXCORE_ADDRESS, chunk)
-                time.sleep(0.01)
+                time.sleep(0.005) # was 0.01
             
             i2c.unlock()
             debug_message(f"Sent {len(data)} bytes of {description} in {(len(data) + chunk_size - 1) // chunk_size} chunks")
@@ -499,7 +499,7 @@ def send_command(cmd_bytes, description):
         debug_message(f"Sent {description} command: {' '.join(hex_bytes)}")
         
         i2c.unlock()
-        time.sleep(0.01)
+        time.sleep(0.005) # was 0.01
         return True
         
     except OSError as e:
@@ -740,7 +740,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
     
     # Wait for FXCore to settle
     debug_message("Waiting for FXCore to settle...")
-    time.sleep(0.5)
+    time.sleep(0.1)
     
     # Enter programming mode
     debug_message("Entering programming mode...")
@@ -1232,7 +1232,8 @@ class SmartFT260Emulator:
         byte_count = data[2]  # Exact number of I2C payload bytes
         write_data = data[3:3+byte_count]  # Extract exactly the right amount of data
         
-        debug_message(f"FT260: D0 Report - I2C addr 0x{i2c_addr:02X}, flag 0x{i2c_flag:02X}, {byte_count} bytes")
+        if DEBUG_MODE:
+            debug_message(f"FT260: D0 Report - I2C addr 0x{i2c_addr:02X}, flag 0x{i2c_flag:02X}, {byte_count} bytes")
         
         # Check if this is targeting the FXCore
         if i2c_addr == FXCORE_ADDRESS:
@@ -1243,7 +1244,9 @@ class SmartFT260Emulator:
                 return
         
         # If not FXCore or not a programming command, pass through normally
-        debug_message(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {' '.join([f'0x{b:02X}' for b in write_data[:min(8, len(write_data))]])}{'...' if len(write_data) > 8 else ''}")
+        if DEBUG_MODE:
+            data_preview = ' '.join([f'0x{byte_val:02X}' for byte_val in write_data[:min(8, len(write_data))]])
+            debug_message(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {data_preview}{'...' if len(write_data) > 8 else ''}")
         
         try:
             while not i2c.try_lock():
