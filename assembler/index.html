@@ -331,48 +331,43 @@
             });
 
             document.addEventListener('keydown', function(event) {
-
                 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-
-                const monacoHasFocus = document.activeElement?.closest('.monaco-editor');
-
-                // Only prevent browser shortcuts when Monaco is NOT in focus
-                // add whatever commands windows is using when I figure that out
-                if (!monacoHasFocus) {
-                    if (isMac && event.metaKey) {
-                        switch (event.code) {
-                            case 'KeyF':
-                                if (event.altKey) {
-                                    // Prevent Cmd+Opt+F (Replace)
-                                    event.preventDefault();
-                                    editor.getAction('editor.action.startFindReplaceAction').run();
-                                    return;
-                                } else {
-                                    // Prevent Cmd+F (Find)
-                                    event.preventDefault();
-                                    editor.getAction('actions.find').run();
-                                    return;
-                                }
-                                break;
-                        }
-                    }
+                
+                // Always handle ESC for closing panels
+                if (event.key === 'Escape' && openPanels.size > 0) {
+                    openPanels.forEach(type => closeFlyout(type));
+                    return;
                 }
-
-                // enable these shortcuts on an OS basis
+                
+                // FV-1 specific shortcuts - these should work globally, even in Monaco
+                let handled = false;
+                
                 if (isMac) {
                     if (event.ctrlKey) {
                         switch (event.key.toLowerCase()) {
                             case 'd':
-                                event.preventDefault(); // Prevents browser's default bookmark
-                                downloadHex();
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (typeof downloadHex === 'function') {
+                                    downloadHex();
+                                }
+                                handled = true;
                                 break;
                             case 'c':
                                 event.preventDefault();
-                                exitRunFromRam();
+                                event.stopPropagation();
+                                if (typeof exitRunFromRam === 'function') {
+                                    exitRunFromRam();
+                                }
+                                handled = true;
                                 break;
                             case 'a':
                                 event.preventDefault();
-                                assembleFXCore();
+                                event.stopPropagation();
+                                if (typeof assembleFXCore === 'function') {
+                                    assembleFXCore();
+                                }
+                                handled = true;
                                 break;
                         }
                     }
@@ -380,21 +375,106 @@
                     if (event.altKey) {
                         switch (event.key.toLowerCase()) {
                             case 'd':
-                                event.preventDefault(); // Prevents browser's default bookmark
-                                downloadHex();
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (typeof downloadHex === 'function') {
+                                    downloadHex();
+                                }
+                                handled = true;
                                 break;
                             case 'c':
                                 event.preventDefault();
-                                exitRunFromRam();
+                                event.stopPropagation();
+                                if (typeof exitRunFromRam === 'function') {
+                                    exitRunFromRam();
+                                }
+                                handled = true;
                                 break;
                             case 'a':
                                 event.preventDefault();
-                                assembleFXCore();
+                                event.stopPropagation();
+                                if (typeof assembleFXCore === 'function') {
+                                    assembleFXCore();
+                                }
+                                handled = true;
                                 break;
                         }
                     }
                 }
-            });
+                
+                // Handle Monaco find/replace shortcuts when Monaco doesn't have focus
+                const monacoHasFocus = document.activeElement?.closest('.monaco-editor');
+                if (!monacoHasFocus && !handled) {
+                    if (isMac && event.metaKey) {
+                        switch (event.code) {
+                            case 'KeyF':
+                                if (event.altKey) {
+                                    event.preventDefault();
+                                    if (window.editor && editor.getAction) {
+                                        editor.getAction('editor.action.startFindReplaceAction').run();
+                                    }
+                                    return;
+                                } else {
+                                    event.preventDefault();
+                                    if (window.editor && editor.getAction) {
+                                        editor.getAction('actions.find').run();
+                                    }
+                                    return;
+                                }
+                                break;
+                        }
+                    } else if (!isMac && event.ctrlKey) {
+                        switch (event.code) {
+                            case 'KeyF':
+                                if (event.shiftKey) {
+                                    event.preventDefault();
+                                    if (window.editor && editor.getAction) {
+                                        editor.getAction('editor.action.startFindReplaceAction').run();
+                                    }
+                                    return;
+                                } else {
+                                    event.preventDefault();
+                                    if (window.editor && editor.getAction) {
+                                        editor.getAction('actions.find').run();
+                                    }
+                                    return;
+                                }
+                                break;
+                        }
+                    }
+                }
+            }, true); // Use capture phase to intercept before Monaco
+
+            window.addMonacoKeyBindings = function() {
+                if (window.editor && editor.addCommand) {
+                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                    
+                    // Override Monaco's default shortcuts with our FV-1 shortcuts
+                    if (isMac) {
+                        // Mac: Ctrl+A, Ctrl+C, Ctrl+D
+                        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA, function() {
+                            if (typeof assembleFXCore === 'function') assembleFXCore();
+                        });
+                        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC, function() {
+                            if (typeof exitRunFromRam === 'function') exitRunFromRam();
+                        });
+                        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD, function() {
+                            if (typeof downloadHex === 'function') downloadHex();
+                        });
+                    } else {
+                        // Windows/Linux: Alt+A, Alt+C, Alt+D
+                        editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyA, function() {
+                            if (typeof assembleFXCore === 'function') assembleFXCore();
+                        });
+                        editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyC, function() {
+                            if (typeof exitRunFromRam === 'function') exitRunFromRam();
+                        });
+                        editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyD, function() {
+                            if (typeof downloadHex === 'function') downloadHex();
+                        });
+                    }
+                }
+            };
         </script>
     </div>
 
