@@ -3,6 +3,7 @@
 const examples = {
     fxcore_passthrough: `; FXCore Simple Pass-through
 ; Input -> Output with no processing
+; this is the simplest program that will pass audio
 
 cpy_cs  acc32, in0      ; read input from left ADC
 cpy_sc  out0, acc32     ; write accumulator to left DAC
@@ -336,5 +337,162 @@ flanger: `flanger test`,
 
 reverb: `reverb test`,
 
-tremolo: 'tremolo test',
+fxcore_tremolo: `; Tremolo Effect with Tap Tempo
+;
+; Read in SIN0 LFO rate from either POT0 or tap tempo, if pot is turned the tempo will "take over" and replace the tapped speed
+;
+; User0 will flash at the LFO rate
+; User1 will turn on after the first tap and turn off after the second tap or when the
+; tap_limit value times out. This allows a user to see if it is waiting for a second
+; tap or is ready for a new tap time.
+
+; Magic numbers for tap tempo LFO control, see an-6
+
+.equ div        0x0c91      ; 3217 in hex
+.equ multt      0x0040      ; 2^22 is 0x00400000 so only need upper 16-bits as lower are all 0
+.equ tap_limit  96000       ; max tap time of 2 seconds at 48K
+.rn pot_speed   r0
+.rn bright      r1
+.rn timer       r2
+
+.rn temp        r14
+.rn temp2       r15
+
+.equ    fs      48000   ; sampling rate
+.equ    flow    1       ; low freq set by pot0
+.equ    fhigh   12      ; high freq set by pot0
+.equ    pi      3.14159     ; and use the rest of this to set the LFO freq
+.equ    clow    (2^31 - 1) * (2*pi*flow)/fs
+.equ    chigh   (2^31 - 1) * (2*pi*fhigh)/fs
+.equ    cdiff   chigh - clow 
+
+.equ    thresh  0.05
+.creg   pot_speed   -0.5     ; negative number is always far from the actual value so we get a good result when we start
+.sreg maxtempo tap_limit    ; set the maxtempo SFR
+
+; program starts here
+
+; read in pot0 and compare to the last stored value of the pot speed
+; if the pot hasn't moved, we skip to check the tap tempo
+; if the pot HAS moved, we set the new LFO speed
+
+cpy_cs  temp, pot0_smth     ; read in the pot
+subs    temp, pot_speed     ; subtract stored value and pot
+abs     acc32               ; take abs |pot-stored value|
+addsi   acc32, -thresh      ; |pot-stored value| - threshold
+jneg    acc32, tap_chk      ; if the difference isn't big enough, skip to tap tempo check
+
+; if the pot has moved then we do this to set the LFO rate
+cpy_cc  pot_speed, temp     ; store the new pot_speed value
+wrdld   acc32, cdiff.u      ; load difference between low and high frequency
+ori     acc32, cdiff.l
+multrr  pot_speed, acc32    ; pot0 * cdiff (this is like "scale")
+cpy_cc  temp, acc32         ; store this for now
+wrdld   acc32, clow.u       ; load low freq coeff
+ori     acc32, clow.l
+adds    acc32, temp         ; add low freq (this is like "offset")
+cpy_sc  lfo0_f, acc32       ; write to lfo0 frequency control
+jmp     bottom
+
+; here we check to see whether the user has tapped
+
+tap_chk:
+andi    flags, newTT        ; check the flags for a new tap
+jz      acc32, bottom       ; if no new tap, get out of here
+
+; if we DO have a new tap we should use it to set the LFO rate
+; Read in tap tempo and convert to LOG domain
+cpy_cs  temp, taptempo
+log2    temp
+cpy_cc  temp, acc32
+
+; This is a constant we divide by the tap tempo also convert to LOG domain
+wrdld   temp2, div
+sr      temp2, 16                   ; shift right so it aligns with the tap tempo value
+log2    acc32
+cpy_cc  temp2, acc32
+
+; Subtraction in LOG domain is same as division in linear domain
+subs    temp2, temp
+
+; Convert back to linear
+exp2    acc32
+
+; Multiply to scale back up
+wrdld   temp, multt             ; loads the value into the upper 16-bits, lower 16 set to 0
+multrr  acc32, temp
+
+; And write to LFO0 frequency control register
+cpy_sc  lfo0_f, acc32
+
+bottom:
+
+; now do tremolo section
+cpy_cs  acc32, lfo0_s       ; get lfo value
+multri  acc32, 0.5
+addsi   acc32, 0.5          ; scale lfo to 0..1
+cpy_cs  temp, pot1_smth
+multrr  temp,acc32
+cpy_cc  temp, acc32
+wrdld   acc32, 0x7FFF
+ori     acc32, 0xFFFF
+subs    acc32, temp         ; do 1-waveform
+
+cpy_cs  temp, in0
+multrr  temp, acc32
+cpy_sc  out0, acc32
+
+cpy_cs    acc32, samplecnt  ; Get the sample counter
+andi      acc32, 0xFF       ; Mask b[7:0]
+jnz       acc32, doPWM      ; if the upper bit is 1 then we update the LED
+
+; Reload new PWM value from mixed LFOs into "bright"
+cpy_cs    acc32, lfo0_s     ; read in sin wave ranges -1.0 to +1.0 (well, almost)
+sra       acc32, 23         ; shift the PWM value in place
+cpy_cc    bright, acc32     ; save it
+
+doPWM:
+; Performing the decrement prior to driving the LED makes sure
+; that the LED can go completly off.
+addi      bright, -1        ; addi expects a decimal number and we want to subtract 1 LSB
+cpy_cc    bright, acc32     ; Save updated "bright"
+xor       acc32, acc32      ; Clear acc32 for the LED off case
+jneg      bright, doLED      
+ori       acc32, 1          ; Set acc32[0] for the LED on case
+
+doLED:
+set       user0|0, acc32        ; set the usr1 output per the acc32 LSB
+
+; As we are dealing with a long time between taps, we use the User1 LED
+; to indicate if we are waiting for the second tap or not
+
+andi    flags, TAPPE        ; is this a button push event?
+jz      acc32, no_push          ; if not then jump away
+andi    flags, TB2NTB1      ; is it a tap 1 event?
+jnz     acc32, tap2ev           ; no so jump to tap2 routine
+
+; if we got this far then it is a tap1 event, so load the timer
+; use wrdld to get the MSB and then ori to load the LSB of the tap limit value
+wrdld   acc32, tap_limit.u
+ori     acc32, tap_limit.l
+cpy_cc  timer, acc32        ; put result in timer
+
+no_push:
+jz      timer, nothing          ; if 0 then nothing to do
+addi    timer, -1           ; subtract 1 from the timer count
+cpy_cc  timer, acc32
+jz      timer, tap2ev           ; if we hit zero after the subtract turn off USER1
+ori     acc32, 1                ; still greater than zero so keep USRER1 LED on
+set     user1|0, acc32
+jmp     nothing
+
+; tap2 event here - if the user taps a second time before the timeout expired
+; then we cancel the timer and clear the LED
+tap2ev:
+wrdld   timer, 0
+set     user1|0, timer
+
+; this is just here so that we have a place to go if there is no tap2 event
+nothing:
+or  acc32, acc32        ; jump has to have a valid target instructions`,
 };

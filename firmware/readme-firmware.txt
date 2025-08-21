@@ -137,4 +137,4 @@ SUPPORT:
 
 For hardware documentation, see readme-rp2040.md
 For firmware updates and source code, check project repository
-For FXCore programming protocol details, refer to SpinSemi documentation
+For FXCore programming protocol details, refer to https://www.experimentalnoize.com/manuals/FXCore/docs/Communicating_with_the_FXCore.pdf
