@@ -7,7 +7,6 @@
     <title>Sandbox FXCore Editor</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,0,1;wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -516,7 +515,7 @@
 
                     <label>
                         Theme:
-                        <select id="darkModeSelect" onchange="handleThemeChange()">
+                        <select id="darkModeSelect">
                             <option value="system">System</option>
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
@@ -1304,17 +1303,6 @@
             }
         });
 
-
-
-
-        function handleThemeChange() {
-            const themeSelect = document.getElementById('darkModeSelect');
-            if (themeSelect) {
-                // Trigger the existing theme change logic
-                const event = new Event('change');
-                themeSelect.dispatchEvent(event);
-            }
-        }
     </script>
 
 
