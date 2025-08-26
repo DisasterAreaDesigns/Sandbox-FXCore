@@ -43,8 +43,8 @@ class Program {
     }
 
     static Asm_it() {
-        FXCoreAssembler.logMessage('Starting Asm_it() method', 'info');
-        FXCoreAssembler.logMessage(`Source code available: ${FXCoreAssembler.sourceCode ? 'YES' : 'NO'}`, 'info');
+        debugLog('Starting Asm_it() method', 'info');
+        debugLog(`Source code available: ${FXCoreAssembler.sourceCode ? 'YES' : 'NO'}`, 'info');
 
         const myfxcore = new FXCoreIC(); // declare the IC and its properties
         const data = new Array(4098).fill(0);
@@ -52,20 +52,20 @@ class Program {
 
         // symbol table
         const mytable = new SymbolTable(Program.filename);
-        FXCoreAssembler.logMessage('SymbolTable created', 'info');
-        FXCoreAssembler.logMessage(`mytable.checkreg exists: ${mytable.checkreg ? 'YES' : 'NO'}`, 'info');
+        debugLog('SymbolTable created', 'info');
+        debugLog(`mytable.checkreg exists: ${mytable.checkreg ? 'YES' : 'NO'}`, 'info');
 
         if (!mytable.loadTable(FXCoreAssembler.sourceCode)) {
             // if we got a false there was an error in loading/creating the symbol table
             common.gen_error("Error creating symbol table", Program.filename);
             return false;
         }
-        FXCoreAssembler.logMessage('SymbolTable loaded', 'info');
+        debugLog('SymbolTable loaded', 'info');
 
         // assemble the code
-        FXCoreAssembler.logMessage('Creating Assembler instance', 'info');
+        debugLog('Creating Assembler instance', 'info');
         const myasm = new Assembler(Program.filename, mytable);
-        FXCoreAssembler.logMessage('Calling assembler.assemble()', 'info');
+        debugLog('Calling assembler.assemble()', 'info');
 
         if (!myasm.assemble(FXCoreAssembler.sourceCode)) {
             // if we got a false there was an error in assembly
@@ -74,9 +74,9 @@ class Program {
         }
 
         // write HEX file
-        FXCoreAssembler.logMessage('Writing HEX file', 'info');
+        debugLog('Writing HEX file', 'info');
         FXCoreAssembler.assembledHex = Program.Write_hex_file(myfxcore, mytable, myasm, Program.hexfile);
-        FXCoreAssembler.logMessage(`Generated HEX file length: ${FXCoreAssembler.assembledHex ? FXCoreAssembler.assembledHex.length : 'NULL'} characters`, 'info');
+        debugLog(`Generated HEX file length: ${FXCoreAssembler.assembledHex ? FXCoreAssembler.assembledHex.length : 'NULL'} characters`, 'info');
         return true;
     }
 
@@ -95,7 +95,7 @@ class Program {
         // write the mreg presets
         saddr = 0; // starting address for mregs, just a random number for now
         num_bytes = myfxcore.buildmreg(mytable, data); // fill the data array with the data and return the number of bytes including checksum
-        FXCoreAssembler.logMessage(`MREG section: ${num_bytes} bytes`, 'info');
+        debugLog(`MREG section: ${num_bytes} bytes`, 'info');
         // each record is 64 bytes so break it up
         dp = 0; // reset data pointer
         while (num_bytes >= 64) {
@@ -261,7 +261,7 @@ class FXCoreAssembler {
             }
         });
 
-        FXCoreAssembler.logMessage('FXCore Assembler ready', 'success');
+        debugLog('FXCore Assembler ready', 'success');
     }
 
     static selectFile() {
@@ -274,7 +274,7 @@ class FXCoreAssembler {
         const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
 
         if (!hasValidExtension) {
-            FXCoreAssembler.logMessage('Error: Invalid file type. Please select a .fxc or .fxo file.', 'error');
+            debugLog('Error: Invalid file type. Please select a .fxc or .fxo file.', 'errors');
             return;
         }
 
@@ -284,38 +284,23 @@ class FXCoreAssembler {
         document.getElementById('fileInfo').style.display = 'block';
         document.getElementById('processBtn').disabled = false;
 
-        FXCoreAssembler.logMessage(`File selected: ${file.name}`, 'info');
-    }
-
-    static logMessage(message, type = 'info') {
-        const timestamp = new Date().toLocaleTimeString();
-        const logEntry = document.createElement('div');
-        const logArea = document.getElementById('logArea');
-
-        let color = '#00ff00';
-        if (type === 'error') color = '#ff6b6b';
-        if (type === 'warning') color = '#ffa726';
-        if (type === 'success') color = '#4caf50';
-
-        logEntry.innerHTML = `<span style="color: #888">[${timestamp}]</span> <span style="color: ${color}">${message}</span>`;
-        logArea.appendChild(logEntry);
-        logArea.scrollTop = logArea.scrollHeight;
+        debugLog(`File selected: ${file.name}`, 'info');
     }
 
     static async assembleFile() {
         if (!FXCoreAssembler.selectedFile) {
-            FXCoreAssembler.logMessage('No file selected', 'error');
+            debugLog('No file selected', 'errors');
             return;
         }
 
         try {
-            FXCoreAssembler.logMessage('Starting assembly process...', 'info');
+            debugLog('Starting assembly process...', 'info');
             document.getElementById('processBtn').disabled = true;
 
             // Read file content
             FXCoreAssembler.sourceCode = await FXCoreAssembler.readFileContent(FXCoreAssembler.selectedFile);
-            FXCoreAssembler.logMessage('File loaded successfully', 'success');
-            FXCoreAssembler.logMessage(`Source code length: ${FXCoreAssembler.sourceCode.length} characters`, 'info');
+            debugLog('File loaded successfully', 'success');
+            debugLog(`Source code length: ${FXCoreAssembler.sourceCode.length} characters`, 'info');
 
             // Set up Program class with filename
             Program.filename = FXCoreAssembler.selectedFile.name;
@@ -326,11 +311,11 @@ class FXCoreAssembler {
                 return;
             }
 
-            FXCoreAssembler.logMessage('Assembly complete! Ready to download.', 'success');
+            debugLog('Assembly complete! Ready to download.', 'success');
             document.getElementById('downloadBtn').style.display = 'inline-block';
 
         } catch (error) {
-            FXCoreAssembler.logMessage(`Assembly failed: ${error.message}`, 'error');
+            debugLog(`Assembly failed: ${error.message}`, 'errors');
             console.error('Assembly error details:', error);
         } finally {
             document.getElementById('processBtn').disabled = false;
@@ -348,7 +333,7 @@ class FXCoreAssembler {
 
     static downloadHex() {
         if (!FXCoreAssembler.assembledHex) {
-            FXCoreAssembler.logMessage('No HEX data available', 'error');
+            debugLog('No HEX data available', 'errors');
             return;
         }
 
@@ -366,7 +351,7 @@ class FXCoreAssembler {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        FXCoreAssembler.logMessage(`Downloaded: ${hexFileName}`, 'success');
+        debugLog(`Downloaded: ${hexFileName}`, 'success');
     }
 }
 

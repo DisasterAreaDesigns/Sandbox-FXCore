@@ -306,6 +306,9 @@ function debugLog(message, level = 'info', prefix = '') {
                 }
             }
         }
+        else {
+            console.warn('Messages area not found in DOM');
+        }
     }
 }
 

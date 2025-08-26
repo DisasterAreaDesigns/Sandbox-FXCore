@@ -28,7 +28,7 @@
                         <text x="32" y="40" text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
-                <span class="build">build 16</span>
+                <span class="build">build 17</span>
             </div>
         </div>
         <h2>Source Input</h2>
@@ -174,29 +174,33 @@
 
             FXCoreTargets.FXCore_I2C = 0x30; // default FXCore device address, can be changed in above text input
 
-            // watch for board connection
-            navigator.hid.addEventListener('connect', (event) => {
-                console.log(`HID device connected`);
-                updateBuildResultsButtons();
-                updateHardwareConnectionStatus();
-            });
+            // Global flag to track if we forced file mode due to no HID support
+            let forcedFileMode = false;
 
-            // watch for board disconnection
-            navigator.hid.addEventListener('disconnect', (event) => {
-                const device = event.device;
-                if (device === FXCoreTargets.device) {
-                    console.log(`FXCore device disconnected`);
-                    FXCoreTargets.device = null;
-                    // document.getElementById("FXCoreRFRButton").disabled = true;
-                    // document.getElementById("FXCoreExitRFRButton").disabled = true;
-                    // document.getElementById("FXCorePrgButton").disabled = true;
-                    // document.getElementById("FXCoreConnectButton").disabled = false;
-                    // document.getElementById('HidDeviceDisplay').textContent = 'Select HID Device';
-                    isRunningFromRAM = false; // Reset state on disconnect
-                    updateHardwareConnectionStatus(); // update text on main page
-                    updateBuildResultsButtons(); // update main buttons
-                }
-            });
+            // watch for board connection - only if HID is supported
+            if ('hid' in navigator) {
+                navigator.hid.addEventListener('connect', (event) => {
+                    console.log(`HID device connected`);
+                    updateBuildResultsButtons();
+                    updateHardwareConnectionStatus();
+                });
+
+                // watch for board disconnection
+                navigator.hid.addEventListener('disconnect', (event) => {
+                    const device = event.device;
+                    if (device === FXCoreTargets.device) {
+                        console.log(`FXCore device disconnected`);
+                        FXCoreTargets.device = null;
+                        isRunningFromRAM = false;
+                        updateHardwareConnectionStatus();
+                        updateBuildResultsButtons();
+                    }
+                });
+            } else {
+                console.warn('WebHID not supported - forcing file mode');
+                forcedFileMode = true;
+                selectedHW = 'file';  // Just set the variable, DOM will be updated later
+            }
 
             // Sync both program target displays
             function syncProgramTargetDisplays() {
@@ -297,11 +301,20 @@
                     });
                 }
 
-                // Initialize with HID mode by default
-                selectedHW = 'hid';
-                document.getElementById('HWModeDisplay').textContent = 'HID mode';
-                document.getElementById('FileModeDiv').style.display = 'none';
-                document.getElementById('HidModeDiv').style.display = 'block';
+                // Initialize with HID mode by default - UNLESS we were forced to file mode
+                if (!forcedFileMode) {
+                    selectedHW = 'hid';
+                    document.getElementById('HWModeDisplay').textContent = 'HID mode';
+                    document.getElementById('FileModeDiv').style.display = 'none';
+                    document.getElementById('HidModeDiv').style.display = 'block';
+                } else {
+                    // We're in forced file mode, update the UI accordingly
+                    selectedHW = 'file';
+                    document.getElementById('HWModeDisplay').textContent = 'File mode';
+                    document.getElementById('FileModeDiv').style.display = 'block';
+                    document.getElementById('HidModeDiv').style.display = 'none';
+                }
+
 
                 updateDownloadButtonText();
                 // updateProgramTargetDisplay();
@@ -311,18 +324,6 @@
                 updateHardwareConnectionStatus();
                 initializeChangeDetection();
                 syncProgramTargetDisplays(); // Sync both displays on load
-
-                // Override FXCoreAssembler.logMessage to work with our DOM structure
-                if (typeof FXCoreAssembler !== 'undefined') {
-                    FXCoreAssembler.logMessage = function(message, type = 'info') {
-                        const timestamp = new Date().toLocaleTimeString();
-                        const outputArea = document.getElementById('output');
-                        const messagesArea = document.getElementById('messages');
-
-                        // Log to console for debugging
-                        console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
-                    };
-                }
 
                 initializePreferences();
                 DEBUG.showConfig();

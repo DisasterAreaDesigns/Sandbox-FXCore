@@ -251,7 +251,7 @@ def set_status_led(color):
     """Set the status LED color"""
     pixel[0] = color
 
-def blink_status_led(color, count=3, duration=0.2):
+def blink_status_led(color, count=3, duration=0.01):
     """Blink the status LED"""
     for _ in range(count):
         pixel[0] = color
@@ -275,7 +275,7 @@ def enter_prog_mode():
         
         i2c.unlock()
         time.sleep(0.1)
-        log_fxcore_status("After ENTER_PRG")
+        # log_fxcore_status("After ENTER_PRG")
         return True
         
     except OSError as e:
@@ -301,7 +301,7 @@ def exit_prog_mode():
         
         i2c.unlock()
         time.sleep(0.1)
-        log_fxcore_status("After EXIT_PRG")
+        # log_fxcore_status("After EXIT_PRG")
         return True
         
     except OSError as e:
@@ -473,7 +473,7 @@ def send_i2c_data(data, description):
             for i in range(0, len(data), chunk_size):
                 chunk = data[i:i + chunk_size]
                 i2c.writeto(FXCORE_ADDRESS, chunk)
-                time.sleep(0.01)
+                time.sleep(0.005) # was 0.01
             
             i2c.unlock()
             debug_message(f"Sent {len(data)} bytes of {description} in {(len(data) + chunk_size - 1) // chunk_size} chunks")
@@ -499,7 +499,7 @@ def send_command(cmd_bytes, description):
         debug_message(f"Sent {description} command: {' '.join(hex_bytes)}")
         
         i2c.unlock()
-        time.sleep(0.01)
+        time.sleep(0.005) # was 0.01
         return True
         
     except OSError as e:
@@ -510,102 +510,61 @@ def send_command(cmd_bytes, description):
             pass
         return False
 
-def send_cregs(cregs, original_checksum):
-    """Send CREG data to FXCore using pre-allocated buffer"""
+def send_cregs(cregs):
+    """Send CREG data to FXCore - 66 bytes expected (64 data + 2 checksum)"""
     if not send_command([0x01, 0x0F], "XFER_CREG"):
         return False
     
-    # Use pre-allocated buffer instead of creating new bytearray
-    data_buffer = buffer_mgr.get_i2c_buffer(66)  # 64 data + 2 checksum
+    if len(cregs) != 66:
+        error_message(f"CREG data must be exactly 66 bytes, got {len(cregs)}")
+        return False
     
-    # Copy CREG data to buffer
-    copy_len = min(len(cregs), 64)
-    data_buffer[:copy_len] = cregs[:copy_len]
-    
-    # Pad with zeros if needed
-    if copy_len < 64:
-        for i in range(copy_len, 64):
-            data_buffer[i] = 0
-    
-    # Add checksum
-    if len(original_checksum) == 2 and (original_checksum[0] != 0 or original_checksum[1] != 0):
-        data_buffer[64:66] = original_checksum
-    else:
-        checksum = calculate_checksum(data_buffer[:64])
-        data_buffer[64] = checksum & 0xFF
-        data_buffer[65] = (checksum >> 8) & 0xFF
-    
-    success = send_i2c_data(data_buffer, f"CREG data (66 bytes)")
+    success = send_i2c_data(cregs, f"CREG data (66 bytes)")
     if success:
-        log_fxcore_status("After CREG transfer")
+        debug_message("CREG transfer success")
     return success
 
-def send_mregs(mregs, original_checksum):
-    """Send MREG data to FXCore using pre-allocated buffer"""
+def send_mregs(mregs):
+    """Send MREG data to FXCore - 514 bytes expected (512 data + 2 checksum)"""
     if not send_command([0x04, 0x7F], "XFER_MREG"):
         return False
     
-    # Use pre-allocated buffer
-    data_buffer = buffer_mgr.get_i2c_buffer(514)  # 512 data + 2 checksum
+    if len(mregs) != 514:
+        error_message(f"MREG data must be exactly 514 bytes, got {len(mregs)}")
+        return False
     
-    # Copy MREG data to buffer
-    copy_len = min(len(mregs), 512)
-    data_buffer[:copy_len] = mregs[:copy_len]
-    
-    # Pad with zeros if needed
-    if copy_len < 512:
-        for i in range(copy_len, 512):
-            data_buffer[i] = 0
-    
-    # Add checksum
-    if len(original_checksum) == 2 and (original_checksum[0] != 0 or original_checksum[1] != 0):
-        data_buffer[512:514] = original_checksum
-    else:
-        checksum = calculate_checksum(data_buffer[:512])
-        data_buffer[512] = checksum & 0xFF
-        data_buffer[513] = (checksum >> 8) & 0xFF
-    
-    success = send_i2c_data(data_buffer, f"MREG data (514 bytes)")
+    success = send_i2c_data(mregs, f"MREG data (514 bytes)")
     if success:
-        log_fxcore_status("After MREG transfer")
+        debug_message("MREG transfer success")
     return success
 
 def send_sfrs(sfrs):
-    """Send SFR data to FXCore using pre-allocated buffer"""
+    """Send SFR data to FXCore - 50 bytes expected (48 data + 2 checksum)"""
     if not send_command([0x02, 0x0B], "XFER_SFR"):
         return False
     
-    # Use pre-allocated buffer
-    data_buffer = buffer_mgr.get_i2c_buffer(52)  # 50 data + 2 checksum
+    if len(sfrs) != 50:
+        error_message(f"SFR data must be exactly 50 bytes, got {len(sfrs)}")
+        return False
     
-    # Copy SFR data to buffer
-    copy_len = min(len(sfrs), 50)
-    data_buffer[:copy_len] = sfrs[:copy_len]
-    
-    # Pad with zeros if needed
-    if copy_len < 50:
-        for i in range(copy_len, 50):
-            data_buffer[i] = 0
-    
-    # Add checksum
-    checksum = calculate_checksum(data_buffer[:50])
-    data_buffer[50] = checksum & 0xFF
-    data_buffer[51] = (checksum >> 8) & 0xFF
-    
-    success = send_i2c_data(data_buffer, f"SFR data (52 bytes)")
+    success = send_i2c_data(sfrs, f"SFR data (50 bytes)")
     if success:
-        log_fxcore_status("After SFR transfer")
+        debug_message("SFR transfer success")
     return success
 
 def send_program_data(instructions, program_data):
-    """Send program data to FXCore using pre-allocated buffer"""
+    """Send program data to FXCore - program_data should include checksum"""
     if len(instructions) == 0:
         debug_message("No program instructions to send")
         return False
     
-    # Validate instruction count
     if len(instructions) > 1024:
         error_message(f"Too many instructions ({len(instructions)}), max is 1024")
+        return False
+    
+    expected_size = (len(instructions) * 4) + 2  # 4 bytes per instruction + 2 checksum
+    if len(program_data) != expected_size:
+        error_message(f"Program data must be exactly {expected_size} bytes, got {len(program_data)}")
         return False
         
     num_instructions = len(instructions)
@@ -616,39 +575,17 @@ def send_program_data(instructions, program_data):
     if not send_command([cmd_high, cmd_low], f"XFER_PRG (0x{cmd_value:04X} for {num_instructions} instructions)"):
         return False
     
-    if isinstance(program_data, bytearray) and len(program_data) > len(instructions) * 4:
-        # Use existing program_data that already includes checksum
-        success = send_i2c_data(program_data, f"program data ({len(program_data)} bytes including checksum)")
-    else:
-        # Build program data using pre-allocated buffer
-        program_bytes_size = (num_instructions * 4) + 2  # instructions + 2 byte checksum
-        data_buffer = buffer_mgr.get_i2c_buffer(program_bytes_size)
-        
-        # Pack instructions into buffer (4 bytes each, little-endian)
-        for i, instruction in enumerate(instructions):
-            base_idx = i * 4
-            data_buffer[base_idx] = instruction & 0xFF
-            data_buffer[base_idx + 1] = (instruction >> 8) & 0xFF
-            data_buffer[base_idx + 2] = (instruction >> 16) & 0xFF
-            data_buffer[base_idx + 3] = (instruction >> 24) & 0xFF
-        
-        # Calculate and add checksum
-        program_data_portion = data_buffer[:num_instructions * 4]
-        checksum = calculate_checksum(program_data_portion)
-        data_buffer[num_instructions * 4] = checksum & 0xFF
-        data_buffer[num_instructions * 4 + 1] = (checksum >> 8) & 0xFF
-        
-        success = send_i2c_data(data_buffer, f"program data ({program_bytes_size} bytes with calculated checksum)")
-    
+    success = send_i2c_data(program_data, f"program data ({len(program_data)} bytes)")
     if success:
-        log_fxcore_status("After PROGRAM transfer")
+        debug_message("PRG transfer success")
     return success
 
 def execute_from_ram():
     """Execute the program from RAM"""
     success = send_command([0x0D, 0x00], "EXEC_FROM_RAM")
     if success:
-        log_fxcore_status("After EXEC_FROM_RAM")
+        # log_fxcore_status("After EXEC_FROM_RAM")
+                debug_message("Enter RUN from RAM")
     return success
 
 def write_to_flash_location(location):
@@ -661,14 +598,15 @@ def write_to_flash_location(location):
     if success:
         debug_message(f"Writing to FLASH location {location:X}, waiting 200ms...")
         time.sleep(0.2)  # Wait for FLASH write to complete
-        log_fxcore_status(f"After WRITE_PRG to location {location:X}")
+        # log_fxcore_status(f"After WRITE_PRG to location {location:X}")
     return success
 
 def send_return_0():
     """Send RETURN_0 command to stop execution and return to STATE0"""
     success = send_command([0x0E, 0x00], "RETURN_0")
     if success:
-        log_fxcore_status("After RETURN_0")
+        # log_fxcore_status("After RETURN_0")
+                debug_message("Sent RETURN_0 command")
     return success
 
 # UNIFIED PROGRAMMING FUNCTION
@@ -702,8 +640,6 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         sfrs = fx_data['sfrs']
         instructions = fx_data['instructions']
         program_data = fx_data.get('program_data', bytearray())
-        creg_checksum = fx_data.get('creg_checksum', bytearray())
-        mreg_checksum = fx_data.get('mreg_checksum', bytearray())
         
     else:
         # FT260 mode - use provided data dict
@@ -712,8 +648,6 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         sfrs = data_source.get('sfrs', bytearray())
         instructions = data_source.get('instructions', [])
         program_data = data_source.get('program_data', bytearray())
-        creg_checksum = data_source.get('creg_checksum', bytearray())
-        mreg_checksum = data_source.get('mreg_checksum', bytearray())
     
     # Set appropriate status LED based on mode
     if execution_mode == "flash":
@@ -730,11 +664,11 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         blink_status_led(BLUE, 2)
     
     # Initial status check
-    log_fxcore_status("Before programming")
+    # log_fxcore_status("Before programming")
     
     # Wait for FXCore to settle
     debug_message("Waiting for FXCore to settle...")
-    time.sleep(0.5)
+    time.sleep(0.1)
     
     # Enter programming mode
     debug_message("Entering programming mode...")
@@ -751,7 +685,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
     # Send CREGs if available
     if success and len(cregs) > 0:
         debug_message("Uploading CREG data...")
-        if not send_cregs(cregs, creg_checksum):
+        if not send_cregs(cregs):
             success = False
         else:
             time.sleep(0.1)
@@ -759,7 +693,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
     # Send MREGs if available
     if success and len(mregs) > 0:
         debug_message("Uploading MREG data...")
-        if not send_mregs(mregs, mreg_checksum):
+        if not send_mregs(mregs):
             success = False
         else:
             time.sleep(0.1)
@@ -862,13 +796,11 @@ def prepare_ft260_data_for_unified(ft260_emulator):
                 instructions.append(instruction)
     
     return {
-        'cregs': ft260_emulator.creg_data[:64] if len(ft260_emulator.creg_data) >= 64 else bytearray(),
-        'mregs': ft260_emulator.mreg_data[:512] if len(ft260_emulator.mreg_data) >= 512 else bytearray(),
-        'sfrs': ft260_emulator.sfr_data[:50] if len(ft260_emulator.sfr_data) >= 50 else bytearray(),
+        'cregs': ft260_emulator.creg_data if len(ft260_emulator.creg_data) == 66 else bytearray(),
+        'mregs': ft260_emulator.mreg_data if len(ft260_emulator.mreg_data) == 514 else bytearray(),
+        'sfrs': ft260_emulator.sfr_data if len(ft260_emulator.sfr_data) == 50 else bytearray(),
         'instructions': instructions,
-        'program_data': ft260_emulator.program_data,
-        'creg_checksum': ft260_emulator.creg_data[64:66] if len(ft260_emulator.creg_data) >= 66 else bytearray(),
-        'mreg_checksum': ft260_emulator.mreg_data[512:514] if len(ft260_emulator.mreg_data) >= 514 else bytearray()
+        'program_data': ft260_emulator.program_data
     }
 
 
@@ -1226,7 +1158,8 @@ class SmartFT260Emulator:
         byte_count = data[2]  # Exact number of I2C payload bytes
         write_data = data[3:3+byte_count]  # Extract exactly the right amount of data
         
-        debug_message(f"FT260: D0 Report - I2C addr 0x{i2c_addr:02X}, flag 0x{i2c_flag:02X}, {byte_count} bytes")
+        if DEBUG_MODE:
+            debug_message(f"FT260: D0 Report - I2C addr 0x{i2c_addr:02X}, flag 0x{i2c_flag:02X}, {byte_count} bytes")
         
         # Check if this is targeting the FXCore
         if i2c_addr == FXCORE_ADDRESS:
@@ -1237,7 +1170,9 @@ class SmartFT260Emulator:
                 return
         
         # If not FXCore or not a programming command, pass through normally
-        debug_message(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {' '.join([f'0x{b:02X}' for b in write_data[:min(8, len(write_data))]])}{'...' if len(write_data) > 8 else ''}")
+        if DEBUG_MODE:
+            data_preview = ' '.join([f'0x{byte_val:02X}' for byte_val in write_data[:min(8, len(write_data))]])
+            debug_message(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {data_preview}{'...' if len(write_data) > 8 else ''}")
         
         try:
             while not i2c.try_lock():
@@ -1279,11 +1214,11 @@ class SmartFT260Emulator:
                 # Route to appropriate handler
                 if report_id == 0xA1:
                     # A1 reports pass through (status/control)
-                    debug_message("FT260: A1 report - resetting")
-                    stop_execution()
+                    debug_message("FT260: A1 report - ignoring")
+                    # stop_execution()
                 elif report_id == 0xC0:
                     # C0 reports pass through  
-                    debug_message("FT260: C0 report - passing through")
+                    debug_message("FT260: C0 report - ignoring")
                 elif report_id == 0xC2:
                     # C2 reports are I2C reads - pass through
                     self.handle_output_report_c2(data)
