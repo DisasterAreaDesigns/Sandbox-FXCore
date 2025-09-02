@@ -37,12 +37,8 @@
                 <button onclick="loadFile()">Load File...</button>
 
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <span>Or select an example program:</span>
-                    <button onclick="loadExample('fxcore_passthrough')">Bypass</button>
-                    <button onclick="loadExample('fxcore_blink')">Blink</button>
-                    <button onclick="loadExample('fxcore_delay')">Delay</button>
-                    <button onclick="loadExample('fxcore_chorus')">Chorus</button>
-                    <button onclick="loadExample('fxcore_tremolo')">Tremolo</button>
+                    <span>Or select from the <a href="https://github.com/ftxnoize/FXCore" target="_blank">Experimental Noize repo</a>:</span>
+                    <select id="load_repo_file" onchange="loadRepoFile(this.value)"></select>
                 </div>
             </div>
         </div>
@@ -328,6 +324,33 @@
                 DEBUG.showConfig();
 
                 console.log('FXCore assembler libraries loaded');
+
+                // load up the repo list on load, currently hard coded to EN repo but just change it to another
+                // or made into a routine so user can select which repo to load. Only other possible change si
+                // a few lines down where we only put .fxc files in the list so we ignore any .fxo, .fxl or .gcf
+                getPageText("https://api.github.com/repos/ftxnoize/FXCore/contents/Complete_FXC").then(data => {
+                    let prgms = []; // programs to put into drop down
+                    const jsonObject = JSON.parse(data);
+                    traverseJson(jsonObject,prgms);  // recursive routine to return list in prgms
+                    if (prgms.length > 0) {
+                        var x = document.getElementById("load_repo_file");
+                        var option = document.createElement("option");
+                        option.text = "Select a file...";
+                        option.value = "";
+                        x.add(option);
+                        prgms.forEach((item, index) => {
+                            if(item.endsWith(".fxc")){
+                                var x = document.getElementById("load_repo_file");
+                                var option = document.createElement("option");
+                                option.text = item.substring(item.lastIndexOf('/')+1);
+                                option.value = item;
+                                x.add(option);
+                            }
+                        });
+                    }
+                }).catch(error => {
+                    console.error(error);
+                });
             });
 
             document.addEventListener('keydown', function(event) {

@@ -2007,3 +2007,57 @@ async function downloadWithPicker(content, defaultFilename, mimeType, descriptio
         fallback: true
     };
 }
+
+// If user selects a repo file load it into the editor. Obviouly I heavily borrowed from the example loader
+async function loadRepoFile(repo_file) {
+    // Use the new change detection function
+    if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
+        const choice = await showThreeChoiceDialog(
+            'Unsaved Changes',
+            'You have unsaved changes in the editor. What would you like to do before loading an example?'
+        );
+
+        if (choice === 'cancel') {
+            return; // User cancelled
+        } else if (choice === 'save') {
+            const saveResult = await saveSource();
+            if (saveResult === false) {
+                return; // User cancelled the save dialog
+            }
+        }
+    }
+    if (repo_file === "") return;
+    getPageText(repo_file).then(repo_code => {
+        const exampleFilename = repo_file.substring(repo_file.lastIndexOf('/')+1);
+        if (window.setEditorContent) {
+            // Mark as example
+            window.setEditorContent(repo_code, exampleFilename, '');
+        } else {
+            editor.updateOptions({ readOnly: false }); // Fallback
+            editor.setValue(repo_code);
+        }
+        editor.setScrollTop(0);
+        editor.setScrollLeft(0);
+        
+        // Clear assembly output and disable download button
+        const outputElement = document.getElementById('output');
+        if (outputElement) {
+            outputElement.value = '';
+        }
+        document.getElementById('messages').innerHTML = '';
+        assembledData = null;
+        
+        // Clear C header data
+        if (typeof FXCoreAssembler !== 'undefined') {
+            FXCoreAssembler.assembledCHeader = null;
+        }
+        window.assembledCHeader = null;
+        
+        updateBuildResultsButtons(); // Update buttons after clearing assembly
+        updatePlainHexButton(); // Update the plain HEX download button
+        
+        debugLog('Repo file loaded: ' + exampleFilename, 'success');
+    }).catch(error => {
+        console.error(error);
+    });
+}
