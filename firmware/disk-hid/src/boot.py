@@ -88,6 +88,7 @@ ft260_hid = usb_hid.Device(
 )
 
 # Enable only our custom FT260 HID device
+usb_hid.set_interface_name("Sandbox FXCore")
 usb_hid.enable((ft260_hid,))
 
 storage.remount("/", readonly=False)
