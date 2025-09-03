@@ -276,58 +276,6 @@ async function handleFileInputChange() {
     reader.readAsText(file);
 }
 
-async function loadExample(exampleName) {
-    // Use the new change detection function
-    if (window.hasUnsavedChanges && window.hasUnsavedChanges()) {
-        const choice = await showThreeChoiceDialog(
-            'Unsaved Changes',
-            'You have unsaved changes in the editor. What would you like to do before loading an example?'
-        );
-
-        if (choice === 'cancel') {
-            return; // User cancelled
-        } else if (choice === 'save') {
-            const saveResult = await saveSource();
-            if (saveResult === false) {
-                return; // User cancelled the save dialog
-            }
-        }
-        // If choice === 'discard', just proceed with loading
-    }
-
-    if (exampleName && examples[exampleName]) {
-        if (window.setEditorContent) {
-            // Mark as example with descriptive filename
-            const exampleFilename = `example_${exampleName}.fxc`;
-            window.setEditorContent(examples[exampleName], exampleFilename, '');
-        } else {
-            editor.updateOptions({ readOnly: false }); // Fallback
-            editor.setValue(examples[exampleName]);
-        }
-        editor.setScrollTop(0);
-        editor.setScrollLeft(0);
-        
-        // Clear assembly output and disable download button
-        const outputElement = document.getElementById('output');
-        if (outputElement) {
-            outputElement.value = '';
-        }
-        document.getElementById('messages').innerHTML = '';
-        assembledData = null;
-        
-        // Clear C header data
-        if (typeof FXCoreAssembler !== 'undefined') {
-            FXCoreAssembler.assembledCHeader = null;
-        }
-        window.assembledCHeader = null;
-        
-        updateBuildResultsButtons(); // Update buttons after clearing assembly
-        updatePlainHexButton(); // Update the plain HEX download button
-        
-        debugLog('Example loaded: ' + exampleName, 'success');
-    }
-}
-
 function assembleFXCore() {
     if (!editor) {
         debugLog('Editor not initialized', 'errors');
