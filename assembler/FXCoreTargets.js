@@ -13,7 +13,9 @@ class FXCoreTargets {
     // You will need to add supports for it.
     static filters = [
         { vendorId: 0x0403, productId: 0x71D8 }, // FTDI vendor ID, Exp Noize product ID
-        { vendorId: 0xBEEF, productId: 0xB00F }, // Future DAD sandbox pedal
-        { vendorId: 0x2E8A, productId: 0x101F }, // Future DAD sandbox pedal
+        { vendorId: 0x1209, productId: 0x3911 }, // Sandbox Pedal FXCore
+        { vendorId: 0xBEEF, productId: 0xB00F }, // previous DAD test VID:PID left for compatibility
+        { vendorId: 0x2E8A, productId: 0x101F }, // base RP2040 paid, left for compat
+
     ];
 }
