@@ -95,7 +95,7 @@ class ShuntingYard {
                 case 'FUNC':
                     // check if there is anything on the stack, if there is and it is an operator then compare the operators
                     // if stack operator is higher precedence then return the stack token
-                    while (stack.length > 0 && common.mathops.includes(stack[stack.length - 1].Type) && this.CompareOperators(tok.Type, stack[stack.length - 1].Type)) {
+                    while (stack.length > 0 && common.Math_Op.includes(stack[stack.length - 1].Type) && this.CompareOperators(tok.Type, stack[stack.length - 1].Type)) {
                         yield stack.pop();
                     }
                     // push this token on the stack
