@@ -67,13 +67,21 @@ class LineParse {
         if (/^ $/.test(testTok)) return 'SPACE';
         if (/^\t$/.test(testTok)) return 'TAB';
 
-        // Directives
+        // // Directives
+        // if (/^\.EQU(\.I)?$/i.test(testTok)) return 'EQU_DIRECTIVE';
+        // if (/^\.RN$/i.test(testTok)) return 'RN_DIRECTIVE';
+        // if (/^\.MEM$/i.test(testTok)) return 'MEM_DIRECTIVE';
+        // if (/^\.CREG$/i.test(testTok)) return 'CREG_DIRECTIVE';
+        // if (/^\.MREG$/i.test(testTok)) return 'MREG_DIRECTIVE';
+        // if (/^\.SREG$/i.test(testTok)) return 'SREG_DIRECTIVE';
+
+        // Directives - fix and add .i option
         if (/^\.EQU(\.I)?$/i.test(testTok)) return 'EQU_DIRECTIVE';
         if (/^\.RN$/i.test(testTok)) return 'RN_DIRECTIVE';
         if (/^\.MEM$/i.test(testTok)) return 'MEM_DIRECTIVE';
-        if (/^\.CREG$/i.test(testTok)) return 'CREG_DIRECTIVE';
-        if (/^\.MREG$/i.test(testTok)) return 'MREG_DIRECTIVE';
-        if (/^\.SREG$/i.test(testTok)) return 'SREG_DIRECTIVE';
+        if (/^\.CREG(\.I)?$/i.test(testTok)) return 'CREG_DIRECTIVE';
+        if (/^\.MREG(\.I)?$/i.test(testTok)) return 'MREG_DIRECTIVE';
+        if (/^\.SREG(\.I)?$/i.test(testTok)) return 'SREG_DIRECTIVE';
 
         // Numbers
         if (/^0X[0-9A-F]+$/i.test(testTok)) return 'HEX';

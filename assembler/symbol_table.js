@@ -766,9 +766,16 @@ processRegisterDirectives() {
             if (symbol.resolved && symbol.lhs) {
                 const regType = symbol.type === 'CREG_DIRECTIVE' ? 'creg' : 
                                symbol.type === 'MREG_DIRECTIVE' ? 'mreg' : 'sreg';
-                
+
                 let value = Math.round(symbol.rvalue);
-                if (symbol.subtype === 'DEC' && ['CREG_DIRECTIVE', 'MREG_DIRECTIVE', 'SREG_DIRECTIVE'].includes(symbol.type)) {
+
+                // fix minor bug in assembler here
+                // Check if forced to integer (.I suffix)
+                if (symbol.forced === 'INT') {
+                    // Just use the integer value directly, no S.31 conversion
+                    value = Math.floor(symbol.rvalue);
+                    debug.registers(`Forced integer: ${symbol.name} = ${value}`, 'SYMBOLS');
+                } else if (symbol.subtype === 'DEC' && ['CREG_DIRECTIVE', 'MREG_DIRECTIVE', 'SREG_DIRECTIVE'].includes(symbol.type)) {
                     debug.registers(`Converting ${symbol.name}: decimal=${symbol.rvalue} to S.31 format`, 'SYMBOLS');
                     // Convert S.31 format to integer - use truncation like C#
                     const temp = symbol.rvalue * 2147483647; // 0x7FFFFFFF
