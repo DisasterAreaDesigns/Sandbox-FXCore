@@ -903,6 +903,7 @@ processRegisterDirectives() {
      */
     processMemoryDirectives() {
         let membase = 0;
+        const MAX_DELAY_MEMORY = 32768; // Maximum delay memory in words
         
         debug.memory('Processing memory directives', 'SYMBOLS');
         
@@ -915,6 +916,12 @@ processRegisterDirectives() {
                 const memSize = Math.round(symbol.rvalue);
                 if (memSize < 0) {
                     debug.error(`Negative memory size ${memSize} for ${symbol.name} at line ${symbol.linenum}`, 'SYMBOLS');
+                    return false;
+                }
+                
+                // Check if this allocation would exceed maximum delay memory
+                if (membase + memSize + 1 > MAX_DELAY_MEMORY) {
+                    debug.error(`Memory allocation for ${symbol.name} at line ${symbol.linenum} exceeds maximum delay memory of ${MAX_DELAY_MEMORY} words (requested: ${membase + memSize + 1} total)`, 'SYMBOLS');
                     return false;
                 }
                 
@@ -977,6 +984,83 @@ processRegisterDirectives() {
         
         return true;
     }
+
+    // processMemoryDirectives() {
+    //     let membase = 0;
+        
+    //     debug.memory('Processing memory directives', 'SYMBOLS');
+        
+    //     for (let i = 0; i < this.thetable.length; i++) {
+    //         const symbol = this.thetable[i];
+            
+    //         if (symbol.type === 'MEM_DIRECTIVE' && 
+    //             symbol.subtype !== 'MEML' && symbol.subtype !== 'MEMR') {
+                
+    //             const memSize = Math.round(symbol.rvalue);
+    //             if (memSize < 0) {
+    //                 debug.error(`Negative memory size ${memSize} for ${symbol.name} at line ${symbol.linenum}`, 'SYMBOLS');
+    //                 return false;
+    //             }
+                
+    //             // Update symbol with write address
+    //             symbol.rvalue = membase;
+    //             symbol.lhs = true;
+                
+    //             debug.memory(`Memory allocation: ${symbol.name} = ${membase} (size: ${memSize})`, 'SYMBOLS');
+                
+    //             // Add read address symbol
+    //             const readSymbol = {
+    //                 name: symbol.name + '#',
+    //                 type: symbol.type,
+    //                 value: symbol.value,
+    //                 linenum: symbol.linenum,
+    //                 resolved: true,
+    //                 subtype: 'MEMR',
+    //                 forced: 'EMPTY',
+    //                 rvalue: membase + memSize,
+    //                 lhs: true,
+    //                 regnum: 0
+    //             };
+                
+    //             if (!this.isSymbol(readSymbol.name)) {
+    //                 this.thetable.push(readSymbol);
+    //                 debug.memory(`Added read symbol: ${readSymbol.name} = ${readSymbol.rvalue}`, 'SYMBOLS');
+    //                 membase += memSize + 1;
+    //             } else {
+    //                 debug.error(`Memory read symbol ${readSymbol.name} already exists at line ${symbol.linenum}`, 'SYMBOLS');
+    //                 return false;
+    //             }
+                
+    //             // Add length symbol
+    //             const lengthSymbol = {
+    //                 name: symbol.name + '!',
+    //                 type: symbol.type,
+    //                 value: symbol.value,
+    //                 linenum: symbol.linenum,
+    //                 resolved: true,
+    //                 subtype: 'MEML',
+    //                 forced: 'EMPTY',
+    //                 rvalue: memSize,
+    //                 lhs: true,
+    //                 regnum: 0
+    //             };
+                
+    //             if (!this.isSymbol(lengthSymbol.name)) {
+    //                 this.thetable.push(lengthSymbol);
+    //                 debug.memory(`Added length symbol: ${lengthSymbol.name} = ${lengthSymbol.rvalue}`, 'SYMBOLS');
+    //             } else {
+    //                 debug.error(`Memory length symbol ${lengthSymbol.name} already exists at line ${symbol.linenum}`, 'SYMBOLS');
+    //                 return false;
+    //             }
+    //         }
+    //     }
+        
+    //     if (membase > 0) {
+    //         debug.memory(`Total memory allocated: ${membase} words`, 'SYMBOLS');
+    //     }
+        
+    //     return true;
+    // }
 
     /**
      * Truncate to integer - matches C# Math.Truncate behavior for S.31 conversion
