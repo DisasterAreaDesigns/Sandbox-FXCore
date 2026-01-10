@@ -979,7 +979,7 @@ processRegisterDirectives() {
         }
         
         if (membase > 0) {
-            debug.memory(`Total memory allocated: ${membase} words`, 'SYMBOLS');
+            debug.info(`Total memory allocated: ${membase} words`, 'SYMBOLS');
         }
         
         return true;
