@@ -91,6 +91,12 @@ try:
     log_message("I2C bus initialized on GP0 (SDA) and GP1 (SCL)")
     log_message("NeoPixel initialized on GP16")
     pixel[0] = OFF  # Start with LED off
+
+    # LED on GP2 - active during programming/RAM execution
+    led_gp2 = digitalio.DigitalInOut(board.GP2)
+    led_gp2.direction = digitalio.Direction.OUTPUT
+    led_gp2.value = False
+
 except Exception as e:
     error_message(f"Error initializing I2C or NeoPixel: {e}")
     while True:
@@ -298,6 +304,7 @@ def exit_prog_mode():
         debug_message("Exited programming mode - returned to RUN mode")
 
         running = False
+        led_gp2.value = False
         
         i2c.unlock()
         time.sleep(0.1)
@@ -633,6 +640,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not fx_data:
             error_message("Failed to read hex file")
             blink_status_led(RED, 5)
+            led_gp2.value = False
             return False
         
         cregs = fx_data['cregs']
@@ -662,6 +670,9 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         else:
             log_message("Starting RAM execution from FT260 data")
         blink_status_led(BLUE, 2)
+
+    # turn on LED on panel
+    led_gp2.value = True
     
     # Initial status check
     # log_fxcore_status("Before programming")
@@ -675,6 +686,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
     if not enter_prog_mode():
         error_message("Failed to enter programming mode")
         blink_status_led(RED, 5)
+        led_gp2.value = False
         return False
     
     time.sleep(0.1)
@@ -717,6 +729,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
     if not success:
         error_message("Failed to upload complete program data")
         blink_status_led(RED, 5)
+        led_gp2.value = False
         send_return_0()
         exit_prog_mode()
         return False
@@ -727,6 +740,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if flash_location is None or flash_location < 0 or flash_location > 15:
             error_message(f"Invalid flash location: {flash_location}")
             blink_status_led(RED, 5)
+            led_gp2.value = False
             send_return_0()
             exit_prog_mode()
             return False
@@ -735,6 +749,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not write_to_flash_location(flash_location):
             error_message("Failed to write to FLASH")
             blink_status_led(RED, 5)
+            led_gp2.value = False
             send_return_0()
             exit_prog_mode()
             return False
@@ -746,8 +761,14 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         
         # Success - indicate with solid green LED
         set_status_led(GREEN)
+        led_gp2.value = False  # programming operation complete
+        # Blink GP2 to indicate successful flash write
+        for _ in range(3):
+            led_gp2.value = True
+            time.sleep(0.15)
+            led_gp2.value = False
+            time.sleep(0.15)
         log_message(f"SUCCESS: Program written to FLASH location {flash_location:X}")
-        debug_message("Programming complete. FXCore returned to RUN mode.")
         
     else:
         # RAM execution mode
@@ -755,6 +776,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not execute_from_ram():
             error_message("Failed to execute program")
             blink_status_led(RED, 5)
+            led_gp2.value = False
             send_return_0()
             exit_prog_mode()
             return False
@@ -1249,6 +1271,7 @@ def stop_execution():
     
     # Turn off LED
     set_status_led(OFF)
+    led_gp2.value = False
     
     debug_message("Program stopped and returned to normal operation")
 
