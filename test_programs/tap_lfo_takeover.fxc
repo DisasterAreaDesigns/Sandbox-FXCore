@@ -111,7 +111,7 @@ jnz       acc32, doPWM		; if the upper bit is 1 then we update the LED
 
 ; Reload new PWM value from mixed LFOs into "bright"
 cpy_cs    acc32, lfo0_s		; read in sin wave ranges -1.0 to +1.0 (well, almost)
-sra       acc32, 23			; shift the PWM value in place
+sra       acc32, 24			; shift the PWM value in place
 cpy_cc    bright, acc32		; save it
 
 doPWM:

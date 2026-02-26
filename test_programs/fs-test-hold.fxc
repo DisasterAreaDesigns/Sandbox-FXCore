@@ -1,0 +1,52 @@
+; this is trickier!  Tap to turn on / off, and blink while held down only
+; we need a counter to keep track of how long we've held this down, and it's
+; much easier if you use the tap tempo input instead
+
+.rn	bypstate	mr127
+.rn	hold	mr126
+.rn	counter	r13
+
+cpy_cs	r0, switch		; get the switch
+andi		r0, sw4pe		; check for press event
+jz		acc32, checkrelease2	; no press?  check release
+ori		acc32, 0x2EE0	; put 12000 samples in counter, for a 250ms hold time
+cpy_cc	counter, acc32	; this is 16 bits so use ORI instead of WRDLD
+jmp		checkrelease2
+
+checkrelease2:
+andi		r0, sw4re		; check for release event
+jz		acc32, doLED2	; if no release set the LEDs
+jgez		counter, flipbit	; released the switch before the timer clears, flip the bypass state
+jmp		doLED2		; otherwise just check the LED
+
+flipbit:
+cpy_cm	acc32, bypstate	; check the bypass state
+xori		acc32, 0x0001	; flip the bit
+cpy_mc	bypstate, acc32	; save new state
+
+doLED2:
+cpy_cm	acc32, hold		; look at the hold flag
+jnz		acc32, noblink	; if we're holdning the sw and the counter is done, blink
+cpy_cs	acc32, samplecnt	; get sample counter
+set		user1|12, acc32	; when the 13th bit flips, light the LED for a ~5Hz rate
+jmp		checkcount
+
+noblink:
+cpy_cm  	acc32, bypstate	; just grab the bypass state
+set 		user1|0, acc32	; and set the LED based on the LSB
+
+checkcount:
+jneg		counter, stopcount	; check the counter, if we're above 0, keep going
+addi		counter, -1		; subtract 1 to update
+cpy_cc	counter, acc32	; update counter and save
+jmp		done
+
+stopcount:
+cpy_cs	acc32, switch	; get switch register
+andi		acc32, sw4db	; check to see if the switch is pressed
+jz		acc32, done		; if it's zero flash the light
+cpy_mc	hold, acc32		; copy acc32 to hold flag register
+
+done:
+or		acc32, acc32	; clear acc
+cpy_mc	hold, acc32		; clear hold flag

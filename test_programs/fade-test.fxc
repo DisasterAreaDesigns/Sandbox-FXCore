@@ -1,0 +1,36 @@
+
+.rn bright 		r1
+
+
+.equ	fs 		48000			; sampling rate
+.equ    flow    1 		; low freq set by pot0
+.equ    fhigh   12       		; high freq set by pot0
+.equ    pi		3.14159		; and use the rest of this to set the LFO freq
+.equ    clow    (2^31 - 1) * (2*pi*flow)/fs
+.equ    chigh   (2^31 - 1) * (2*pi*fhigh)/fs
+.equ    cdiff   chigh - clow 
+
+wrdld	acc32, clow.u	    ; load difference between low and high frequency
+ori		acc32, clow.l
+cpy_sc	lfo0_f, acc32
+
+cpy_cs    acc32, samplecnt	; Get the sample counter
+andi      acc32, 0xFF		; Mask b[7:0]
+jnz       acc32, doPWM		; if the upper bit is 1 then we update the LED
+
+; Reload new PWM value from mixed LFOs into "bright"
+cpy_cs    acc32, lfo0_s		; read in sin wave ranges -1.0 to +1.0 (well, almost)
+sra       acc32, 24			; shift the PWM value in place
+cpy_cc    bright, acc32		; save it
+
+doPWM:
+; Performing the decrement prior to driving the LED makes sure
+; that the LED can go completly off.
+addi      bright, -1		; addi expects a decimal number and we want to subtract 1 LSB
+cpy_cc    bright, acc32		; Save updated "bright"
+xor       acc32, acc32		; Clear acc32 for the LED off case
+jneg      bright, doLED      
+ori       acc32, 1			; Set acc32[0] for the LED on case
+
+doLED:
+set       user0|0, acc32		; set the usr1 output per the acc32 LSB
