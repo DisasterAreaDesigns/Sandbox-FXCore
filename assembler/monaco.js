@@ -100,6 +100,14 @@ require(['vs/editor/editor.main'], function() {
         }
     });
 
+// add this to allow for commenting with CMD / Ctrl + /
+    monaco.languages.setLanguageConfiguration('fxcore', {
+        comments: {
+            lineComment: ';',
+            blockComment: ['/*', '*/']
+        }
+    });
+
     // Light theme
     monaco.editor.defineTheme('fxcoreTheme', {
         base: 'vs', // or 'vs-dark'
