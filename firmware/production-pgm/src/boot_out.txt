@@ -1,0 +1,10 @@
+Adafruit CircuitPython 10.1.4 on 2026-03-09; Waveshare RP2040-Zero with rp2040
+Board ID:waveshare_rp2040_zero
+UID:5054316568E02C9C
+boot.py output:
+FT260 HID device enabled with 6 report IDs:
+  Feature Reports: 0xA1 (config), 0xC0 (status)
+  Input Report: 0xC2 (I2C read data)
+  Output Reports: 0xC2 (I2C read req), 0xD0 (I2C write), 0xDF (alt write)
+  Reserved: 0x01
+  Note: All I2C writes will use report ID 0xD0 regardless of length
