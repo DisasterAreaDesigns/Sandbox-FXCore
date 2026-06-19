@@ -1,0 +1,11 @@
+{
+  "device_type": "FXCore Sandbox",
+  "firmware_version": "3.0",
+  "device_id": "fxcore-sandbox-001",
+  "timestamp": "2026-05-18T00:00:00Z",
+  "hardware_info": {
+    "manufacturer": "sandbox",
+    "model": "SandboxFX",
+    "serial_number": "SB240001"
+  }
+}
