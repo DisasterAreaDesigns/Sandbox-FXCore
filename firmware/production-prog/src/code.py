@@ -1,6 +1,7 @@
 # FXCore Hex File Uploader with FT260 Emulation
-# Version 4.4
-# Date: 2025-08-20
+# Version 4.5
+# Date: 2026-05-11
+# Added .prj project file support for production programming
 # unifed buffer and programming functions
 # fixed issue with LED state in HID mode
 
@@ -329,6 +330,125 @@ def find_valid_hex_files():
     return output_hex_valid, location_files
 
 
+def find_prj_file():
+    """Look for a .prj project file on the drive.
+    Returns the filename if found, None otherwise.
+    If multiple .prj files exist, uses the first one alphabetically.
+    Skips macOS resource fork files (._*) and hidden dotfiles."""
+    try:
+        files = sorted(os.listdir())
+        for filename in files:
+            if filename.startswith('.'):
+                continue
+            if filename.lower().endswith('.prj'):
+                log_message(f"Found project file: {filename}")
+                return filename
+    except:
+        pass
+    return None
+
+
+def parse_prj_file(filename):
+    """Parse a .prj project file.
+    
+    Format (plain text):
+        # comment lines
+        name=My Project Name
+        0=some_file.hex
+        1=another_file.hex
+        A=yet_another.hex
+    
+    Returns dict with 'name' (str) and 'slots' (dict of int->str),
+    or None on failure.
+    """
+    project = {
+        'name': None,
+        'slots': {}
+    }
+    
+    try:
+        with open(filename, 'r') as f:
+            content = f.read()
+    except Exception as e:
+        error_message(f"Cannot read project file {filename}: {e}")
+        return None
+    
+    if len(content.strip()) == 0:
+        error_message(f"Project file {filename} is empty")
+        return None
+    
+    valid_slot_chars = "0123456789ABCDEFabcdef"
+    
+    for line_num, line in enumerate(content.split('\n'), 1):
+        line = line.strip()
+        
+        # Skip empty lines and comments
+        if not line or line.startswith('#'):
+            continue
+        
+        # Must contain '='
+        if '=' not in line:
+            debug_message(f"PRJ line {line_num}: skipping invalid line: {line}")
+            continue
+        
+        key, _, value = line.partition('=')
+        key = key.strip()
+        value = value.strip()
+        
+        if not key or not value:
+            debug_message(f"PRJ line {line_num}: empty key or value, skipping")
+            continue
+        
+        # Handle name directive
+        if key.lower() == 'name':
+            project['name'] = value
+            debug_message(f"PRJ: project name = '{value}'")
+            continue
+        
+        # Handle slot assignment (single hex digit 0-F)
+        if len(key) == 1 and key in valid_slot_chars:
+            slot_num = int(key, 16)
+            # Verify the hex file exists
+            try:
+                files_on_disk = os.listdir()
+                if value in files_on_disk:
+                    # Quick validation: check file is non-empty and starts with ':'
+                    try:
+                        with open(value, 'r') as f:
+                            header = f.read(2)
+                        if len(header) == 0:
+                            error_message(f"PRJ: {value} is empty, skipping slot {key}")
+                            continue
+                        if not header.startswith(':'):
+                            error_message(f"PRJ: {value} is not a valid hex file, skipping slot {key}")
+                            continue
+                    except:
+                        error_message(f"PRJ: cannot read {value}, skipping slot {key}")
+                        continue
+                    
+                    project['slots'][slot_num] = value
+                    debug_message(f"PRJ: slot {slot_num:X} = {value}")
+                else:
+                    error_message(f"PRJ: file '{value}' not found on drive, skipping slot {key}")
+            except:
+                error_message(f"PRJ: cannot list files, skipping slot {key}")
+            continue
+        
+        debug_message(f"PRJ line {line_num}: unrecognized key '{key}', skipping")
+    
+    if not project['slots']:
+        error_message(f"Project file {filename} has no valid slot assignments")
+        return None
+    
+    # Default name to the project filename without extension
+    if project['name'] is None:
+        project['name'] = filename.rsplit('.', 1)[0]
+        debug_message(f"PRJ: no name specified, using '{project['name']}'")
+    
+    log_message(f"Project '{project['name']}': {len(project['slots'])} slot(s) to program")
+    return project
+
+
 def set_status_led(color):
     """Set the status LED color"""
     pixel[0] = color
@@ -356,7 +476,7 @@ def enter_prog_mode():
         debug_message("Entered programming mode")
         
         i2c.unlock()
-        time.sleep(0.1)
+        time.sleep(0.02)
         # log_fxcore_status("After ENTER_PRG")
         return True
         
@@ -383,7 +503,7 @@ def exit_prog_mode():
         led_gp2.value = False
         
         i2c.unlock()
-        time.sleep(0.1)
+        time.sleep(0.02)
         # log_fxcore_status("After EXIT_PRG")
         return True
         
@@ -761,11 +881,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
     
     # --- PAUSE OLED to free I2C bus for FXCore programming ---
     display_pause()
-    time.sleep(0.05)  # let any in-flight display refresh finish
-    
-    # Wait for FXCore to settle
-    debug_message("Waiting for FXCore to settle...")
-    time.sleep(0.1)
+    time.sleep(0.01)  # let any in-flight display refresh finish
     
     # Enter programming mode
     debug_message("Entering programming mode...")
@@ -777,8 +893,6 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         led_gp2.value = False
         return False
     
-    time.sleep(0.1)
-    
     # Send data in the correct order: CREG, MREG, SFR, PROGRAM
     # No OLED updates during this critical I2C sequence
     success = True
@@ -789,7 +903,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not send_cregs(cregs):
             success = False
         else:
-            time.sleep(0.1)
+            time.sleep(0.01)
     
     # Send MREGs if available
     if success and len(mregs) > 0:
@@ -797,7 +911,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not send_mregs(mregs):
             success = False
         else:
-            time.sleep(0.1)
+            time.sleep(0.01)
     
     # Send SFRs if available
     if success and len(sfrs) > 0:
@@ -805,7 +919,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not send_sfrs(sfrs):
             success = False
         else:
-            time.sleep(0.1)
+            time.sleep(0.01)
     
     # Send program data if available
     if success and len(instructions) > 0:
@@ -813,7 +927,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         if not send_program_data(instructions, program_data):
             success = False
         else:
-            time.sleep(0.1)
+            time.sleep(0.01)
     
     if not success:
         error_message("Failed to upload complete program data")
@@ -852,7 +966,7 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         
         # Return to STATE0 and exit programming mode for flash
         send_return_0()
-        time.sleep(0.1)
+        time.sleep(0.02)
         exit_prog_mode()
         
         # --- RESUME OLED after successful flash ---
@@ -864,9 +978,9 @@ def execute_unified_programming(data_source, execution_mode="ram", flash_locatio
         # Blink GP2 to indicate successful flash write
         for _ in range(3):
             led_gp2.value = True
-            time.sleep(0.15)
+            time.sleep(0.05)
             led_gp2.value = False
-            time.sleep(0.15)
+            time.sleep(0.05)
         log_message(f"SUCCESS: Program written to FLASH location {flash_location:X}")
         oled_status("FLASH OK", "Loc {:X} done".format(flash_location))
         
@@ -1376,7 +1490,7 @@ def stop_execution():
     
     # Send RETURN_0 to stop execution
     send_return_0()
-    time.sleep(0.1)
+    time.sleep(0.02)
     
     # Exit programming mode, also clears running flag
     exit_prog_mode()
@@ -1399,8 +1513,8 @@ def main():
     log_message("  * PURPLE = Location programming in progress") 
     log_message("  * BLUE = RAM upload in progress")
     log_message("  * OFF = Normal operation")
-    log_message("- Place output.hex for RAM execution")
-    log_message("- Place 0.hex through F.hex for location programming")
+    log_message("- Place a .prj file for project-based programming")
+    log_message("- Or place 0.hex-F.hex / output.hex for legacy mode")
     log_message("- Press GP3 button to reprogram")
     log_message("- FT260 USB-I2C Bridge emulation available")
     log_message("")
@@ -1419,20 +1533,67 @@ def main():
     # Always return to STATE0 on boot
     debug_message("Ensuring STATE0 on startup...")
     stop_execution()
-    time.sleep(0.1)
+    
+    # Track active project name for OLED display
+    active_project_name = None
     
     def do_programming():
-        """Run the full programming sequence from hex files.
+        """Run the full programming sequence from hex files or .prj project.
+        Checks for .prj file first; falls back to 0.hex-F.hex + output.hex.
         Returns True if all succeeded, False on any failure."""
+        nonlocal active_project_name
         global running
         
         if running:
             oled_status("Stopping RAM...", "")
             stop_execution()
             running = False
-            time.sleep(0.1)
+            time.sleep(0.02)
         
-        # Find all valid hex files
+        # --- Check for .prj project file first ---
+        prj_filename = find_prj_file()
+        
+        if prj_filename:
+            project = parse_prj_file(prj_filename)
+            if project is None:
+                oled_status("PRJ file error", "Check serial log")
+                set_status_led(RED)
+                return False
+            
+            active_project_name = project['name']
+            display_name = active_project_name[:21]
+            oled_status(display_name, "Programming...")
+            log_message(f"Programming project: {active_project_name}")
+            
+            # Update screensaver text to project name
+            screensaver_label.text = display_name[:11]
+            
+            # Program each slot defined in the .prj file
+            slot_keys = sorted(project['slots'].keys())
+            total = len(slot_keys)
+            
+            for idx, slot in enumerate(slot_keys):
+                filename = project['slots'][slot]
+                log_message(f"[{idx+1}/{total}] Slot {slot:X} <- {filename}")
+                oled_status(display_name, "Slot {:X} ({}/{})".format(slot, idx+1, total))
+                
+                if not program_location(slot, filename):
+                    error_message(f"Failed to program slot {slot:X} with {filename}")
+                    oled_status("FAIL slot {:X}".format(slot), "Press btn to retry")
+                    set_status_led(RED)
+                    return False
+                
+                log_message(f"Slot {slot:X} OK")
+            
+            log_message(f"Project '{active_project_name}' complete: {total} slot(s) programmed")
+            return True
+        
+        # --- No .prj file: fall back to legacy 0.hex-F.hex + output.hex ---
+        active_project_name = None
+        
+        # Reset screensaver text to default
+        screensaver_label.text = "FXCORE PROG"
+        
         output_hex_valid, location_files = find_valid_hex_files()
         
         if not output_hex_valid and not location_files:
@@ -1450,7 +1611,6 @@ def main():
                 filename = location_files[location]
                 done += 1
                 log_message(f"Found {filename} - programming location {location:X}...")
-                # oled_status is handled inside execute_unified_programming
                 
                 if not program_location(location, filename):
                     error_message(f"Failed to program location {location:X}")
@@ -1463,7 +1623,6 @@ def main():
         # RAM execution last
         if output_hex_valid:
             done += 1
-            # oled_status is handled inside execute_unified_programming
             if run_ram_execution():
                 running = True
             else:
@@ -1478,7 +1637,10 @@ def main():
     
     if not running:
         if success:
-            oled_status("All done", "Press btn to redo")
+            if active_project_name:
+                oled_status(active_project_name[:21], "Done. Btn to redo")
+            else:
+                oled_status("All done", "Press btn to redo")
             set_status_led(GREEN)
         # else: failure message already shown by do_programming
     
@@ -1518,7 +1680,7 @@ def main():
                         oled_status("Stopping RAM...", "")
                         stop_execution()
                         running = False
-                        time.sleep(0.1)
+                        time.sleep(0.02)
                         oled_status("RAM stopped", "Press btn to redo")
                         set_status_led(OFF)
                     else:
@@ -1527,7 +1689,10 @@ def main():
                         success = do_programming()
                         if not running:
                             if success:
-                                oled_status("All done", "Press btn to redo")
+                                if active_project_name:
+                                    oled_status(active_project_name[:21], "Done. Btn to redo")
+                                else:
+                                    oled_status("All done", "Press btn to redo")
                                 set_status_led(GREEN)
             button_was_pressed = button_pressed
             
