@@ -1463,6 +1463,28 @@ function generateCHeaderFromHex(hexData) {
     }
 }
 
+// Build the "Written at" timestamp line, e.g. "08 July 2026 9:09:41 -04:00"
+function getWrittenAtTimestamp() {
+    const now = new Date();
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = months[now.getMonth()];
+    const year = now.getFullYear();
+    const hours = now.getHours(); // no leading zero, matches your example format
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    const offsetMinutesTotal = -now.getTimezoneOffset(); // minutes east of UTC
+    const sign = offsetMinutesTotal >= 0 ? '+' : '-';
+    const absOffset = Math.abs(offsetMinutesTotal);
+    const offsetHours = String(Math.floor(absOffset / 60)).padStart(2, '0');
+    const offsetMinutes = String(absOffset % 60).padStart(2, '0');
+
+    return `${day} ${month} ${year} ${hours}:${minutes}:${seconds} ${sign}${offsetHours}:${offsetMinutes}`;
+}
+
 // Generate C header arrays
 function generateCArrays(baseName, mregData, cregData, sfrData, programData) {
     const mregSize = mregData.length;
@@ -1470,7 +1492,9 @@ function generateCArrays(baseName, mregData, cregData, sfrData, programData) {
     const sfrSize = sfrData.length;
     const prgSize = programData.length;
     
-    let header = `//Sizes of arrays, order is MREG, CREG, SFRs and program data\n`;
+    // let header = `//Sizes of arrays, order is MREG, CREG, SFRs and program data\n`;
+    let header = `// Written at: ${getWrittenAtTimestamp()}\n`;
+    header += `//Sizes of arrays, order is MREG, CREG, SFRs and program data\n`;
     header += `uint16_t ${baseName}_size[] = {\n`;
     header += `0x${mregSize.toString(16).padStart(4, '0').toUpperCase()}, `;
     header += `0x${cregSize.toString(16).toUpperCase()}, `;
