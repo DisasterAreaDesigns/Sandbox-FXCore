@@ -10,27 +10,13 @@ cpy_sc  out0, acc32     ; write accumulator to left DAC
 cpy_cs  acc32, in1      ; read input from right ADC
 cpy_sc  out1, acc32     ; and write accumulator to DAC`,
 
-    fxcore_blink: `; LED Blink Test
-; Blinks the USER0 and USER1 LEDs alternately
-; rate depends on sample rate PLL_RANGE DIP switches
+    fxcore_blink: `; simple program that flashes both LEDs alternately
 
-.rn ledflag r0
-
-; get sample counter
-cpy_cs  acc32, samplecnt
-andi    acc32, 0x1FFF       ; flip the bit every 8192 samples, approx. 2.93Hz at 48Khz sampling
-jnz     acc32, doLED
-
-; if the 13 lowest bits of sample counter are zero, flip the flag
-; this will flip once every 8192 samples as detailed above
-setFlag:
-xori    ledflag, 0x0001     ; invert LSB of ledflag, result in acc32
-cpy_cc  ledflag, acc32      ; store new result in ledflag
-
-doLED:
-set     user0|0, ledflag    ; set the usr0 output per the ledflag LSB
-xori    ledflag, 0x0001     ; XOR LSB of register to invert its state
-set     user1|0, acc32      ; set the user1 LED per the acc32 LSB`,
+cpy_cs  acc32, samplecnt    ; get sample counter
+set     user1|13, acc32     ; when the 13th bit flips, light the LED
+xori    acc32, 0x2000       ; invert the 13th bit
+set     user0|13, acc32     ; for alternating action
+`,
 
     fxcore_delay: `; Default program 4
 ;

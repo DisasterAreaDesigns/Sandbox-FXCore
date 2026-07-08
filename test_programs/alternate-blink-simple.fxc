@@ -1,7 +1,7 @@
 ; simple program that flashes both LEDs alternately
 
 cpy_cs	acc32, samplecnt	; get sample counter
-set		user1|12, acc32	; when the 13th bit flips, light the LED
+set		user1|13, acc32	; when the 13th bit flips, light the LED
 xori		acc32, 0x2000	; invert the 13th bit
 set		user0|13, acc32	; for alternating action
 
