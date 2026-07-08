@@ -776,12 +776,12 @@ function updateBuildResultsButtons() {
             }
         }
         
-        // Exit RAM button - present in RAM target, grayed out if not running from RAM
+        // Exit RAM button - present in RAM target, enabled only when connected
         if (exitRamBtn) {
             if (selectedProgram === 'ram') {
                 exitRamBtn.style.display = 'inline-block';
-                exitRamBtn.disabled = !isRunningFromRAM;
-                exitRamBtn.style.opacity = isRunningFromRAM ? '1' : '0.6';
+                exitRamBtn.disabled = !isConnected;
+                exitRamBtn.style.opacity = isConnected ? '1' : '0.6';
             } else {
                 exitRamBtn.style.display = 'none';
             }
@@ -815,8 +815,8 @@ function updateBuildResultsButtons() {
             if (selectedProgram === 'ram') {
                 exitRamBtn.style.display = 'inline-block';
                 exitRamBtn.textContent = 'Exit Run from RAM';
-                exitRamBtn.disabled = !isRunningFromRAM;
-                exitRamBtn.style.opacity = isRunningFromRAM ? '1' : '0.6';
+                exitRamBtn.disabled = !isDirectorySelected;
+                exitRamBtn.style.opacity = isDirectorySelected ? '1' : '0.6';
             } else {
                 exitRamBtn.style.display = 'inline-block';
                 exitRamBtn.textContent = 'Clear Hardware';
