@@ -336,6 +336,14 @@ class FXCoreCore {
 
         this.user = [this.usrPreset[0], this.usrPreset[1]];
 
+        // Programs drive the USER pins far faster than any display refreshes
+        // -- a typical software PWM runs a 256-sample cycle, 187 Hz at 48 kHz.
+        // Sampling the pin at display rate would alias that into noise, so the
+        // pin state is integrated here and read out as a duty cycle. That is
+        // what the LED and the eye actually do with a PWM signal.
+        this.userAccum = [0, 0];
+        this.userAccumN = 0;
+
         // Peripheral state
         this.potRaw = [0, 0, 0, 0, 0, 0];        // 12-bit ADC counts
         this.potTarget = [0, 0, 0, 0, 0, 0];     // what the UI asked for
@@ -622,6 +630,9 @@ class FXCoreCore {
         this.lastPC = pc;
 
         this.updateOverflow();
+        this.userAccum[0] += this.user[0];
+        this.userAccum[1] += this.user[1];
+        this.userAccumN++;
         this.sampleCount = (this.sampleCount + 1) >>> 0;
     }
 
@@ -636,6 +647,18 @@ class FXCoreCore {
     }
 
     getUserPins() { return [this.user[0], this.user[1]]; }
+
+    // Fraction of samples each USER pin has been high since the last call,
+    // then resets. Call this once per display frame; a caller that wants the
+    // instantaneous bit should use getUserPins() instead.
+    readUserDuty() {
+        const n = this.userAccumN;
+        const d = n ? [this.userAccum[0] / n, this.userAccum[1] / n] : [0, 0];
+        this.userAccum[0] = 0;
+        this.userAccum[1] = 0;
+        this.userAccumN = 0;
+        return d;
+    }
 
     // Execute the instruction at pc; return the next pc.
     step(pc) {

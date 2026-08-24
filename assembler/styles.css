@@ -1523,12 +1523,22 @@ body.dark-mode .opcode-description {
     border-radius: 50%;
     background: rgba(127, 127, 127, 0.25);
     border: 1px solid rgba(127, 127, 127, 0.4);
-    margin-right: 10px;
+    margin-right: 5px;
+    flex: 0 0 auto;
 }
-.sim-led.sim-led-on {
-    background: #ff5252;
-    box-shadow: 0 0 7px #ff5252;
-    border-color: #ff5252;
+/* Brightness is set inline from the measured duty cycle -- see
+   simUpdateLEDs(). The transition smooths the ~23 Hz display updates without
+   hiding a genuine blink. */
+.sim-led {
+    transition: background 0.06s linear, box-shadow 0.06s linear;
+}
+
+.sim-led-duty {
+    font-size: 10px;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+    min-width: 2.6em;
+    margin-right: 10px;
 }
 
 .sim-switch-list {

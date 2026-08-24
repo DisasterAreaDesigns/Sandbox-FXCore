@@ -115,7 +115,7 @@ function simBuildWorkletSource() {
         '            this.port.postMessage({type: "status",',
         '                peak: [this.peak[0] / 2147483648, this.peak[1] / 2147483648,',
         '                       this.peak[2] / 2147483648, this.peak[3] / 2147483648],',
-        '                user: this.core.user.slice(),',
+        '                userDuty: this.core.readUserDuty(),',
         '                flags: this.core.creg[17],',
         '                taptempo: this.core.sfr[45],',
         '                unimplemented: Object.keys(this.core.unimplemented),',
@@ -689,7 +689,7 @@ function simUpdateTransport() {
 
 function simUpdateStatusDisplay(d) {
     simUpdateMeters(d.peak);
-    simUpdateLEDs(d.user);
+    simUpdateLEDs(d.userDuty);
     simUpdateFlags(d.flags, d.taptempo);
     if (d.unimplemented && d.unimplemented.length) {
         simStatus('This program uses ' + d.unimplemented.join(', ') +
@@ -716,10 +716,42 @@ function simUpdateMeters(peak) {
     }
 }
 
-function simUpdateLEDs(user) {
+// Render each USER pin as a real LED would look, from the duty cycle the core
+// integrated over the last display window rather than from the instantaneous
+// bit. Programs PWM these pins in software -- a 256-sample cycle is 187 Hz at
+// 48 kHz -- so sampling the bit at display rate would alias a smooth fade into
+// random flicker.
+function simUpdateLEDs(duty) {
     for (let i = 0; i < 2; i++) {
         const el = document.getElementById('simUser' + i);
-        if (el) el.classList.toggle('sim-led-on', !!(user && user[i]));
+        if (!el) continue;
+        let d = duty && duty[i] != null ? duty[i] : 0;
+        if (!(d > 0)) d = 0; else if (d > 1) d = 1;
+
+        // Perceived brightness is not linear in duty cycle, so a 50% duty
+        // shown at 50% opacity reads far too dim. Gamma-correct for display.
+        const b = Math.pow(d, 1 / 2.2);
+
+        if (d > 0.002) {
+            // Interpolate the lit colour over the unlit face rather than using
+            // opacity, so the LED keeps a solid body at low brightness.
+            const r = Math.round(58 + b * 197);
+            const g = Math.round(58 + b * 24);
+            const bl = Math.round(58 + b * 24);
+            el.style.background = 'rgb(' + r + ',' + g + ',' + bl + ')';
+            el.style.borderColor = 'rgba(255,82,82,' + (0.35 + b * 0.65).toFixed(2) + ')';
+            el.style.boxShadow = '0 0 ' + (b * 9).toFixed(1) + 'px rgba(255,82,82,' +
+                b.toFixed(2) + ')';
+        } else {
+            // Back to the stylesheet's unlit appearance.
+            el.style.background = '';
+            el.style.borderColor = '';
+            el.style.boxShadow = '';
+        }
+
+        const pct = document.getElementById('simUser' + i + 'Duty');
+        if (pct) pct.textContent = Math.round(d * 100) + '%';
+        el.title = 'USER' + i + ' duty ' + (d * 100).toFixed(1) + '%';
     }
 }
 

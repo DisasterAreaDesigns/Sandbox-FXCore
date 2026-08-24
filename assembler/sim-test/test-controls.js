@@ -145,6 +145,75 @@ console.log('--- switch debounce and edge bits ---');
     ok('SWITCH still lags behind PIN', (sw() & 0x04) === 0x04);
 }
 
+// =====================================================================
+console.log('--- USER pin duty cycle ---');
+{
+    const W = (op, r, m) => (((op & 0xFF) << 24) | ((r & 0xFF) << 16) | (m & 0xFFFF)) | 0;
+
+    // A software PWM: count SAMPLECNT's low bits and light the pin while the
+    // count is below a threshold. This is the shape every FXCore program uses
+    // to dim an LED, and it switches far faster than any display refresh.
+    const pwm = (numerator) => {
+        const c = new FXCoreCore();
+        c.sampleRate = 48000;
+        c.setProgram(Int32Array.from([
+            W(0x64, 16, 46),          // CPY_CS ACC32, SAMPLECNT
+            W(0xA8, 16, 0xFF),        // ANDI ACC32, 0xFF     -> 0..255
+            W(0x04, 16, (-numerator) & 0xFFFF),  // ADDI ACC32, -numerator
+            W(0xB0, 16, 1),           // JNEG ACC32, +1   (below threshold)
+            W(0xB8, 0, 1),            // JMP +1           (at or above)
+            W(0xD4, 16, 0),           // SET USER0|0, ACC32   <- lit branch
+            W(0xB8, 0, 0)             // JMP  (fall through)
+        ]));
+        return c;
+    };
+
+    // Simpler and more direct: drive the pin from a known bit of SAMPLECNT.
+    const half = new FXCoreCore();
+    half.sampleRate = 48000;
+    half.setProgram(Int32Array.from([
+        W(0x64, 16, 46),              // CPY_CS ACC32, SAMPLECNT
+        W(0xD4, 16, 0)                // SET USER0|0, ACC32  -> bit 0 toggles
+    ]));
+    for (let i = 0; i < 4096; i++) half.run([0, 0, 0, 0]);
+    let d = half.readUserDuty();
+    ok('a pin toggling every sample reads as 50% duty',
+        Math.abs(d[0] - 0.5) < 0.01, `${(d[0] * 100).toFixed(2)}%`);
+
+    // Reading resets the accumulator
+    for (let i = 0; i < 100; i++) half.run([0, 0, 0, 0]);
+    const d2 = half.readUserDuty();
+    ok('readUserDuty resets its window', Math.abs(d2[0] - 0.5) < 0.05,
+        `${(d2[0] * 100).toFixed(2)}%`);
+    ok('reading twice with no samples gives zero, not NaN',
+        half.readUserDuty()[0] === 0);
+
+    // A pin held high reads 100%, held low reads 0%
+    const on = new FXCoreCore();
+    on.setProgram(Int32Array.from([
+        W(0xA4, 16, 1),               // ORI ACC32, 1
+        W(0xD4, 16, 0)                // SET USER0|0, ACC32
+    ]));
+    for (let i = 0; i < 500; i++) on.run([0, 0, 0, 0]);
+    ok('a pin held high reads 100%', on.readUserDuty()[0] === 1);
+
+    const off = new FXCoreCore();
+    off.setProgram(Int32Array.from([W(0xB8, 0, 0)]));
+    for (let i = 0; i < 500; i++) off.run([0, 0, 0, 0]);
+    ok('an untouched pin reads 0%', off.readUserDuty()[0] === 0);
+
+    // USER1 is tracked independently
+    const u1 = new FXCoreCore();
+    u1.setProgram(Int32Array.from([
+        W(0xA4, 16, 1),
+        W(0xD4, 16, 0x20)             // SET USER1|0, ACC32
+    ]));
+    for (let i = 0; i < 300; i++) u1.run([0, 0, 0, 0]);
+    const du = u1.readUserDuty();
+    ok('USER0 and USER1 accumulate separately', du[0] === 0 && du[1] === 1,
+        JSON.stringify(du));
+}
+
 console.log('');
 if (fail) { console.log('FAILURES:'); for (const f of failures) console.log('  ' + f); }
 console.log(`${pass} passed, ${fail} failed`);
