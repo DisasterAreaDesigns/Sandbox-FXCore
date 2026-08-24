@@ -46,7 +46,7 @@ require(['vs/editor/editor.main'], function() {
                 // Constants
                 [/\b(LFO[0-3]|SIN|COS|POS|NEG|RMP[0-1]|L512|L1024|L2048|L4096|XF[0-3]|USER[0-1])\b/, 'constant'],
                 [/\b(OUT[0-3]OFLO|IN[0-3]OFLO)\b/, 'constant'],
-                [/\b(TB2NTB1|TAPSTKY|NEWTT|TAPRE|TAPPE|TAPLVL)\b/, 'constant'],
+                [/\b(TB2NTB1|TAPSTKY|NEWTT|TAPRE|TAPPE|TAPDB|TAPLVL)\b/, 'constant'],
                 [/\b(SW[0-4](DB|RE|PE)?)\b/, 'constant'],
                 [/\b(ENABLEDB?|PLLRANGE[01]|MNS|I2CA[0-6]|TAP)\b/, 'constant'],
                 [/\bPR(1[0-5]|[0-9])\b/, 'constant'],
