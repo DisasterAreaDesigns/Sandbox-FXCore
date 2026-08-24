@@ -120,6 +120,95 @@ The `FXCoreIC` class generates the byte arrays from the assembled machine code. 
 - **CREG**: Only settable core registers (filtered automatically)
 - **SFR**: Fixed format with special packing for POT, LFO, and tempo values
 
+### 5. Library Preprocessor (`preprocessor.js`, `fxl_library.js`)
+
+The command line toolchain ships a separate preprocessor that inlines library
+subroutines into a program before the assembler sees it. This application does
+the same job in the browser, so a `.fxc` file that calls libraries assembles
+without any external tool.
+
+**Pipeline position:**
+```javascript
+Program.Asm_it() → Program.Preprocess() → SymbolTable.loadTable() → Assembler.assemble()
+```
+
+The assembler itself is unchanged: it only ever sees plain FXCore assembly.
+Source containing no `@` call is passed through untouched.
+
+**`fxl_library.js`** reads `.fxl` library files. These are XML:
+
+```xml
+<library>
+    <name>lx</name>
+    <desc>Example library</desc>
+    <sub>
+        <name>fader</name>
+        <desc>Ramp a control register</desc>
+        <param><name>dest_sub</name><type>CREG</type><desc>result</desc></param>
+        <param><name>step</name><type>DEC</type><desc>ramp increment</desc></param>
+        <code>
+            cpy_cc  acc32, dest_sub
+            addri   acc32, step
+            cpy_cc  dest_sub, acc32
+        </code>
+    </sub>
+</library>
+```
+
+Parameter types are `MREG`, `CREG`, `SREG`, `INT` and `DEC`. The XML is read by
+a small hand written parser rather than `DOMParser`, both so the same file works
+under Node for the test suite and so `<code>` bodies containing `<<` and `>>`
+survive verbatim.
+
+**`preprocessor.js`** expands calls of the form:
+
+```assembly
+@lib.sub(arg1, arg2, ...)
+label: @lib.sub(arg1, arg2, ...)
+```
+
+A call must be the only statement on its line. Calls inside `;`, `//` and
+`/* */` comments are ignored. Library code may itself call other libraries;
+nesting is limited to 8 levels.
+
+For each call the preprocessor:
+
+- comments the original call line out and emits the expanded body beneath it,
+  closing with `// end inclusion library <lib> --  subroutine <sub>`
+- renames every label defined in the subroutine body by appending the call
+  site's line number, so calling the same subroutine twice cannot collide
+- substitutes arguments for parameters and annotates each line with
+  `matching <PARAM> with <ARG> type <TYPE>`
+- checks the argument count, and that a register argument comes from the bank
+  the parameter declares
+
+**Equation solving** reuses the assembler's own machinery — `LineParse.Tokenize`
+followed by `ShuntingYard`, the same pair `tryResolveParameter()` uses — so
+reserved words, `.equ` values and register numbers resolve exactly as they do
+in the assembler. Only call site arguments are solved. An argument that cannot
+be reduced to a number is wrapped in parentheses and left for the assembler,
+which preserves precedence when it is pasted into a larger expression.
+Expressions inside library code are substituted and left whole, flagged with
+`Complex equation substitution`.
+
+Errors (unknown library or subroutine, wrong argument count, register bank
+mismatch, unclosed parenthesis) stop the build and are reported against the
+call line in the original source.
+
+**Library folder:**
+
+Press "Select Library Folder" and pick a directory. It is scanned recursively
+(up to 4 levels) for `.fxl` files, and every library found is loaded. Because
+the File System Access API cannot persist directory handles, the folder must be
+re-selected each session. The folder is rescanned quietly whenever the window
+regains focus, so editing a `.fxl` in another editor is picked up without
+re-selecting it.
+
+**Save Expanded Source** writes the preprocessed program out as a `.fxo` file,
+matching what the command line preprocessor produces. Note that line numbers in
+assembler messages refer to the *expanded* source once any library call has been
+inlined; the log says so when that happens.
+
 ## Assembly Language Features
 
 ### Instruction Format
@@ -202,9 +291,10 @@ The application is designed to run in modern web browsers and includes:
 ## Usage Workflow
 
 1. **File Selection**: Upload a `.fxc` or `.fxo` assembly source file, or enter valid FXCore assembly language into the text editor window.
-2. **Assembly**: Click "Assemble" to begin processing.
-3. **Verification**: Review the log output for any errors or warnings
-4. **Programming Setup**: Press the "Select Output Directory" button to choose the location of the programming hardware, typically this is a removable volume labeled `CIRCUITPY`.
-5. **Device Programming**: Press the "Download Hex" button to save the assembled code to the programming hardware.  Press the "Clear Hardware" button to clear the programming hardware and return it to normal operation.
+2. **Library Folder** (only if the source calls `@lib.sub(...)`): Press "Select Library Folder" and choose the directory holding your `.fxl` files.
+3. **Assembly**: Click "Assemble" to begin processing.
+4. **Verification**: Review the log output for any errors or warnings
+5. **Programming Setup**: Press the "Select Output Directory" button to choose the location of the programming hardware, typically this is a removable volume labeled `CIRCUITPY`.
+6. **Device Programming**: Press the "Download Hex" button to save the assembled code to the programming hardware.  Press the "Clear Hardware" button to clear the programming hardware and return it to normal operation.
 
 This JavaScript port maintains full compatibility with the original C# assembler while providing a convenient web-based interface for FXCore development workflows.

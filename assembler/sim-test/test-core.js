@@ -319,6 +319,21 @@ console.log('--- SET drives the USER pins ---');
     ok('SET N=14 reads bit 14 (clear)', c.user[0] === 0);
     c = runProg([W(0xD4, 0, 0x20 | 15)], k => { k.creg[0] = 1 << 15; });
     ok('SET U=1,N=15 drives USER1 only', c.user[1] === 1 && c.user[0] === 0);
+
+    // The pins latch. A program pass that runs no SET leaves them exactly as
+    // the last SET left them -- they are not re-cleared at the top of each
+    // sample. Only another SET or a core reset changes them.
+    c = runProg([W(0xD4, 0, 0x00)], k => { k.creg[0] = 1; });
+    ok('SET USER0 high before the latch test', c.user[0] === 1);
+    c.prog[0] = W(0x06, 0, 1);                 // swap in a pass with no SET
+    for (let i = 0; i < 500; i++) c.run([0, 0, 0, 0]);
+    ok('USER0 stays high with no further SET', c.user[0] === 1);
+    ok('a latched pin reads as fully on', c.readUserDuty()[0] === 1);
+
+    // ... and a reset is the one thing that puts them back to the .usr preset.
+    c.setPresets({ usr: [0, 1] });
+    ok('reset loads USER0 from the preset', c.user[0] === 0);
+    ok('reset loads USER1 from the preset', c.user[1] === 1);
 }
 
 // =====================================================================

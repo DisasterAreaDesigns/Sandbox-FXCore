@@ -189,12 +189,14 @@ that reads `NOISE`, so we use a fast PRNG and exclude such programs from
 bit-exact comparison. Is that right, or is there a deterministic LFSR
 underneath that we could match?
 
-**3.5 `USR0` / `USR1`.** The assembler carries these as 1-bit, header-only
-values (numbered 998/999 internally, packed into one byte of the SFR header),
-and the Instruction Set doc's SFR table doesn't list them at all. Our reading is
-that they set the initial state of the USER pins at program load, and that
-`SET USERBIT|N, CREG` is the only way to drive them at runtime. Is that
-correct, and can a running program read the current pin state back?
+**3.5 `USR0` / `USR1`.** *Answered — the pins latch: they are not cleared at
+the top of each program pass, and hold their state until another `SET` writes
+them or the core resets.* The remaining half of the question stands: can a
+running program read the current pin state back? The assembler carries these as
+1-bit, header-only values (numbered 998/999 internally, packed into one byte of
+the SFR header), and the Instruction Set doc's SFR table doesn't list them at
+all, so we treat them as the initial state at program load with
+`SET USERBIT|N, CREG` as the only way to drive them at runtime.
 
 **3.6 Overflow flags.** Set when a channel is within 0.5 dB of full scale, per
 the datasheet. Do the `INxOFLO`/`OUTxOFLO` bits reflect the current sample, or

@@ -1006,6 +1006,10 @@ class FXCoreCore {
 
             case this.OP_SET:
                 // M field is 00UN NNNN: U picks USER0/USER1, N picks the bit.
+                //
+                // The pins latch: nothing clears them at the top of a program
+                // pass, so a pin holds its state until another SET writes it
+                // or the core resets (confirmed by Experimental Noize).
                 this.user[(m >> 5) & 1] = (rv >>> (m & 0x1F)) & 1;
                 break;
 

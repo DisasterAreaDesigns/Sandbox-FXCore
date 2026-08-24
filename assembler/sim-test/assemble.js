@@ -10,7 +10,8 @@ const DIR = path.join(__dirname, '..');
 const FILES = [
     'debug_config.js', 'common.js', 'reserved_words.js', 'registers.js',
     'mnemonic.js', 'shunting_yard.js', 'line_parse.js', 'intel_hex.js',
-    'symbol_table.js', 'fxcore_ic.js', 'assembler.js', 'program.js'
+    'symbol_table.js', 'fxcore_ic.js', 'assembler.js',
+    'fxl_library.js', 'preprocessor.js', 'program.js'
 ];
 
 function makeContext(opts) {
@@ -61,6 +62,8 @@ function makeContext(opts) {
         'globalThis.Program = Program;' +
         'globalThis.regtypes = regtypes;' +
         'globalThis.common = common;' +
+        'globalThis.FXLibrarySet = FXLibrarySet;' +
+        'globalThis.Preprocessor = Preprocessor;' +
         // debug_config.js installs a debugLog that writes into the messages
         // pane. Replace it with a collector so failures surface as text.
         'globalThis.debugLog = function (msg, level) {' +
@@ -73,8 +76,16 @@ function makeContext(opts) {
 
 // Assemble source text; returns the sim image or throws with the assembler's
 // own error messages attached.
+// opts.libraries is an optional { 'name.fxl': '<library>...' } map, standing in
+// for the library folder the browser build asks the user to pick.
 function assemble(source, name, opts) {
     const ctx = makeContext(opts);
+    if (opts && opts.libraries) {
+        const set = ctx.FXCoreAssembler.getLibraries();
+        for (const file of Object.keys(opts.libraries)) {
+            set.addFile(opts.libraries[file], file);
+        }
+    }
     ctx.FXCoreAssembler.sourceCode = source;
     ctx.FXCoreAssembler.lastAsm = null;
     ctx.FXCoreAssembler.lastTable = null;
@@ -109,6 +120,7 @@ function assemble(source, name, opts) {
         cfg: Object.assign({}, image.cfg),
         instructionCount: image.instructionCount,
         hex: ctx.FXCoreAssembler.assembledHex,
+        expandedSource: ctx.FXCoreAssembler.expandedSource,
         messages: ctx.__messages
     };
 }

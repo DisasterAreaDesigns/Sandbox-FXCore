@@ -42,9 +42,57 @@ class Program {
         return new Date();
     }
 
+    /**
+     * Expand "@library.subroutine(...)" calls before assembly.
+     * Returns the source to assemble, or null if expansion failed. The
+     * expanded text is kept on FXCoreAssembler.expandedSource so the user can
+     * read or save the .fxo the assembler actually saw.
+     */
+    static Preprocess(sourceCode) {
+        FXCoreAssembler.expandedSource = null;
+
+        if (typeof Preprocessor === 'undefined') return sourceCode;
+
+        const pre = new Preprocessor(FXCoreAssembler.getLibraries());
+        let result;
+        try {
+            result = pre.process(sourceCode);
+        } catch (error) {
+            debugLog(`Preprocessor failed: ${error.message}`, 'errors');
+            return null;
+        }
+
+        result.warnings.forEach(w => {
+            debugLog(`Line ${w.line}: ${w.message}`, 'warnings');
+        });
+
+        if (!result.ok) {
+            result.errors.forEach(e => {
+                common.code_error(e.message, e.line, (e.text || '').trim());
+                debugLog(`Line ${e.line}: ${e.message}`, 'errors');
+            });
+            return null;
+        }
+
+        if (result.expansions > 0) {
+            FXCoreAssembler.expandedSource = result.text;
+            debugLog(`Preprocessor expanded ${result.expansions} library call(s) from ` +
+                `${result.used.join(', ')}`, 'success');
+            debugLog('Line numbers below refer to the expanded source', 'info');
+        }
+
+        return result.text;
+    }
+
     static Asm_it() {
         debugLog('Starting Asm_it() method', 'info');
         debugLog(`Source code available: ${FXCoreAssembler.sourceCode ? 'YES' : 'NO'}`, 'info');
+
+        // Inline any library calls first. This is the same step the command
+        // line toolchain does with its separate preprocessor: the assembler
+        // only ever sees plain FXCore assembly.
+        const source = Program.Preprocess(FXCoreAssembler.sourceCode);
+        if (source === null) return false;
 
         const myfxcore = new FXCoreIC(); // declare the IC and its properties
         const data = new Array(4098).fill(0);
@@ -55,7 +103,7 @@ class Program {
         debugLog('SymbolTable created', 'info');
         debugLog(`mytable.checkreg exists: ${mytable.checkreg ? 'YES' : 'NO'}`, 'info');
 
-        if (!mytable.loadTable(FXCoreAssembler.sourceCode)) {
+        if (!mytable.loadTable(source)) {
             // if we got a false there was an error in loading/creating the symbol table
             common.gen_error("Error creating symbol table", Program.filename);
             return false;
@@ -67,7 +115,7 @@ class Program {
         const myasm = new Assembler(Program.filename, mytable);
         debugLog('Calling assembler.assemble()', 'info');
 
-        if (!myasm.assemble(FXCoreAssembler.sourceCode)) {
+        if (!myasm.assemble(source)) {
             // if we got a false there was an error in assembly
             common.gen_error("Error assembling code", Program.filename);
             return false;
@@ -238,8 +286,19 @@ class FXCoreAssembler {
     static selectedFile = null;
     static assembledHex = null;
     static sourceCode = null;
+    static expandedSource = null; // Source after library calls were inlined, null if none
+    static libraries = null;      // FXLibrarySet built from the user's library folder
     static lastAsm = null;      // Assembler instance from the last good build
     static lastTable = null;    // SymbolTable from the last good build
+
+    // The set of .fxl libraries available to the preprocessor. Created on
+    // first use so load order between the assembler scripts does not matter.
+    static getLibraries() {
+        if (!FXCoreAssembler.libraries && typeof FXLibrarySet !== 'undefined') {
+            FXCoreAssembler.libraries = new FXLibrarySet();
+        }
+        return FXCoreAssembler.libraries;
+    }
 
     static init() {
         const uploadArea = document.getElementById('uploadArea');

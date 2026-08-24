@@ -25,7 +25,6 @@ let simFileBuffer = null;
 let simFileBytes = null;
 let simFileName = null;
 let simRunning = false;
-let simBypass = false;
 let simImage = null;          // last successfully assembled sim image
 
 // FXCore derives its sample rate from the PLL RANGE pins in master mode, which
@@ -505,13 +504,20 @@ function simNumber(id, fallback) {
 //     ; #POT0 Reverb time
 //     ; #SW1 Freeze
 //     // #POT3 Damping
+//     ; #TAP Tempo
+//     ; #LED0 Bypass          (#USER0 means the same thing)
 //
 // The tag is read from the comment portion of a line, so it can never collide
 // with code, and the assembler ignores it because it is inside a comment. A
 // control with no tag keeps its hardware name.
 
 function simParseControlNames(src) {
-    const names = { pot: new Array(6).fill(null), sw: new Array(5).fill(null) };
+    const names = {
+        pot: new Array(6).fill(null),
+        sw: new Array(5).fill(null),
+        led: new Array(2).fill(null),
+        tap: null
+    };
     if (!src) return names;
 
     for (const line of src.split(/\r?\n/)) {
@@ -525,7 +531,7 @@ function simParseControlNames(src) {
         else if (dbl >= 0) cut = dbl + 2;
         const text = cut >= 0 ? line.slice(cut) : line;
 
-        const m = /#(POT[0-5]|SW[0-4])\b[ \t]*(.*)$/i.exec(text);
+        const m = /#(POT[0-5]|SW[0-4]|USER[01]|LED[01]|TAP)\b[ \t]*(.*)$/i.exec(text);
         if (!m) continue;
 
         // Stop the name at a further comment marker or a block-comment close,
@@ -534,8 +540,12 @@ function simParseControlNames(src) {
         if (!name) continue;
 
         const tag = m[1].toUpperCase();
-        if (tag.indexOf('POT') === 0) names.pot[+tag.slice(3)] = name;
-        else names.sw[+tag.slice(2)] = name;
+        if (tag === 'TAP') names.tap = name;
+        else if (tag.indexOf('POT') === 0) names.pot[+tag.slice(3)] = name;
+        else if (tag.indexOf('SW') === 0) names.sw[+tag.slice(2)] = name;
+        // The two lamps answer to either spelling: USER0/USER1 is what the
+        // instruction set calls the pins, LED0/LED1 is what they drive.
+        else names.led[+tag.slice(-1)] = name;
     }
     return names;
 }
@@ -547,8 +557,19 @@ function simSetControlLabel(id, name, fallback) {
     el.classList.toggle('sim-renamed', !!name);
     // Keep the hardware name reachable once a program has renamed a control,
     // so it is still obvious which pot or switch is being driven.
-    const host = el.closest ? el.closest('.sim-slider-row, .sim-switch-row') : null;
+    const host = el.closest
+        ? el.closest('.sim-slider-row, .sim-switch-row, .sim-led-item') : null;
     if (host) host.title = name ? name + '  \u2014  ' + fallback : fallback;
+}
+
+// The tap pad has no separate label element -- the button's own text is the
+// name -- so it cannot go through simSetControlLabel.
+function simSetTapLabel(name) {
+    const el = document.getElementById('simTapBtn');
+    if (!el) return;
+    el.textContent = name || 'TAP';
+    el.classList.toggle('sim-renamed', !!name);
+    el.title = name ? name + '  \u2014  TAP' : 'TAP';
 }
 
 // Re-read the names from the editor. Cheap, so it can run on every edit.
@@ -560,6 +581,8 @@ function simRefreshControlNames() {
     const names = simParseControlNames(src);
     for (let i = 0; i < 6; i++) simSetControlLabel('simPot' + i, names.pot[i], 'POT' + i);
     for (let i = 0; i < 5; i++) simSetControlLabel('simSw' + i, names.sw[i], 'SW' + i);
+    for (let i = 0; i < 2; i++) simSetControlLabel('simUser' + i, names.led[i], 'USER' + i);
+    simSetTapLabel(names.tap);
 }
 
 // ---- momentary switch presses --------------------------------------------
@@ -658,16 +681,26 @@ function simApplyLevels() {
 
     const inGain = Math.pow(10, inDb / 20);
     const outGain = Math.pow(10, outDb / 20);
-    if (simInputGain) simInputGain.gain.value = simBypass ? 0 : inGain;
-    if (simDryGain) simDryGain.gain.value = simBypass ? inGain : 0;
+    const bypass = !simEnabled();
+    if (simInputGain) simInputGain.gain.value = bypass ? 0 : inGain;
+    if (simDryGain) simDryGain.gain.value = bypass ? inGain : 0;
     if (simOutputGain) simOutputGain.gain.value = outGain;
 }
 
-function simToggleBypass() {
-    const el = document.getElementById('simBypass');
-    simBypass = el ? el.checked : false;
+function simEnabled() {
+    const el = document.getElementById('simEnable');
+    return el ? el.checked : true;
+}
+
+// ENABLE is the pedal's effect-enable signal, so it does both jobs: it drives
+// the ENABLE pin the program reads, and it puts the dry path in circuit when
+// it is off. A program that implements its own soft bypass from the pin will
+// not be heard doing it while the switch is off -- the dry signal is already
+// on the output, exactly as it is on the hardware.
+function simToggleEnable() {
+    simSendPins();
     simApplyLevels();
-    if (simBypass) simStatus('Bypassed - hearing dry signal', 'warn');
+    if (!simEnabled()) simStatus('ENABLE off - bypassed, hearing dry signal', 'warn');
     else simReportRate();
 }
 

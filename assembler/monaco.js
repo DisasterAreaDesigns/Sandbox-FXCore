@@ -76,6 +76,9 @@ require(['vs/editor/editor.main'], function() {
                 // Declarations
                 [/\.(mem|equ|rn)\b/, 'keyword.declaration'],
 
+                // Library calls, inlined by the preprocessor before assembly
+                [/@[\w\-]+\.[\w\-]+/, 'keyword.declaration'],
+
                 // Constants
                 [/\b(LFO[0-3]|SIN|COS|POS|NEG|RMP[0-1]|L512|L1024|L2048|L4096|XF[0-3]|USER[0-1])\b/, 'constant'],
                 [/\b(OUT[0-3]OFLO|IN[0-3]OFLO)\b/, 'constant'],

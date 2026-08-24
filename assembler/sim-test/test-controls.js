@@ -41,6 +41,49 @@ console.log('--- #POTn / #SWn naming ---');
     eq('untagged switch keeps no name', n.sw[1], null);
     ok('out-of-range indices are ignored',
         n.pot.length === 6 && n.sw.length === 5);
+    eq('untagged tap keeps no name', n.tap, null);
+    ok('untagged LEDs keep no name', n.led.every(v => v === null));
+}
+
+console.log('--- #LEDn / #USERn naming ---');
+{
+    const n = simParseControlNames([
+        '; #LED0 Bypass',
+        '// #USER1 Tempo',
+        '; #LED2 Out of range',          // there are only two lamps
+        '; #USER0'                       // tag with no name, must not clear LED0
+    ].join('\n'));
+    eq('LED naming', n.led[0], 'Bypass');
+    eq('USER naming is the same lamp set', n.led[1], 'Tempo');
+    ok('out-of-range lamps are ignored', n.led.length === 2);
+
+    eq('both spellings reach the same lamp',
+        simParseControlNames('; #LED0 First\n; #USER0 Second').led[0], 'Second');
+    eq('LED tags are case insensitive',
+        simParseControlNames('; #led1 lower case').led[1], 'lower case');
+    eq('block comment close is stripped from the LED name',
+        simParseControlNames('/* #LED1 Clip */').led[1], 'Clip');
+    // '#' is the .mem tail-pointer suffix, so a delay line called led0 must
+    // not be read as a tag.
+    eq('a delay named led0 does not rename LED0',
+        simParseControlNames('.mem led0 1000\nrddel acc32, led0#').led[0], null);
+}
+
+console.log('--- #TAP naming ---');
+{
+    eq('tap naming', simParseControlNames('; #TAP Tempo').tap, 'Tempo');
+    eq('tap tag is case insensitive',
+        simParseControlNames('// #tap Delay time').tap, 'Delay time');
+    eq('block comment close is stripped from the tap name',
+        simParseControlNames('/* #TAP Speed */').tap, 'Speed');
+    eq('a tap tag with no name is ignored',
+        simParseControlNames('; #TAP').tap, null);
+    eq('a later tap tag wins',
+        simParseControlNames('; #TAP First\n; #TAP Second').tap, 'Second');
+    // '#' is the .mem tail-pointer suffix, so a delay line called tap must
+    // not be read as a tag.
+    eq('a delay named tap does not rename the pad',
+        simParseControlNames('.mem tap 1000\nrddel acc32, tap#').tap, null);
 }
 
 console.log('--- naming must not pick up code ---');

@@ -1431,6 +1431,24 @@ body.dark-mode .opcode-description {
 .flyout-content .sim-tap-btn { background: #34495e; }
 .flyout-content .sim-tap-btn:active { background: #c0392b; }
 
+/* Filled navy sits right in the dark panel, but in the light theme it reads
+   as a hole punched in the page. Light mode takes the same tinted surface the
+   status line and the PUSH buttons use, so the pad still looks like a button
+   without going dark. The red press state is kept in both themes. */
+body:not(.dark-mode) .flyout-content .sim-tap-btn {
+    background: rgba(127, 127, 127, 0.12);
+    color: inherit;
+    border: 1px solid var(--flyout-border, #ccc);
+}
+body:not(.dark-mode) .flyout-content .sim-tap-btn:hover {
+    background: rgba(127, 127, 127, 0.2);
+}
+body:not(.dark-mode) .flyout-content .sim-tap-btn:active {
+    background: #c0392b;
+    border-color: #c0392b;
+    color: #fff;
+}
+
 .sim-status {
     font-size: 12px;
     padding: 5px 7px;
@@ -1468,7 +1486,15 @@ body.dark-mode .opcode-description {
 }
 
 .sim-slider-row input[type="range"] { flex: 1; min-width: 0; }
-.sim-row select { flex: 1; min-width: 0; }
+/* Two selects share one row with an 88px label, and the shared
+   .flyout-content select padding leaves so little room that "OUT0" is clipped
+   behind the dropdown arrow. Tighten them to fit the panel. */
+.sim-row select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 2px 6px 7px;
+    font-size: 11px;
+}
 
 .sim-value {
     flex: 0 0 auto;
@@ -1511,11 +1537,26 @@ body.dark-mode .opcode-description {
 .sim-leds {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
     margin: 8px 0 4px;
     font-size: 11px;
 }
-.sim-led-label { opacity: 0.75; }
+/* Each lamp keeps its label, dot and duty readout together, so a program that
+   renames one to something long wraps the pair onto its own line instead of
+   pushing the other lamp out of the panel. */
+.sim-led-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.sim-led-label {
+    opacity: 0.75;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 .sim-led {
     width: 12px;

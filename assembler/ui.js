@@ -2,6 +2,8 @@
 let outputDirectoryHandle = null;
 let preferredStartDirectory = 'downloads';
 let projectDirectoryHandle = null;
+let libraryDirectoryHandle = null;
+let libraryScanPending = false;
 let modalResolve = null;
 let selectedProgram = 'ram'; // Default to RAM
 let selectedHW = 'hid'; // Changed to start in HID mode by default
@@ -29,6 +31,173 @@ async function selectProjectDirectory() {
             debugLog('Error selecting project directory: ' + err.message, 'errors');
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Library folder
+//
+// The command line toolchain runs a separate preprocessor that pastes library
+// subroutines into a program before assembling it. Point this at a folder of
+// .fxl files and the same thing happens here: every "@library.subroutine(...)"
+// in the editor is expanded before the assembler sees the source.
+// ---------------------------------------------------------------------------
+
+const LIBRARY_SCAN_MAX_DEPTH = 4;
+
+async function selectLibraryDirectory() {
+    if (!('showDirectoryPicker' in window)) {
+        debugLog('Folder selection is not supported in this browser', 'errors');
+        return;
+    }
+    try {
+        const handle = await window.showDirectoryPicker();
+        libraryDirectoryHandle = handle;
+        await scanLibraryDirectory(false);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            debugLog('Error selecting library folder: ' + err.message, 'errors');
+        }
+    }
+}
+
+function clearLibraryDirectory() {
+    libraryDirectoryHandle = null;
+    const libs = typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.getLibraries() : null;
+    if (libs) libs.clear();
+    updateLibraryFolderLabel('No folder selected', false);
+    debugLog('Library folder cleared', 'info');
+}
+
+// Walk the chosen folder for .fxl files and hand them to the preprocessor.
+// quiet is used by the automatic refresh so a background rescan does not fill
+// the build log every time the window regains focus.
+async function scanLibraryDirectory(quiet) {
+    if (!libraryDirectoryHandle) return false;
+    if (typeof FXCoreAssembler === 'undefined' || !FXCoreAssembler.getLibraries()) {
+        debugLog('Library support is not loaded', 'errors');
+        return false;
+    }
+
+    const files = [];
+    try {
+        await collectLibraryFiles(libraryDirectoryHandle, '', 0, files);
+    } catch (err) {
+        if (!quiet) debugLog('Error reading library folder: ' + err.message, 'errors');
+        return false;
+    }
+
+    const libs = FXCoreAssembler.getLibraries();
+    libs.clear();
+
+    let loaded = 0;
+    for (const entry of files) {
+        let text;
+        try {
+            text = await (await entry.handle.getFile()).text();
+        } catch (err) {
+            if (!quiet) debugLog(`Could not read ${entry.path}: ${err.message}`, 'errors');
+            continue;
+        }
+        try {
+            const info = libs.addFile(text, entry.path);
+            loaded++;
+            info.warnings.forEach(w => debugLog(w, 'warnings'));
+            if (!quiet) {
+                debugLog(`Library "${info.name}" from ${entry.path}: ` +
+                    `${info.subs.length} subroutine(s)`, 'info');
+            }
+        } catch (err) {
+            debugLog(`${entry.path} is not a valid .fxl library: ${err.message}`, 'errors');
+        }
+    }
+
+    const label = libraryDirectoryHandle.name +
+        ` (${loaded} librar${loaded === 1 ? 'y' : 'ies'}, ${libs.subCount()} subroutines)`;
+    updateLibraryFolderLabel(label, loaded > 0);
+
+    if (!quiet) {
+        if (loaded === 0) {
+            debugLog(`No .fxl libraries found in ${libraryDirectoryHandle.name}`, 'warnings');
+        } else {
+            debugLog(`Loaded ${loaded} librar${loaded === 1 ? 'y' : 'ies'} ` +
+                `(${libs.subCount()} subroutines) from ${libraryDirectoryHandle.name}`, 'success');
+        }
+    }
+    return loaded > 0;
+}
+
+async function collectLibraryFiles(dirHandle, prefix, depth, out) {
+    for await (const entry of dirHandle.values()) {
+        const path = prefix ? prefix + '/' + entry.name : entry.name;
+        if (entry.kind === 'file') {
+            if (entry.name.toLowerCase().endsWith('.fxl')) {
+                out.push({ path: path, handle: entry });
+            }
+        } else if (entry.kind === 'directory' && depth < LIBRARY_SCAN_MAX_DEPTH) {
+            if (entry.name.startsWith('.')) continue;
+            await collectLibraryFiles(entry, path, depth + 1, out);
+        }
+    }
+}
+
+function updateLibraryFolderLabel(text, connected) {
+    const label = document.getElementById('libraryFolderLabel');
+    if (!label) return;
+    label.textContent = text.startsWith('No ') ? text : `Selected: ${text}`;
+    label.style.color = connected ? '#28a745' : '';
+}
+
+// Libraries are read once when the folder is chosen, but a .fxl edited in
+// another editor should not need a second trip through the picker. Refresh
+// quietly whenever the page comes back to the foreground.
+function scheduleLibraryRefresh() {
+    if (!libraryDirectoryHandle || libraryScanPending) return;
+    libraryScanPending = true;
+    setTimeout(async () => {
+        try {
+            await scanLibraryDirectory(true);
+        } catch (err) {
+            // A refresh that fails is not worth interrupting the user over;
+            // the next assemble will report anything that actually matters.
+        } finally {
+            libraryScanPending = false;
+        }
+    }, 0);
+}
+
+if (typeof document !== 'undefined') {
+    window.addEventListener('focus', scheduleLibraryRefresh);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) scheduleLibraryRefresh();
+    });
+}
+
+// Save the source the assembler actually saw, with library calls expanded.
+// This is the .fxo the command line preprocessor would have written.
+async function saveExpandedSource() {
+    const expanded = typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.expandedSource : null;
+    if (!expanded) {
+        debugLog('No expanded source - assemble a program that calls a library first', 'errors');
+        return false;
+    }
+
+    let defaultFilename = 'output.fxo';
+    if (window.getCurrentFilename) {
+        const current = window.getCurrentFilename();
+        if (current) defaultFilename = current.replace(/\.[^/.]+$/, '') + '.fxo';
+    }
+
+    const result = await downloadWithPicker(expanded, defaultFilename,
+        'text/plain', 'FXCore expanded source');
+    return result.success === true;
+}
+
+function updateExpandedSourceButton() {
+    const btn = document.getElementById('saveExpandedBtn');
+    if (!btn) return;
+    const has = typeof FXCoreAssembler !== 'undefined' && !!FXCoreAssembler.expandedSource;
+    btn.disabled = !has;
+    btn.style.opacity = has ? '1' : '0.6';
 }
 
 function showConfirmDialog(title, message) {
@@ -428,6 +597,7 @@ async function clearAssembly() {
     // Clear C header data
     if (typeof FXCoreAssembler !== 'undefined') {
         FXCoreAssembler.assembledCHeader = null;
+        FXCoreAssembler.expandedSource = null;
     }
     window.assembledCHeader = null;
 
@@ -1262,6 +1432,8 @@ function updatePlainHexButton() {
         downloadCHeaderBtn.disabled = !hasAssembledData;
         downloadCHeaderBtn.style.opacity = hasAssembledData ? '1' : '0.6';
     }
+
+    updateExpandedSourceButton();
 }
 
 // Download C header file
