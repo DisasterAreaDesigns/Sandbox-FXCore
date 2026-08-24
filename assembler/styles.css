@@ -1601,3 +1601,30 @@ body.dark-mode .opcode-description {
     line-height: 1.45;
     opacity: 0.72;
 }
+
+
+/* The flyout handles stay pinned at the right edge while a panel is open, so
+   they sit over the panel's right margin. Most panels have nothing there, but
+   the simulator puts controls -- PUSH buttons, meter bars, value readouts --
+   right up to the edge, where the OPTIONS and INFO handles land on top of
+   them. Reserve the handle strip inside the simulator panel only, so the rest
+   of the app's panel behaviour is untouched. */
+#simPanel .flyout-content {
+    padding-right: 34px;
+}
+
+/* Tighten the vertical rhythm: the panel is long enough that the default
+   section spacing pushes the switches and levels below the fold. */
+#simPanel .flyout-section {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+}
+
+#simPanel .flyout-section h4 {
+    margin-bottom: 8px;
+}
+
+#simPanel .sim-slider-row,
+#simPanel .sim-row {
+    margin: 3px 0;
+}
