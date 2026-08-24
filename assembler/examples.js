@@ -13,6 +13,9 @@ cpy_sc  out1, acc32     ; and write accumulator to DAC`,
     fxcore_blink: `; LED Blink Test
 ; Blinks the USER0 and USER1 LEDs alternately
 ; rate depends on sample rate PLL_RANGE DIP switches
+;
+; #USER0 Blink
+; #USER1 Blink (inverted)
 
 .rn ledflag r0
 
@@ -37,23 +40,26 @@ set     user1|0, acc32      ; set the user1 LED per the acc32 LSB`,
 ; Delay using POT or tap switch
 ; Mono in/out
 ;
-; pot0 = delay time in pot mode 
-; pot1 = feedback
-; pot2 = lp filter
-; pot3 =
-; pot4 = 
-; pot5 = 
+; #POT0 Delay time
+; #POT1 Feedback
+; #POT2 LP filter
+; pot3, pot4 and pot5 are unused
 ;
-; tap switch = set delay time and switch to tap mode
-; hold tap on first tap = switch back to POT control from tap control
+; #TAP Tap tempo
+; a tap sets the delay time and switches to tap mode
+; holding the first tap switches back to POT control
 ;
+; #SW0 Divide bit 0
+; #SW1 Divide bit 1
 ; sw1/0: 00 - no divide (1/4 note)
 ;        01 - /2 (1/8th note)
 ;        10 - /3 (triplet)
 ;        11 - /4 (1/16th note)
 ;
-; user0 = blink at delay time
-; user1 = off in pot mode and on in tap mode
+; #USER0 Delay time
+; #USER1 Tap mode
+; user0 blinks at the delay time
+; user1 is off in pot mode and on in tap mode
 
 ; temp registers for various things
 .rn       temp      r0
@@ -231,12 +237,12 @@ fxcore_chorus: `; Default program 5
 ; Chorus
 ; Mono in/out
 ;
-; pot0 = rate
-; pot1 = depth
-; pot2 = level
-; pot3 = 
-; pot4 = 
-; pot5 =  
+; #POT0 Rate
+; #POT1 Depth
+; #POT2 Level
+; pot3, pot4 and pot5 are unused
+;
+; #USER0 Rate
 
 .equ    fs          48000
 .equ    flow        .2
@@ -255,12 +261,14 @@ fxcore_chorus: `; Default program 5
 .rn     bright      r4
 
 cpy_cs  temp, pot0_smth           ; read in frequency control pot
-wrdld   acc32, cdiff.u            ; load difference between low and high frequency
-ori     acc32, cdiff.l
+; load the low-to-high frequency span, upper half then lower
+wrdld   acc32, (cdiff >> 16) & 0xFFFF
+ori     acc32, cdiff & 0xFFFF
 multrr  temp, acc32               ; pot0 * cdiff
 cpy_cc  temp, acc32
-wrdld   acc32, clow.u             ; load low freq coeff
-ori     acc32, clow.l
+; load the low freq coeff, upper half then lower
+wrdld   acc32, (clow >> 16) & 0xFFFF
+ori     acc32, clow & 0xFFFF
 adds    acc32, temp               ; add low freq
 cpy_sc  lfo0_f, acc32             ; write to lfo0 frequency control
 
@@ -345,6 +353,14 @@ fxcore_tremolo: `; Tremolo Effect with Tap Tempo
 ; User1 will turn on after the first tap and turn off after the second tap or when the
 ; tap_limit value times out. This allows a user to see if it is waiting for a second
 ; tap or is ready for a new tap time.
+;
+; #POT0 Rate
+; #POT1 Depth
+; pot2 to pot5 are unused
+;
+; #TAP Tap tempo
+; #USER0 Rate
+; #USER1 Tap armed
 
 ; Magic numbers for tap tempo LFO control, see an-6
 
@@ -384,12 +400,14 @@ jneg    acc32, tap_chk      ; if the difference isn't big enough, skip to tap te
 
 ; if the pot has moved then we do this to set the LFO rate
 cpy_cc  pot_speed, temp     ; store the new pot_speed value
-wrdld   acc32, cdiff.u      ; load difference between low and high frequency
-ori     acc32, cdiff.l
+; load the low-to-high frequency span, upper half then lower
+wrdld   acc32, (cdiff >> 16) & 0xFFFF
+ori     acc32, cdiff & 0xFFFF
 multrr  pot_speed, acc32    ; pot0 * cdiff (this is like "scale")
 cpy_cc  temp, acc32         ; store this for now
-wrdld   acc32, clow.u       ; load low freq coeff
-ori     acc32, clow.l
+; load the low freq coeff, upper half then lower
+wrdld   acc32, (clow >> 16) & 0xFFFF
+ori     acc32, clow & 0xFFFF
 adds    acc32, temp         ; add low freq (this is like "offset")
 cpy_sc  lfo0_f, acc32       ; write to lfo0 frequency control
 jmp     bottom
@@ -437,10 +455,15 @@ cpy_cc  temp, acc32
 wrdld   acc32, 0x7FFF
 ori     acc32, 0xFFFF
 subs    acc32, temp         ; do 1-waveform
+cpy_cc  temp, acc32         ; save tremolo here
 
-cpy_cs  temp, in0
+cpy_cs  acc32, in0
 multrr  temp, acc32
 cpy_sc  out0, acc32
+
+cpy_cs  acc32, in1
+multrr  temp, acc32
+cpy_sc  out1, acc32
 
 cpy_cs    acc32, samplecnt  ; Get the sample counter
 andi      acc32, 0xFF       ; Mask b[7:0]
@@ -472,9 +495,9 @@ andi    flags, TB2NTB1      ; is it a tap 1 event?
 jnz     acc32, tap2ev           ; no so jump to tap2 routine
 
 ; if we got this far then it is a tap1 event, so load the timer
-; use wrdld to get the MSB and then ori to load the LSB of the tap limit value
-wrdld   acc32, tap_limit.u
-ori     acc32, tap_limit.l
+; use wrdld to load the upper half and then ori to add the lower half
+wrdld   acc32, (tap_limit >> 16) & 0xFFFF
+ori     acc32, tap_limit & 0xFFFF
 cpy_cc  timer, acc32        ; put result in timer
 
 no_push:
