@@ -497,6 +497,103 @@ function simNumber(id, fallback) {
     return isNaN(v) ? fallback : v;
 }
 
+// ---- control naming -------------------------------------------------------
+//
+// A program can name the simulator's controls with magic comments:
+//
+//     ; #POT0 Reverb time
+//     ; #SW1 Freeze
+//     // #POT3 Damping
+//
+// The tag is read from the comment portion of a line, so it can never collide
+// with code, and the assembler ignores it because it is inside a comment. A
+// control with no tag keeps its hardware name.
+
+function simParseControlNames(src) {
+    const names = { pot: new Array(6).fill(null), sw: new Array(5).fill(null) };
+    if (!src) return names;
+
+    for (const line of src.split(/\r?\n/)) {
+        // Take the text after the first comment marker on the line. A line
+        // with no marker is scanned whole, which picks up tags sitting inside
+        // a /* */ block.
+        const semi = line.indexOf(';');
+        const dbl = line.indexOf('//');
+        let cut = -1;
+        if (semi >= 0 && (dbl < 0 || semi < dbl)) cut = semi + 1;
+        else if (dbl >= 0) cut = dbl + 2;
+        const text = cut >= 0 ? line.slice(cut) : line;
+
+        const m = /#(POT[0-5]|SW[0-4])\b[ \t]*(.*)$/i.exec(text);
+        if (!m) continue;
+
+        // Stop the name at a further comment marker or a block-comment close,
+        // so `/* #POT0 Mix */` names the pot "Mix" rather than "Mix */".
+        const name = m[2].replace(/(;|\/\/|\*\/).*$/, '').trim();
+        if (!name) continue;
+
+        const tag = m[1].toUpperCase();
+        if (tag.indexOf('POT') === 0) names.pot[+tag.slice(3)] = name;
+        else names.sw[+tag.slice(2)] = name;
+    }
+    return names;
+}
+
+function simSetControlLabel(id, name, fallback) {
+    const el = document.getElementById(id + 'Label');
+    if (!el) return;
+    el.textContent = name || fallback;
+    el.classList.toggle('sim-renamed', !!name);
+    // Keep the hardware name reachable once a program has renamed a control,
+    // so it is still obvious which pot or switch is being driven.
+    const host = el.closest ? el.closest('.sim-slider-row, .sim-switch-row') : null;
+    if (host) host.title = name ? name + '  \u2014  ' + fallback : fallback;
+}
+
+// Re-read the names from the editor. Cheap, so it can run on every edit.
+function simRefreshControlNames() {
+    let src = '';
+    try {
+        if (typeof editor !== 'undefined' && editor && editor.getValue) src = editor.getValue();
+    } catch (e) { /* editor not up yet */ }
+    const names = simParseControlNames(src);
+    for (let i = 0; i < 6; i++) simSetControlLabel('simPot' + i, names.pot[i], 'POT' + i);
+    for (let i = 0; i < 5; i++) simSetControlLabel('simSw' + i, names.sw[i], 'SW' + i);
+}
+
+// ---- momentary switch presses --------------------------------------------
+//
+// Each switch has both a latch and a momentary push. The pin reads pressed if
+// either is active, so the push works as a footswitch tap without disturbing
+// the latch.
+
+const simSwPushed = [false, false, false, false, false];
+
+function simSwPress(i) {
+    if (simSwPushed[i]) return;
+    simSwPushed[i] = true;
+    const b = document.getElementById('simSw' + i + 'Push');
+    if (b) b.classList.add('sim-pushing');
+    simSendPins();
+}
+
+function simSwRelease(i) {
+    if (!simSwPushed[i]) return;
+    simSwPushed[i] = false;
+    const b = document.getElementById('simSw' + i + 'Push');
+    if (b) b.classList.remove('sim-pushing');
+    simSendPins();
+}
+
+// A pointer released outside the button never fires its mouseup, which would
+// leave a switch stuck down.
+if (typeof document !== 'undefined') {
+    document.addEventListener('mouseup', () => {
+        for (let i = 0; i < 5; i++) simSwRelease(i);
+        simTapRelease();
+    });
+}
+
 function simSendPots() {
     const values = [];
     for (let i = 0; i < 6; i++) {
@@ -515,7 +612,8 @@ function simSendPins() {
     let mask = 0x7F;
     for (let i = 0; i < 5; i++) {
         const el = document.getElementById('simSw' + i);
-        if (el && el.checked) mask &= ~(1 << i);
+        const latched = !!(el && el.checked);
+        if (latched || simSwPushed[i]) mask &= ~(1 << i);
     }
     const en = document.getElementById('simEnable');
     if (en && !en.checked) mask &= ~(1 << 5);      // ENABLE checked = enabled = high
@@ -525,7 +623,11 @@ function simSendPins() {
 
 let simTapDown = false;
 function simTapPress() { simTapDown = true; simSendPins(); }
-function simTapRelease() { simTapDown = false; simSendPins(); }
+function simTapRelease() {
+    if (!simTapDown) return;
+    simTapDown = false;
+    simSendPins();
+}
 
 function simSendRoute() {
     const l = parseInt(simValue('simOutL', '0'), 10) || 0;
@@ -643,6 +745,7 @@ function simHookAssemble() {
     const original = window.assembleFXCore;
     const wrapped = function () {
         const result = original.apply(this, arguments);
+        simRefreshControlNames();
         if (simCaptureImage()) {
             simLoadProgram();
             const auto = document.getElementById('simAutoReload');
@@ -656,8 +759,9 @@ function simHookAssemble() {
     window.assembleFXCore = wrapped;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
     simHookAssemble();
+    simRefreshControlNames();
     simSendPots();
     simOnSourceChange();
     simOnToneFreqChange();
@@ -670,4 +774,26 @@ document.addEventListener('DOMContentLoaded', () => {
         simStatus('Opened as a local file - if Play fails, serve this folder ' +
             'over http (see readme)', 'warn');
     }
+
+    // Follow the names as they are typed rather than waiting for an assemble.
+    // Monaco may not be up yet, so poll briefly for it.
+    let tries = 0;
+    const attach = setInterval(() => {
+        if (typeof editor !== 'undefined' && editor && editor.onDidChangeModelContent) {
+            clearInterval(attach);
+            let timer = null;
+            editor.onDidChangeModelContent(() => {
+                clearTimeout(timer);
+                timer = setTimeout(simRefreshControlNames, 300);
+            });
+            simRefreshControlNames();
+        } else if (++tries > 40) {
+            clearInterval(attach);
+        }
+    }, 250);
 });
+
+// The control-name parser is pure, so it is exported for the headless tests.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { simParseControlNames };
+}

@@ -346,7 +346,11 @@ class FXCoreCore {
         this.rampAcc = [0, 0];
 
         this.pinRaw = 0x7F;                      // pull-ups: unconnected reads 1
-        this.swDebounced = 0;
+        // Seed the debounced view from the pins rather than from zero. Starting
+        // at zero means "everything pressed", so the first SWDBRLD samples
+        // after a program change would emit a release edge on every switch --
+        // phantom SWxRE bits a program could act on.
+        this.swDebounced = this.pinRaw & 0x3F;
         this.swCounter = [0, 0, 0, 0, 0, 0];     // SW0-4 + ENABLE
         this.swEdges = 0;
 

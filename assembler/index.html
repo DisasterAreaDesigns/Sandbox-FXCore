@@ -763,23 +763,83 @@
 
             <div class="flyout-section">
                 <h4>Pots</h4>
-                <div class="sim-slider-row"><label for="simPot0">POT0</label><input type="range" id="simPot0" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot0Value" class="sim-value">50%</span></div>
-                <div class="sim-slider-row"><label for="simPot1">POT1</label><input type="range" id="simPot1" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot1Value" class="sim-value">50%</span></div>
-                <div class="sim-slider-row"><label for="simPot2">POT2</label><input type="range" id="simPot2" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot2Value" class="sim-value">50%</span></div>
-                <div class="sim-slider-row"><label for="simPot3">POT3</label><input type="range" id="simPot3" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot3Value" class="sim-value">50%</span></div>
-                <div class="sim-slider-row"><label for="simPot4">POT4</label><input type="range" id="simPot4" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot4Value" class="sim-value">50%</span></div>
-                <div class="sim-slider-row"><label for="simPot5">POT5</label><input type="range" id="simPot5" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot5Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT0"><label for="simPot0"><span id="simPot0Label">POT0</span></label><input type="range" id="simPot0" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot0Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT1"><label for="simPot1"><span id="simPot1Label">POT1</span></label><input type="range" id="simPot1" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot1Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT2"><label for="simPot2"><span id="simPot2Label">POT2</span></label><input type="range" id="simPot2" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot2Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT3"><label for="simPot3"><span id="simPot3Label">POT3</span></label><input type="range" id="simPot3" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot3Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT4"><label for="simPot4"><span id="simPot4Label">POT4</span></label><input type="range" id="simPot4" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot4Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT5"><label for="simPot5"><span id="simPot5Label">POT5</span></label><input type="range" id="simPot5" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot5Value" class="sim-value">50%</span></div>
             </div>
 
             <div class="flyout-section">
                 <h4>Switches</h4>
-                <div class="sim-switches">
-                    <label><input type="checkbox" id="simSw0" onchange="simSendPins()"> SW0</label>
-                    <label><input type="checkbox" id="simSw1" onchange="simSendPins()"> SW1</label>
-                    <label><input type="checkbox" id="simSw2" onchange="simSendPins()"> SW2</label>
-                    <label><input type="checkbox" id="simSw3" onchange="simSendPins()"> SW3</label>
-                    <label><input type="checkbox" id="simSw4" onchange="simSendPins()"> SW4</label>
-                    <label><input type="checkbox" id="simEnable" checked onchange="simSendPins()"> ENABLE</label>
+                <div class="sim-switch-list">
+                    <div class="sim-switch-row" title="SW0">
+                        <label class="sim-sw-latch" for="simSw0">
+                            <input type="checkbox" id="simSw0" onchange="simSendPins()">
+                            <span id="simSw0Label">SW0</span>
+                        </label>
+                        <button type="button" class="sim-sw-push" id="simSw0Push"
+                                title="Momentary - hold to press"
+                                onmousedown="simSwPress(0)" onmouseup="simSwRelease(0)"
+                                onmouseleave="simSwRelease(0)"
+                                ontouchstart="simSwPress(0); return false;"
+                                ontouchend="simSwRelease(0)">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW1">
+                        <label class="sim-sw-latch" for="simSw1">
+                            <input type="checkbox" id="simSw1" onchange="simSendPins()">
+                            <span id="simSw1Label">SW1</span>
+                        </label>
+                        <button type="button" class="sim-sw-push" id="simSw1Push"
+                                title="Momentary - hold to press"
+                                onmousedown="simSwPress(1)" onmouseup="simSwRelease(1)"
+                                onmouseleave="simSwRelease(1)"
+                                ontouchstart="simSwPress(1); return false;"
+                                ontouchend="simSwRelease(1)">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW2">
+                        <label class="sim-sw-latch" for="simSw2">
+                            <input type="checkbox" id="simSw2" onchange="simSendPins()">
+                            <span id="simSw2Label">SW2</span>
+                        </label>
+                        <button type="button" class="sim-sw-push" id="simSw2Push"
+                                title="Momentary - hold to press"
+                                onmousedown="simSwPress(2)" onmouseup="simSwRelease(2)"
+                                onmouseleave="simSwRelease(2)"
+                                ontouchstart="simSwPress(2); return false;"
+                                ontouchend="simSwRelease(2)">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW3">
+                        <label class="sim-sw-latch" for="simSw3">
+                            <input type="checkbox" id="simSw3" onchange="simSendPins()">
+                            <span id="simSw3Label">SW3</span>
+                        </label>
+                        <button type="button" class="sim-sw-push" id="simSw3Push"
+                                title="Momentary - hold to press"
+                                onmousedown="simSwPress(3)" onmouseup="simSwRelease(3)"
+                                onmouseleave="simSwRelease(3)"
+                                ontouchstart="simSwPress(3); return false;"
+                                ontouchend="simSwRelease(3)">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW4">
+                        <label class="sim-sw-latch" for="simSw4">
+                            <input type="checkbox" id="simSw4" onchange="simSendPins()">
+                            <span id="simSw4Label">SW4</span>
+                        </label>
+                        <button type="button" class="sim-sw-push" id="simSw4Push"
+                                title="Momentary - hold to press"
+                                onmousedown="simSwPress(4)" onmouseup="simSwRelease(4)"
+                                onmouseleave="simSwRelease(4)"
+                                ontouchstart="simSwPress(4); return false;"
+                                ontouchend="simSwRelease(4)">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row sim-switch-row--enable" title="ENABLE pin">
+                        <label class="sim-sw-latch" for="simEnable">
+                            <input type="checkbox" id="simEnable" checked onchange="simSendPins()">
+                            <span>ENABLE</span>
+                        </label>
+                    </div>
                 </div>
                 <button class="sim-tap-btn" id="simTapBtn"
                         onmousedown="simTapPress()" onmouseup="simTapRelease()"
@@ -806,6 +866,14 @@
             </div>
 
             <div class="flyout-section">
+                <div class="sim-note">
+                    <strong>Naming controls.</strong> Put a tag in a comment and the
+                    pot and switch labels follow it as you type:
+                    <code>; #POT0 Reverb time</code>,
+                    <code>; #SW1 Freeze</code>. Tags are read from the comment
+                    part of a line, so they never collide with code. Hover a
+                    renamed control to see which pot or switch it is.
+                </div>
                 <div class="sim-note">
                     Simulates the FXCore core, delay RAM, pots, LFOs, ramps, switches
                     and tap tempo. CHR and PITCH are modelled on the equivalent FV-1
