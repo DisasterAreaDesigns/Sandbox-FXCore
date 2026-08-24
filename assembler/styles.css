@@ -1406,8 +1406,7 @@ body.dark-mode .opcode-description {
 }
 
 .sim-play-btn,
-.sim-panic-btn,
-.sim-tap-btn {
+.sim-panic-btn {
     flex: 1;
     padding: 8px 12px;
     border: none;
@@ -1423,31 +1422,6 @@ body.dark-mode .opcode-description {
    scoped under .flyout-content to keep the panel's own colour coding. */
 .flyout-content .sim-play-btn.sim-playing { background: #c0392b; }
 .flyout-content .sim-panic-btn { background: #7f8c8d; }
-.sim-tap-btn {
-    width: 100%;
-    margin-top: 8px;
-    user-select: none;
-}
-.flyout-content .sim-tap-btn { background: #34495e; }
-.flyout-content .sim-tap-btn:active { background: #c0392b; }
-
-/* Filled navy sits right in the dark panel, but in the light theme it reads
-   as a hole punched in the page. Light mode takes the same tinted surface the
-   status line and the PUSH buttons use, so the pad still looks like a button
-   without going dark. The red press state is kept in both themes. */
-body:not(.dark-mode) .flyout-content .sim-tap-btn {
-    background: rgba(127, 127, 127, 0.12);
-    color: inherit;
-    border: 1px solid var(--flyout-border, #ccc);
-}
-body:not(.dark-mode) .flyout-content .sim-tap-btn:hover {
-    background: rgba(127, 127, 127, 0.2);
-}
-body:not(.dark-mode) .flyout-content .sim-tap-btn:active {
-    background: #c0392b;
-    border-color: #c0392b;
-    color: #fff;
-}
 
 .sim-status {
     font-size: 12px;
@@ -1486,6 +1460,12 @@ body:not(.dark-mode) .flyout-content .sim-tap-btn:active {
 }
 
 .sim-slider-row input[type="range"] { flex: 1; min-width: 0; }
+
+/* The readout is the widest it ever gets ("-40 dB", "5000 Hz", "100%"), so the
+   slider keeps one length instead of growing and shrinking under the thumb as
+   the number changes. */
+.sim-slider-row .sim-value { flex: 0 0 4.8em; text-align: right; }
+
 /* Two selects share one row with an 88px label, and the shared
    .flyout-content select padding leaves so little room that "OUT0" is clipped
    behind the dropdown arrow. Tighten them to fit the panel. */
@@ -1600,27 +1580,30 @@ body:not(.dark-mode) .flyout-content .sim-tap-btn:active {
     font-size: 12px;
 }
 
-.sim-sw-latch {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
+.sim-sw-name {
     flex: 1 1 auto;
-    min-width: 6.5em;
+    min-width: 0;
 }
 
-/* A renamed control can be any length, so let it truncate rather than push
-   the momentary button off the row. */
-.sim-sw-latch span,
+/* A renamed control can be any length, so let it truncate rather than push the
+   buttons off the row. */
+.sim-sw-name,
 .sim-slider-row label span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.sim-sw-push {
+/* Latch and momentary are the same kind of control, so they are the same kind
+   of button -- fixed widths keep the two columns lined up down the list. The
+   whole look is scoped to .flyout-content because the panel's own
+   `.flyout-content button` rule (width:100%, 10px/14px padding, 0.9em type)
+   is more specific than a bare class and would swallow the row. */
+.flyout-content .sim-sw-toggle,
+.flyout-content .sim-sw-push {
+    box-sizing: border-box;
     flex: 0 0 auto;
-    padding: 3px 11px;
+    padding: 4px 0;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.05em;
@@ -1632,22 +1615,34 @@ body:not(.dark-mode) .flyout-content .sim-tap-btn:active {
     user-select: none;
 }
 
-/* `.flyout-content button` sets width:100%, which squeezes the switch name
-   out of the row entirely. */
-.flyout-content .sim-sw-push {
-    width: auto;
-    background: transparent;
-    padding: 3px 11px;
+.flyout-content .sim-sw-toggle { width: 76px; }
+.flyout-content .sim-sw-push   { width: 58px; }
+.flyout-content .sim-sw-toggle:hover,
+.flyout-content .sim-sw-push:hover {
+    background: rgba(127, 127, 127, 0.18);
+    border-color: var(--flyout-border-hover, #bbb);
 }
-.flyout-content .sim-sw-push:hover { background: rgba(127, 127, 127, 0.18); }
-.flyout-content .sim-sw-push.sim-pushing {
+
+/* Lit means the pin reads pressed right now, latch and momentary combined, so
+   holding PUSH visibly flips the lamp and flips it back on release. */
+.flyout-content .sim-sw-toggle.sim-lit,
+.flyout-content .sim-sw-toggle.sim-lit:hover {
+    background: #14a1a6;
+    border-color: #0f8387;
+    color: #fff;
+    box-shadow: 0 0 6px rgba(20, 161, 166, 0.5);
+}
+
+.flyout-content .sim-sw-push.sim-pushing,
+.flyout-content .sim-sw-push.sim-pushing:hover {
     background: #c0392b;
     border-color: #c0392b;
     color: #fff;
 }
 
-/* ENABLE is a mode, not a footswitch, so it has no momentary button. */
-.sim-switch-row--enable { margin-top: 3px; opacity: 0.9; }
+/* ENABLE is a mode rather than one of the program's switches, so it sits a
+   little apart from them at the foot of the list. */
+.sim-switch-row--enable { margin-top: 5px; }
 
 /* A control the program has named reads as its own word, not a register. */
 .sim-renamed { font-weight: 600; }

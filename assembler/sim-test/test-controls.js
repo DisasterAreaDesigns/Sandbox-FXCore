@@ -4,7 +4,8 @@
 //   node assembler/sim-test/test-controls.js
 
 const FXCoreCore = require('../fxcore-emu.js');
-const { simParseControlNames } = require('../fxcore-sim.js');
+const { simParseControlNames, simSwOn, simLatched, simPushed } =
+    require('../fxcore-sim.js');
 
 let pass = 0, fail = 0; const failures = [];
 function ok(name, cond, detail) {
@@ -121,6 +122,36 @@ console.log('--- empty and malformed input ---');
     ok('empty source is safe', simParseControlNames('').pot.every(v => v === null));
     ok('null source is safe', simParseControlNames(null).sw.every(v => v === null));
     ok('a bare hash is ignored', simParseControlNames('; # nothing').pot[0] === null);
+}
+
+console.log('--- latch and momentary combine ---');
+{
+    // A push inverts the latch rather than only pulling the pin down, so both
+    // edges are reachable from the panel and the latch is left where it was.
+    const state = (latch, push) => {
+        simLatched.simSw0 = latch;
+        simPushed.simSw0 = push;
+        return simSwOn('simSw0');
+    };
+    ok('idle reads released',            state(false, false) === false);
+    ok('latch alone reads pressed',      state(true, false) === true);
+    ok('push alone reads pressed',       state(false, true) === true);
+    ok('push on a latched switch releases it', state(true, true) === false);
+
+    // An untouched switch has no entry in either map at all.
+    delete simLatched.simSw3; delete simPushed.simSw3;
+    ok('an untouched switch reads released', simSwOn('simSw3') === false);
+
+    // ENABLE starts high, so the part is enabled before anything is clicked,
+    // and its push is a momentary bypass.
+    ok('ENABLE idles enabled', simLatched.simEnable === true);
+    simPushed.simEnable = true;
+    ok('a push on ENABLE bypasses for as long as it is held',
+        simSwOn('simEnable') === false);
+    simPushed.simEnable = false;
+    ok('releasing ENABLE puts it back', simSwOn('simEnable') === true);
+
+    simLatched.simSw0 = false; simPushed.simSw0 = false;
 }
 
 // =====================================================================

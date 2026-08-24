@@ -793,77 +793,98 @@
                 <h4>Switches</h4>
                 <div class="sim-switch-list">
                     <div class="sim-switch-row" title="SW0">
-                        <label class="sim-sw-latch" for="simSw0">
-                            <input type="checkbox" id="simSw0" onchange="simSendPins()">
-                            <span id="simSw0Label">SW0</span>
-                        </label>
+                        <span class="sim-sw-name" id="simSw0Label">SW0</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw0"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw0')">TOGGLE</button>
                         <button type="button" class="sim-sw-push" id="simSw0Push"
-                                title="Momentary - hold to press"
-                                onmousedown="simSwPress(0)" onmouseup="simSwRelease(0)"
-                                onmouseleave="simSwRelease(0)"
-                                ontouchstart="simSwPress(0); return false;"
-                                ontouchend="simSwRelease(0)">PUSH</button>
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw0')" onmouseup="simSwRelease('simSw0')"
+                                onmouseleave="simSwRelease('simSw0')"
+                                ontouchstart="simSwPress('simSw0'); return false;"
+                                ontouchend="simSwRelease('simSw0')">PUSH</button>
                     </div>
                     <div class="sim-switch-row" title="SW1">
-                        <label class="sim-sw-latch" for="simSw1">
-                            <input type="checkbox" id="simSw1" onchange="simSendPins()">
-                            <span id="simSw1Label">SW1</span>
-                        </label>
+                        <span class="sim-sw-name" id="simSw1Label">SW1</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw1"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw1')">TOGGLE</button>
                         <button type="button" class="sim-sw-push" id="simSw1Push"
-                                title="Momentary - hold to press"
-                                onmousedown="simSwPress(1)" onmouseup="simSwRelease(1)"
-                                onmouseleave="simSwRelease(1)"
-                                ontouchstart="simSwPress(1); return false;"
-                                ontouchend="simSwRelease(1)">PUSH</button>
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw1')" onmouseup="simSwRelease('simSw1')"
+                                onmouseleave="simSwRelease('simSw1')"
+                                ontouchstart="simSwPress('simSw1'); return false;"
+                                ontouchend="simSwRelease('simSw1')">PUSH</button>
                     </div>
                     <div class="sim-switch-row" title="SW2">
-                        <label class="sim-sw-latch" for="simSw2">
-                            <input type="checkbox" id="simSw2" onchange="simSendPins()">
-                            <span id="simSw2Label">SW2</span>
-                        </label>
+                        <span class="sim-sw-name" id="simSw2Label">SW2</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw2"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw2')">TOGGLE</button>
                         <button type="button" class="sim-sw-push" id="simSw2Push"
-                                title="Momentary - hold to press"
-                                onmousedown="simSwPress(2)" onmouseup="simSwRelease(2)"
-                                onmouseleave="simSwRelease(2)"
-                                ontouchstart="simSwPress(2); return false;"
-                                ontouchend="simSwRelease(2)">PUSH</button>
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw2')" onmouseup="simSwRelease('simSw2')"
+                                onmouseleave="simSwRelease('simSw2')"
+                                ontouchstart="simSwPress('simSw2'); return false;"
+                                ontouchend="simSwRelease('simSw2')">PUSH</button>
                     </div>
                     <div class="sim-switch-row" title="SW3">
-                        <label class="sim-sw-latch" for="simSw3">
-                            <input type="checkbox" id="simSw3" onchange="simSendPins()">
-                            <span id="simSw3Label">SW3</span>
-                        </label>
+                        <span class="sim-sw-name" id="simSw3Label">SW3</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw3"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw3')">TOGGLE</button>
                         <button type="button" class="sim-sw-push" id="simSw3Push"
-                                title="Momentary - hold to press"
-                                onmousedown="simSwPress(3)" onmouseup="simSwRelease(3)"
-                                onmouseleave="simSwRelease(3)"
-                                ontouchstart="simSwPress(3); return false;"
-                                ontouchend="simSwRelease(3)">PUSH</button>
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw3')" onmouseup="simSwRelease('simSw3')"
+                                onmouseleave="simSwRelease('simSw3')"
+                                ontouchstart="simSwPress('simSw3'); return false;"
+                                ontouchend="simSwRelease('simSw3')">PUSH</button>
                     </div>
                     <div class="sim-switch-row" title="SW4">
-                        <label class="sim-sw-latch" for="simSw4">
-                            <input type="checkbox" id="simSw4" onchange="simSendPins()">
-                            <span id="simSw4Label">SW4</span>
-                        </label>
+                        <span class="sim-sw-name" id="simSw4Label">SW4</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw4"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw4')">TOGGLE</button>
                         <button type="button" class="sim-sw-push" id="simSw4Push"
-                                title="Momentary - hold to press"
-                                onmousedown="simSwPress(4)" onmouseup="simSwRelease(4)"
-                                onmouseleave="simSwRelease(4)"
-                                ontouchstart="simSwPress(4); return false;"
-                                ontouchend="simSwRelease(4)">PUSH</button>
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw4')" onmouseup="simSwRelease('simSw4')"
+                                onmouseleave="simSwRelease('simSw4')"
+                                ontouchstart="simSwPress('simSw4'); return false;"
+                                ontouchend="simSwRelease('simSw4')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="TAP">
+                        <span class="sim-sw-name" id="simTapLabel">TAP</span>
+                        <button type="button" class="sim-sw-toggle" id="simTap"
+                                aria-pressed="false"
+                                title="Latching - click to hold the tap switch down"
+                                onclick="simSwToggle('simTap')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simTapPush"
+                                title="Momentary - tap in a tempo"
+                                onmousedown="simSwPress('simTap')" onmouseup="simSwRelease('simTap')"
+                                onmouseleave="simSwRelease('simTap')"
+                                ontouchstart="simSwPress('simTap'); return false;"
+                                ontouchend="simSwRelease('simTap')">PUSH</button>
                     </div>
                     <div class="sim-switch-row sim-switch-row--enable"
-                         title="ENABLE pin. Unchecked drops the pin low and bypasses the simulator to the dry signal, the way the pedal's bypass does.">
-                        <label class="sim-sw-latch" for="simEnable">
-                            <input type="checkbox" id="simEnable" checked onchange="simToggleEnable()">
-                            <span>ENABLE</span>
-                        </label>
+                         title="ENABLE pin. Off drops the pin low and bypasses the simulator to the dry signal, the way the pedal's bypass does.">
+                        <span class="sim-sw-name">ENABLE</span>
+                        <button type="button" class="sim-sw-toggle sim-lit" id="simEnable"
+                                aria-pressed="true"
+                                title="Latching - lit is enabled, dark is bypassed"
+                                onclick="simSwToggle('simEnable')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simEnablePush"
+                                title="Momentary - hold to flip the bypass, for an A/B against the dry signal"
+                                onmousedown="simSwPress('simEnable')" onmouseup="simSwRelease('simEnable')"
+                                onmouseleave="simSwRelease('simEnable')"
+                                ontouchstart="simSwPress('simEnable'); return false;"
+                                ontouchend="simSwRelease('simEnable')">PUSH</button>
                     </div>
                 </div>
-                <button class="sim-tap-btn" id="simTapBtn"
-                        onmousedown="simTapPress()" onmouseup="simTapRelease()"
-                        onmouseleave="simTapRelease()"
-                        ontouchstart="simTapPress()" ontouchend="simTapRelease()">TAP</button>
             </div>
 
             <div class="flyout-section">

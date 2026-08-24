@@ -564,16 +564,6 @@ function simSetControlLabel(id, name, fallback) {
     if (host) host.title = name ? name + '  \u2014  ' + fallback : fallback;
 }
 
-// The tap pad has no separate label element -- the button's own text is the
-// name -- so it cannot go through simSetControlLabel.
-function simSetTapLabel(name) {
-    const el = document.getElementById('simTapBtn');
-    if (!el) return;
-    el.textContent = name || 'TAP';
-    el.classList.toggle('sim-renamed', !!name);
-    el.title = name ? name + '  \u2014  TAP' : 'TAP';
-}
-
 // Re-read the names from the editor. Cheap, so it can run on every edit.
 function simRefreshControlNames() {
     let src = '';
@@ -584,40 +574,74 @@ function simRefreshControlNames() {
     for (let i = 0; i < 6; i++) simSetControlLabel('simPot' + i, names.pot[i], 'POT' + i);
     for (let i = 0; i < 5; i++) simSetControlLabel('simSw' + i, names.sw[i], 'SW' + i);
     for (let i = 0; i < 2; i++) simSetControlLabel('simUser' + i, names.led[i], 'USER' + i);
-    simSetTapLabel(names.tap);
+    simSetControlLabel('simTap', names.tap, 'TAP');
 }
 
-// ---- momentary switch presses --------------------------------------------
+// ---- switches -------------------------------------------------------------
 //
-// Each switch has both a latch and a momentary push. The pin reads pressed if
-// either is active, so the push works as a footswitch tap without disturbing
-// the latch.
+// Every switch on the panel is the same pair of buttons: TOGGLE latches the
+// pin, PUSH is momentary. A push *inverts* whatever the latch is holding
+// rather than only pulling the pin down, so a latched switch can be
+// momentarily released just as a released one can be momentarily pressed --
+// both edges are reachable from the panel, and the latch is always back where
+// it started once the button comes up. ENABLE works the same way, which turns
+// its PUSH into a hold-for-dry A/B against the bypassed signal.
+//
+// The TOGGLE lamp shows the pin as it reads *now*, latch and push combined,
+// so a push visibly flips it and flips it back.
 
-const simSwPushed = [false, false, false, false, false];
+const SIM_SWITCHES = ['simSw0', 'simSw1', 'simSw2', 'simSw3', 'simSw4',
+                      'simTap', 'simEnable'];
 
-function simSwPress(i) {
-    if (simSwPushed[i]) return;
-    simSwPushed[i] = true;
-    const b = document.getElementById('simSw' + i + 'Push');
+// ENABLE idles high (the part is enabled); every other pin idles released.
+const simLatched = { simEnable: true };
+const simPushed = {};
+
+// The pin as the program sees it: pressed if exactly one of latch and push is
+// active.
+function simSwOn(id) { return !!simLatched[id] !== !!simPushed[id]; }
+
+function simSwToggle(id) {
+    simLatched[id] = !simLatched[id];
+    simSwChanged(id);
+}
+
+function simSwPress(id) {
+    if (simPushed[id]) return;
+    simPushed[id] = true;
+    const b = document.getElementById(id + 'Push');
     if (b) b.classList.add('sim-pushing');
-    simSendPins();
+    simSwChanged(id);
 }
 
-function simSwRelease(i) {
-    if (!simSwPushed[i]) return;
-    simSwPushed[i] = false;
-    const b = document.getElementById('simSw' + i + 'Push');
+function simSwRelease(id) {
+    if (!simPushed[id]) return;
+    simPushed[id] = false;
+    const b = document.getElementById(id + 'Push');
     if (b) b.classList.remove('sim-pushing');
-    simSendPins();
+    simSwChanged(id);
 }
+
+function simSwChanged(id) {
+    simUpdateSwitchLamp(id);
+    simSendPins();
+    if (id === 'simEnable') simOnEnableChange();
+}
+
+function simUpdateSwitchLamp(id) {
+    const b = document.getElementById(id);
+    if (!b) return;
+    const on = simSwOn(id);
+    b.classList.toggle('sim-lit', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
+function simUpdateSwitchLamps() { SIM_SWITCHES.forEach(simUpdateSwitchLamp); }
 
 // A pointer released outside the button never fires its mouseup, which would
 // leave a switch stuck down.
 if (typeof document !== 'undefined') {
-    document.addEventListener('mouseup', () => {
-        for (let i = 0; i < 5; i++) simSwRelease(i);
-        simTapRelease();
-    });
+    document.addEventListener('mouseup', () => SIM_SWITCHES.forEach(simSwRelease));
 }
 
 function simSendPots() {
@@ -632,27 +656,14 @@ function simSendPots() {
 }
 
 // PIN bits: 0-4 = SW0-SW4, 5 = ENABLE, 6 = TAP. The pins have pull-ups, so a
-// released switch reads 1 and a pressed one reads 0 -- the checkboxes read as
-// "pressed", so they invert.
+// released switch reads 1 and a pressed one reads 0 -- the panel's buttons read
+// as "pressed", so they invert.
 function simSendPins() {
     let mask = 0x7F;
-    for (let i = 0; i < 5; i++) {
-        const el = document.getElementById('simSw' + i);
-        const latched = !!(el && el.checked);
-        if (latched || simSwPushed[i]) mask &= ~(1 << i);
-    }
-    const en = document.getElementById('simEnable');
-    if (en && !en.checked) mask &= ~(1 << 5);      // ENABLE checked = enabled = high
-    if (simTapDown) mask &= ~(1 << 6);
+    for (let i = 0; i < 5; i++) if (simSwOn('simSw' + i)) mask &= ~(1 << i);
+    if (!simSwOn('simEnable')) mask &= ~(1 << 5);   // ENABLE lit = enabled = high
+    if (simSwOn('simTap')) mask &= ~(1 << 6);
     if (simNode) simNode.port.postMessage({type: 'pins', mask: mask});
-}
-
-let simTapDown = false;
-function simTapPress() { simTapDown = true; simSendPins(); }
-function simTapRelease() {
-    if (!simTapDown) return;
-    simTapDown = false;
-    simSendPins();
 }
 
 function simSendRoute() {
@@ -686,10 +697,7 @@ function simApplyLevels() {
     if (simOutputGain) simOutputGain.gain.value = Math.pow(10, outDb / 20);
 }
 
-function simEnabled() {
-    const el = document.getElementById('simEnable');
-    return el ? el.checked : true;
-}
+function simEnabled() { return simSwOn('simEnable'); }
 
 function simSendBypass() {
     if (simNode) simNode.port.postMessage({ type: 'bypass', on: !simEnabled() });
@@ -700,8 +708,9 @@ function simSendBypass() {
 // reads, and it routes the inputs straight to the outputs. The program keeps
 // running either way, which is what lets a program read the pin and decide for
 // itself, and what keeps its delay tails alive across a bypass.
-function simToggleEnable() {
-    simSendPins();
+//
+// simSwChanged() has already sent the pins by the time this runs.
+function simOnEnableChange() {
     simSendBypass();
     if (!simEnabled()) simStatus('ENABLE off - bypassed, inputs routed to outputs', 'warn');
     else simReportRate();
@@ -850,6 +859,7 @@ function simHookAssemble() {
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
     simHookAssemble();
     simRefreshControlNames();
+    simUpdateSwitchLamps();
     simSendPots();
     simOnSourceChange();
     simOnToneFreqChange();
@@ -881,7 +891,8 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     }, 250);
 });
 
-// The control-name parser is pure, so it is exported for the headless tests.
+// The control-name parser and the latch/push algebra are pure, so they are
+// exported for the headless tests.
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { simParseControlNames };
+    module.exports = { simParseControlNames, simSwOn, simLatched, simPushed };
 }
