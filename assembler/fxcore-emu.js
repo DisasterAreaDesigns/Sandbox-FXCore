@@ -11,6 +11,18 @@
 // source comment says so and says how the behaviour was chosen; those places
 // are the ones to check first if a program sounds wrong.
 //
+// PROVISIONAL BEHAVIOUR
+// ---------------------
+// CHR and PITCH are not described internally by any published document. They
+// are modelled here on the equivalent FV-1 structures -- linear interpolation
+// between adjacent delay samples, and for PITCH two read pointers half a block
+// apart crossfaded by a triangle -- on the working assumption that the FXCore
+// instructions are those same structures wrapped into single macros. The four
+// PITCH crossfade shapes XF0-XF3 are undocumented and are all treated as
+// linear. Executing either instruction records it in this.provisional so the
+// front end can say the output is not confirmed against hardware. Revisit if
+// Experimental Noize confirms or corrects the behaviour.
+//
 // Arithmetic is integer-exact. Core registers are 32-bit S.31 where
 // 0x7FFFFFFF is just under +1.0 and 0x80000000 is -1.0. The 64-bit
 // accumulator is kept as two 32-bit halves rather than a BigInt: a 32x32
@@ -130,10 +142,13 @@ class FXCoreCore {
         this.sampleRate = 48000;
         this.rngState = 0x2545F491;
 
-        // Instructions the documents do not fully specify. Executing one sets
-        // a flag rather than silently producing wrong audio -- see
-        // readme-simulator-plan.md section 11.
+        // Instructions the documents do not specify at all. Executing one sets
+        // a flag rather than silently producing wrong audio.
         this.unimplemented = Object.create(null);
+
+        // Instructions modelled on a working assumption rather than a
+        // published spec -- see the PROVISIONAL note at the head of this file.
+        this.provisional = Object.create(null);
 
         this.reset();
     }
@@ -351,6 +366,7 @@ class FXCoreCore {
 
         this.lastPC = 0;
         this.halted = false;
+        this.provisional = Object.create(null);
     }
 
     // ================================================================
@@ -968,21 +984,69 @@ class FXCoreCore {
 
             // ---- Not yet specified -----------------------------------
 
-            case this.OP_CHR:
-                // The address computation is documented (the LFO is scaled to
-                // 0..1.0, multiplied by the depth in R15[30:16] and added to
-                // the head address) but whether the fractional part is
-                // interpolated, truncated or something else is not. Left out
-                // rather than guessed -- see plan section 11.2.
-                this.unimplemented.CHR = true;
-                break;
+            case this.OP_CHR: {
+                // PROVISIONAL -- see the note at the head of this file.
+                // Modelled as the FV-1 chorus read wrapped into one macro.
+                //
+                // R field is 0000 NLLW: N negates, LL selects the LFO, W picks
+                // SIN or COS. The datasheet specifies the address arithmetic:
+                // the LFO is scaled to 0..1.0, multiplied by the depth in
+                // R15[30:16], and added to the head address, so narrowing the
+                // depth introduces no delay offset. The fractional part is
+                // linearly interpolated, which the datasheet does not state.
+                const lfoSel = (r >> 1) & 0x03;
+                const useCos = r & 0x01;
+                const base = m & 0x7FFF;
 
-            case this.OP_PITCH:
-                // Neither the instruction set doc nor AN-2 describes what the
-                // instruction does internally, and the four crossfade shapes
-                // XF0-XF3 are defined nowhere. See plan section 11.1.
-                this.unimplemented.PITCH = true;
+                let v = this.sfr[this.SFR_LFO0_S + lfoSel * 2 + useCos];
+                if (r & 0x08) v = this.negSat(v);
+
+                const norm = (v + 2147483648) / 4294967296;   // -1..+1 -> 0..1
+                const depth = (creg[this.PARAM0] >> 16) & 0x7FFF;
+                const off = norm * depth;
+                const io = Math.floor(off);
+                creg[this.ACC32] = this.interpRead(base + io, off - io);
+                this.provisional.CHR = true;
                 break;
+            }
+
+            case this.OP_PITCH: {
+                // PROVISIONAL -- see the note at the head of this file.
+                // Modelled as the FV-1 pitch transposer wrapped into one
+                // macro: two read pointers half a block apart, each read with
+                // linear interpolation, crossfaded by a triangle so whichever
+                // pointer is near its wrap is the one being faded out.
+                //
+                // R field is 00XX LL0R: XX is the crossfade shape (not yet
+                // modelled -- the shapes are undocumented, so the crossfade is
+                // linear regardless), LL the block length, R the ramp.
+                const rampSel = r & 0x01;
+                const L = 512 << ((r >> 2) & 0x03);
+                const base = m & 0x7FFF;
+
+                // The ramp accumulator sweeps the full 32-bit range once per
+                // ramp cycle, so as an unsigned fraction it maps straight onto
+                // the block. AN-2's +1 octave coefficient for L=4096 is
+                // -1048576, which moves the pointer exactly one sample per
+                // sample period -- on top of the AGU's own decrement that is
+                // the 2x read rate an octave needs.
+                const norm = (this.rampAcc[rampSel] >>> 0) / 4294967296;
+                const pos1 = norm * L;
+                const pos2 = (pos1 + L / 2) % L;
+
+                const i1 = Math.floor(pos1), i2 = Math.floor(pos2);
+                const t1 = this.interpRead(base + i1, pos1 - i1);
+                const t2 = this.interpRead(base + i2, pos2 - i2);
+
+                // Triangle: 0 where pointer one is at the end of the block,
+                // 1.0 where it is in the middle.
+                const xf = 1 - Math.abs(2 * norm - 1);
+                creg[this.ACC32] = this.sat32(
+                    this.mulS31(t1, this.toS31(xf)) +
+                    this.mulS31(t2, this.toS31(1 - xf)));
+                this.provisional.PITCH = true;
+                break;
+            }
 
             default:
                 this.unimplemented['op_0x' + op.toString(16)] = true;
@@ -1013,6 +1077,23 @@ class FXCoreCore {
     // by the negated coefficient.
     negSat(v) { return v === this.INT_MIN ? this.INT_MAX : (-v) | 0; }
 
+    // A unit fraction 0..1 as an S.31 coefficient. 1.0 is not representable,
+    // so it clamps to the largest positive value.
+    toS31(x) {
+        if (!(x > 0)) return 0;
+        if (x >= 1) return this.INT_MAX;
+        return Math.round(x * 2147483648) | 0;
+    }
+
+    // Linearly interpolated read between two adjacent delay samples. Used by
+    // CHR and PITCH, matching what INTERP does explicitly.
+    interpRead(addr, frac) {
+        const s0 = this.readDelay(addr & this.DELAY_MASK);
+        const s1 = this.readDelay((addr + 1) & this.DELAY_MASK);
+        const diff = this.sat32(s1 - s0);
+        return this.sat32(this.mulS31(diff, this.toS31(frac)) + s0);
+    }
+
     // ---- introspection, for the test harness and the debugger -------
 
     getState() {
@@ -1025,7 +1106,8 @@ class FXCoreCore {
             sampleCount: this.sampleCount,
             user: this.user.slice(),
             outputs: this.outputs.slice(),
-            unimplemented: Object.keys(this.unimplemented)
+            unimplemented: Object.keys(this.unimplemented),
+            provisional: Object.keys(this.provisional)
         };
     }
 }

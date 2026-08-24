@@ -4,7 +4,8 @@
 const { execFileSync } = require('child_process');
 const path = require('path');
 
-const SUITES = ['test-core.js', 'test-shiftreg.js', 'test-programs.js'];
+const SUITES = ['test-core.js', 'test-shiftreg.js', 'test-programs.js',
+    'test-pitch-chr.js'];
 let failed = 0;
 
 for (const s of SUITES) {

@@ -808,10 +808,12 @@
             <div class="flyout-section">
                 <div class="sim-note">
                     Simulates the FXCore core, delay RAM, pots, LFOs, ramps, switches
-                    and tap tempo. CHR and PITCH are not modelled - the simulator says
-                    so rather than producing wrong audio. Programs that drive external
-                    hardware over the second I2S bus will not behave as they do on a
-                    real board.
+                    and tap tempo. CHR and PITCH are modelled on the equivalent FV-1
+                    structures, since neither is described internally by any published
+                    document - they sound right but are not yet confirmed against
+                    hardware, and the PITCH crossfade shapes XF0-XF3 are all treated as
+                    linear. Programs that drive external hardware over the second I2S
+                    bus will not behave as they do on a real board.
                 </div>
             </div>
 

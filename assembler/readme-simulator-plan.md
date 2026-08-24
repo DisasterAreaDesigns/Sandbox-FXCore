@@ -607,7 +607,7 @@ the FXCore assembler source was shared by Frank Thomson directly, so:
 | **0. Groundwork** — DONE | `lastAsm`/`lastTable` exposed plus `FXCoreAssembler.buildSimImage()` (`program.js`); `sim-test/assemble.js` runs the real browser assembler headlessly in a Node VM; `new Function` probe answered | — |
 | **1. Core** — DONE | `fxcore-emu.js`: all Tier 1 + 64-bit instructions, registers, 16-bit delay memory, AGU counter, forward jumps, presets | `both-led-on.fxc` and `alternate-blink.fxc` drive USER0/1 correctly; 117 tests green |
 | **2. Peripherals** — DONE, needs hardware A/B | Pots + smoothing + 2 kHz grid, LFOs, ramps, tap tempo state machine, switches with edges, `SET`, `NOISE`, `SAMPLECNT`, `FLAGS` | `tap_lfo_takeover.fxc` tracks the pot correctly including its 0.05 hysteresis |
-| **3. Extended DSP** — partial | `AP*` family, `INTERP`, `LOG2`, `EXP2` implemented. `CHR` and `PITCH` deliberately left as flagged no-ops | AN-1, AN-2, AN-5, AN-8 programs; hardware A/B on `PITCH` and `CHR` |
+| **3. Extended DSP** — DONE, two provisional | `AP*` family, `INTERP`, `LOG2`, `EXP2` from the docs. `CHR` and `PITCH` modelled on the FV-1 equivalents and flagged provisional at runtime | `PITCH` shifts 200 Hz to 400 Hz up and 400 to 200 down using AN-2's own coefficients; hardware A/B still wanted |
 | **4. Audio** — DONE | `fxcore-sim.js`: worklet built from `FXCoreCore.toString()` via a blob URL, sources, 4-out metering with a monitor-pair selector, PLL rate selector, assemble hook | Verified in-browser: correct levels, live pots, blinking USER pins |
 | **5. Performance** — mostly moot | Interpreter already holds real time (§1.1). Offline render mode for hardware A/B. JIT only if a real program is measured short | A real program measured below ~4x realtime |
 | **6. UI** | `#simPanel`, `sim-*` styles, pots/switches/LEDs/tap/ENABLE, assemble hook | Edit → assemble → hear, no extra click |
@@ -691,25 +691,33 @@ actually produce.
 The datasheet and instruction set doc closed most of the original list. What is
 left:
 
-1. **`PITCH` internal algorithm.** The encoding is known
-   (`1101 0010 00XX LL0R 0AAA…`: XF crossfade shape, L block length, R ramp
-   select) and AN-2 shows how to drive it, but neither document describes what
-   the instruction does internally — presumably two read pointers with a
-   crossfade — and **the four crossfade shapes XF0–XF3 are nowhere defined**.
-   Hardware capture or Frank.
-2. **`CHR` interpolation.** The address computation is documented (LFO scaled
-   0…1.0 × depth from `R15[30:16]`, added to the head address). Whether the
-   fractional part is linearly interpolated, truncated, or something else is
-   not stated. Audible on slow sweeps. Hardware capture or Frank.
-3. **Per-instruction INSCLK counts.** Needed for the cycle-budget readout.
-   These cannot be extracted from the toolchain: the current CLI assembler
-   prints `Estimated core usage: NOT IMPLEMENTED YET`, and the JS port's
-   `prgclks` is dead code (§3). Two routes — ask Frank for the table, or
-   measure it on hardware: assemble probe programs consisting of N copies of a
-   single instruction, increase N until the program overruns the sample period
-   at a known rate, and solve for clocks per instruction. If the table has
-   never been published, the simulator would be the first tool to report core
-   usage at all, which is worth doing properly.
+**Two are now implemented on a working assumption rather than a spec.** The
+decision was to model `CHR` and `PITCH` as the equivalent FV-1 structures
+wrapped into single macros. Both execute, both are recorded in
+`core.provisional` when they run, and the panel says so — the output sounds
+right but is not confirmed against silicon.
+
+1. **`PITCH`** — two read pointers derived from the ramp value and the block
+   length, the second offset by half the block, each read with linear
+   interpolation between adjacent samples, crossfaded by a triangle, result
+   summed and saturated. The four crossfade shapes XF0–XF3 remain undocumented
+   and are all treated as linear. This is validated behaviourally: with AN-2's
+   own coefficients, +1 octave turns 200 Hz into 400 Hz and −1 octave turns
+   400 Hz into 200 Hz, and a parked ramp leaves pitch untouched. Still worth a
+   hardware A/B, and worth asking about the crossfade shapes.
+2. **`CHR`** — the documented address arithmetic (LFO scaled 0…1.0 × the depth
+   in `R15[30:16]`, added to the head address) with the fractional part
+   linearly interpolated, as the FV-1 does. Address mapping is unit-tested
+   against a marker pattern in delay memory.
+3. **Per-instruction INSCLK counts.** There is no published spec, and no
+   shipping tool computes them — the CLI assembler prints
+   `Estimated core usage: NOT IMPLEMENTED YET` and the JS port's `prgclks` is
+   dead code (§3). So the cycle-budget readout stays unbuilt unless Frank has
+   internal numbers, or until they are measured on hardware: assemble probe
+   programs of N identical instructions, raise N until the program overruns
+   the sample period at a known rate, solve for clocks per instruction. If it
+   is measured, the simulator would be the first tool to report core usage at
+   all.
 
 Everything else — delay word format, address counter, all fixed-point formats,
 the all-pass pairs, `INTERP`, `SET`, LFO and ramp coefficients, pot smoothing,

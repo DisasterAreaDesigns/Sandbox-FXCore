@@ -419,14 +419,27 @@ console.log('--- all-pass pair ---');
 }
 
 // =====================================================================
-console.log('--- unimplemented instructions are flagged, not silent ---');
+console.log('--- instruction status is reported, never silent ---');
 {
+    // CHR and PITCH are modelled on the FV-1 equivalents pending confirmation
+    // from Experimental Noize, so they run but are recorded as provisional.
     const c = runProg([W(0xD0, 0, 0)]);   // CHR
-    ok('CHR flagged unimplemented', c.getState().unimplemented.includes('CHR'));
+    ok('CHR flagged provisional', c.getState().provisional.includes('CHR'));
+    ok('CHR not flagged unimplemented', !c.getState().unimplemented.includes('CHR'));
+
     const c2 = runProg([W(0xD2, 0, 0)]);  // PITCH
-    ok('PITCH flagged unimplemented', c2.getState().unimplemented.includes('PITCH'));
+    ok('PITCH flagged provisional', c2.getState().provisional.includes('PITCH'));
+    ok('PITCH not flagged unimplemented', !c2.getState().unimplemented.includes('PITCH'));
+
     const c3 = runProg([W(0x06, 0, 1)]);
-    ok('normal program flags nothing', c3.getState().unimplemented.length === 0);
+    ok('normal program flags nothing', c3.getState().unimplemented.length === 0 &&
+        c3.getState().provisional.length === 0);
+
+    // An opcode that does not exist must still be reported rather than
+    // silently treated as a no-op.
+    const c4 = runProg([W(0x7E, 0, 0)]);
+    ok('an unknown opcode is flagged', c4.getState().unimplemented.length === 1,
+        c4.getState().unimplemented.join(','));
 }
 
 // =====================================================================

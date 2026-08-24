@@ -19,11 +19,26 @@ already made a reasonable choice and just want to know if it matches silicon.
 
 ---
 
-## 1. Blocking — we can't implement these without more information
+## 1. Assumptions we've had to make
 
-### 1.1 What does `PITCH` actually do internally, and what are XF0–XF3?
+We've moved forward on all three rather than leave the instructions unbuilt,
+so these are now "please confirm or correct" rather than "we're stuck". The
+simulator records `CHR` and `PITCH` as provisional whenever a program uses
+them and tells the user the output isn't confirmed against hardware.
 
-This is the big one. We have the encoding:
+### 1.1 Is this the right model for `PITCH`, and what are XF0–XF3?
+
+**What we've implemented:** two read pointers derived from the ramp value and
+the block length, the second offset by half the block; each read linearly
+interpolated between adjacent samples; the two crossfaded by a triangle; the
+result summed and saturated — i.e. the FV-1 pitch transposer wrapped into a
+single macro. The four crossfade shapes are all treated as linear for now.
+
+This checks out behaviourally: using AN-2's own coefficients, +1 octave turns
+a 200 Hz input into 400 Hz and −1 octave turns 400 Hz into 200 Hz, and a
+parked ramp leaves the pitch untouched. But it's inference, not spec.
+
+We have the encoding:
 
 ```
 PITCH RAMP|LENGTH|XFADE, ADDRESS
@@ -32,27 +47,21 @@ PITCH RAMP|LENGTH|XFADE, ADDRESS
   R: ramp select        A: address of head of delay block
 ```
 
-and AN-2 shows how to *drive* it — the ramp coefficient equations for pitching
-up and down, and a complete worked example. But neither the Instruction Set doc
-nor AN-2 says what the instruction computes. We assume it maintains two read
-pointers into the block and crossfades between them as the ramp wraps, but we
-don't know:
+and AN-2 shows how to *drive* it, but neither the Instruction Set doc nor AN-2
+says what the instruction computes. So:
 
-- How the two read pointers are derived from the ramp value and the block
-  length. Is the second pointer offset by half the block?
-- **What the four crossfade shapes XF0, XF1, XF2, XF3 are.** These are defined
-  nowhere we can find. Linear? Raised cosine? Equal power? Something else, and
-  in what order?
-- Whether the reads are interpolated between adjacent samples, or truncated to
-  the integer sample.
-- Whether the result is the sum of the two crossfaded taps, and whether it
-  saturates.
-
-Anything from a block diagram to a sentence of prose would unblock this. As it
-stands the simulator refuses to execute `PITCH` and tells the user it isn't
-modelled, rather than producing plausible-sounding but wrong audio.
+- Is the half-block offset between the two pointers right?
+- **What are the four crossfade shapes XF0, XF1, XF2, XF3?** These are defined
+  nowhere we can find. Linear, raised cosine, equal power, something else — and
+  in what order? This is the one part we can't even approximate, since we don't
+  know what we're approximating.
+- Is the result the sum of the two crossfaded taps, and does it saturate?
 
 ### 1.2 Does `CHR` interpolate its fractional address?
+
+**What we've implemented:** linear interpolation between the two adjacent
+samples, the same way the FV-1 does it and the same way `INTERP` is documented
+to.
 
 The address computation *is* documented, and the design rationale in the
 datasheet is clear — the LFO is scaled to 0…1.0, multiplied by the depth in
@@ -70,7 +79,10 @@ What isn't stated is what happens to the fractional part of that product:
 This is audible on slow sweeps — truncation gives the characteristic stepping
 — so we'd rather not guess.
 
-### 1.3 Is there a table of INSCLK counts per instruction?
+### 1.3 Do internal INSCLK counts exist anywhere?
+
+**Where we've landed:** as far as we can tell there is no published spec, so
+the simulator has no core-utilisation readout at all.
 
 The datasheet says programs have "approximately 3500 INSCLKs per sample period
 at 48 kHz" and that instructions take one or more clocks, and the Instruction
@@ -87,12 +99,12 @@ Estimated core usage: NOT IMPLEMENTED YET
 and the JavaScript port has a `prgclks` field that is initialised and never
 written. So as far as we can tell no shipping tool reports core utilisation.
 
-If you have the per-instruction clock table, we'd like to implement it — both
-in the simulator (which can then show a live utilisation meter) and in the web
-assembler, so it warns at 90% the way the documentation describes. If the table
-has never been published, we can measure it on hardware by assembling probe
-programs of N identical instructions and finding where they overrun, but that's
-a lot of board time to recover something you presumably have on paper.
+If internal per-instruction numbers exist, we'd like to implement them — both
+in the simulator (a live utilisation meter) and in the web assembler, so it
+warns at 90% the way the documentation describes. If they've never been
+written down, we can measure them on hardware with probe programs of N
+identical instructions and find where they overrun — happy to send you the
+results if that's useful to you.
 
 ---
 

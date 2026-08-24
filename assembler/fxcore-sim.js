@@ -118,7 +118,8 @@ function simBuildWorkletSource() {
         '                user: this.core.user.slice(),',
         '                flags: this.core.creg[17],',
         '                taptempo: this.core.sfr[45],',
-        '                unimplemented: Object.keys(this.core.unimplemented)});',
+        '                unimplemented: Object.keys(this.core.unimplemented),',
+        '                provisional: Object.keys(this.core.provisional)});',
         '            this.peak = [0, 0, 0, 0];',
         '            this.frames = 0;',
         '        }',
@@ -590,8 +591,15 @@ function simUpdateStatusDisplay(d) {
     simUpdateFlags(d.flags, d.taptempo);
     if (d.unimplemented && d.unimplemented.length) {
         simStatus('This program uses ' + d.unimplemented.join(', ') +
-            ', which the simulator does not model yet - output is not ' +
+            ', which the simulator does not model - output is not ' +
             'representative', 'warn');
+    } else if (d.provisional && d.provisional.length) {
+        // CHR and PITCH are modelled on the FV-1 equivalents pending
+        // confirmation from Experimental Noize. They sound right, but say so
+        // rather than letting the output pass as verified.
+        simStatus(d.provisional.join(' and ') + ' modelled on the FV-1 ' +
+            'equivalent - sounds right, not yet confirmed against hardware',
+            'warn');
     }
 }
 
