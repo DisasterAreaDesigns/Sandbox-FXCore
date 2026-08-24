@@ -197,6 +197,17 @@ h2 + div {
     margin-bottom: 0;
 }
 
+/* The help text quotes source tags such as `; #POT0 Reverb time`, which read
+   as code rather than prose. */
+.instructions-text code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: rgba(127, 127, 127, 0.16);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
 .options {
     padding: 15px; /* Override for slightly more padding */
 }
@@ -836,7 +847,7 @@ body.dark-mode .header-bar::after {
 #instructionsPanel {
     position: fixed;
     top: 0;
-    right: -330px; /* Hidden by default */
+    right: -380px; /* Hidden by default */
     width: 300px;  /* Standard width for options/info */
     height: 100vh;
     background: var(--flyout-bg, #f8f9fa);
@@ -845,13 +856,18 @@ body.dark-mode .header-bar::after {
     transition: right 0.3s ease;
     z-index: 1000;
     overflow-y: auto;
-    padding: 20px;
+    /* An open panel takes its own handle out to its edge, but the other three
+       stay pinned to the window edge and sit on top of it. Widen every panel
+       by a handle's width and leave that strip empty: anything at the right
+       end of a row -- a value readout, a PUSH button, a meter -- would
+       otherwise be covered. */
+    padding: 20px 54px 20px 20px;
 }
 
 #instructionsPanel {
     width: 600px;
     max-width: 80%;
-    right: -630px; /* hidden by default */
+    right: -680px; /* hidden by default */
 }
 
 .options-panel {
@@ -1654,31 +1670,100 @@ body.dark-mode .opcode-description {
 }
 
 
-/* The flyout handles stay pinned at the right edge while a panel is open, so
-   they sit over the panel's right margin. Most panels have nothing there, but
-   the simulator puts controls -- PUSH buttons, meter bars, value readouts --
-   right up to the edge, where the OPTIONS and INFO handles land on top of
-   them. Reserve the handle strip inside the simulator panel only, so the rest
-   of the app's panel behaviour is untouched. */
+/* The panel is taller than any window, so it is always read scrolled. Its own
+   20px of padding is the last thing above the window edge, which leaves the
+   final row looking cut off; give the end of the scroll some room. */
 #simPanel .flyout-content {
-    padding-right: 34px;
+    padding-bottom: 28px;
 }
 
 /* Tighten the vertical rhythm: the panel is long enough that the default
    section spacing pushes the switches and levels below the fold. */
 #simPanel .flyout-section {
-    margin-bottom: 14px;
-    padding-bottom: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
 }
 
 #simPanel .flyout-section h4 {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    font-size: 0.92em;
+    padding-bottom: 3px;
 }
 
 #simPanel .sim-slider-row,
 #simPanel .sim-row {
-    margin: 3px 0;
+    margin: 2px 0;
 }
+
+#simPanel .sim-transport { margin-bottom: 6px; }
+#simPanel .sim-play-btn,
+#simPanel .sim-panic-btn { padding: 6px 12px; }
+#simPanel .sim-status { margin-bottom: 4px; }
+#simPanel .sim-meters { margin-bottom: 4px; }
+
+/* MIDI control ---------------------------------------------------------- */
+
+/* Activity dot, the message it belongs to, and the rescan button on one line.
+   The log takes the slack so the button stays put as messages change width. */
+#simPanel .midi-log-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0;
+}
+
+.midi-log-row #midiLine {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0;
+    font-size: 11px;
+}
+
+/* Messages are data, so they get the monospace treatment; connection state is
+   prose and stays in the panel's own face. */
+.midi-log-row #midiLine.sim-status-log {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* Panel buttons are full-width by default, which is wrong for one that sits
+   at the end of a line. */
+.flyout-content .midi-log-row .midi-rescan {
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0;
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+/* A blink on every accepted message, so it is obvious whether a controller is
+   reaching the page at all before anyone starts doubting the mapping. */
+.midi-activity {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    /* Neutral grey rather than the panel's button colour: dark mode leaves
+       that one light, and an idle dot as bright as a lit one has nothing to
+       say. */
+    background: rgba(127, 127, 127, 0.3);
+    border: 1px solid rgba(127, 127, 127, 0.5);
+    transition: background 0.12s linear;
+}
+
+.midi-activity.midi-activity-on {
+    background: var(--toggle-bg, #4CAF50);
+    border-color: var(--toggle-bg, #4CAF50);
+}
+
+/* Browsers without Web MIDI keep the section, so the feature is documented
+   rather than mysteriously absent, but it is visibly inert. */
+.sim-unavailable .sim-row,
+.sim-unavailable .midi-log-row { opacity: 0.55; }
 
 
 /* A checkbox row's label carries the meaning and the control itself is tiny,

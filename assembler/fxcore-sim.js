@@ -411,10 +411,10 @@ async function simLoadAudioFile(fileInput) {
         simFileBytes = bytes;
         simFileBuffer = await simDecodeFile(bytes);
         simFileName = file.name;
+        // The file input already shows the name, so this only adds what it
+        // cannot: how long the file turned out to be once decoded.
         const label = document.getElementById('simFileLabel');
-        if (label) {
-            label.textContent = file.name + ' (' + simFileBuffer.duration.toFixed(1) + 's)';
-        }
+        if (label) label.textContent = simFileBuffer.duration.toFixed(1) + ' s';
         const sel = document.getElementById('simSource');
         if (sel) sel.value = 'file';
         simOnSourceChange();
@@ -596,6 +596,7 @@ const SIM_SWITCHES = ['simSw0', 'simSw1', 'simSw2', 'simSw3', 'simSw4',
 // ENABLE idles high (the part is enabled); every other pin idles released.
 const simLatched = { simEnable: true };
 const simPushed = {};
+const simPushedBy = {};        // 'pointer' or 'midi', per pushed switch
 
 // The pin as the program sees it: pressed if exactly one of latch and push is
 // active.
@@ -606,9 +607,21 @@ function simSwToggle(id) {
     simSwChanged(id);
 }
 
-function simSwPress(id) {
+// Put a switch in a given state rather than flipping it, which is what an
+// absolute source like a MIDI CC has to do. A push held at the same time still
+// inverts the pin, so the latch is set to whatever makes the pin read `on`.
+function simSetSwitch(id, on) {
+    if (simSwOn(id) === !!on) return;
+    simLatched[id] = (!!on) !== !!simPushed[id];
+    simSwChanged(id);
+}
+
+function simSetEnable(on) { simSetSwitch('simEnable', on); }
+
+function simSwPress(id, from) {
     if (simPushed[id]) return;
     simPushed[id] = true;
+    simPushedBy[id] = from || 'pointer';
     const b = document.getElementById(id + 'Push');
     if (b) b.classList.add('sim-pushing');
     simSwChanged(id);
@@ -617,6 +630,7 @@ function simSwPress(id) {
 function simSwRelease(id) {
     if (!simPushed[id]) return;
     simPushed[id] = false;
+    simPushedBy[id] = null;
     const b = document.getElementById(id + 'Push');
     if (b) b.classList.remove('sim-pushing');
     simSwChanged(id);
@@ -639,21 +653,61 @@ function simUpdateSwitchLamp(id) {
 function simUpdateSwitchLamps() { SIM_SWITCHES.forEach(simUpdateSwitchLamp); }
 
 // A pointer released outside the button never fires its mouseup, which would
-// leave a switch stuck down.
+// leave a switch stuck down. Only pointer presses are swept: a MIDI footswitch
+// held down is not let go of because someone clicked elsewhere on the page.
 if (typeof document !== 'undefined') {
-    document.addEventListener('mouseup', () => SIM_SWITCHES.forEach(simSwRelease));
+    document.addEventListener('mouseup', () => SIM_SWITCHES.forEach((id) => {
+        if (simPushedBy[id] !== 'midi') simSwRelease(id);
+    }));
 }
 
-function simSendPots() {
-    const values = [];
-    for (let i = 0; i < 6; i++) {
-        const v = simNumber('simPot' + i, 50) / 100;
-        values.push(v);
-        const out = document.getElementById('simPot' + i + 'Value');
-        if (out) out.textContent = Math.round(v * 100) + '%';
-    }
-    if (simNode) simNode.port.postMessage({type: 'pots', values: values});
+// The pots live here rather than in the sliders. A slider has 100 steps and a
+// MIDI CC has 128, so reading the value back out of the DOM would quantise a
+// quarter of the controller's resolution away before the core ever saw it.
+let simPots = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+
+// Set one pot from any source. `opts.from` names the control that moved, so a
+// slider is not fought for the thumb while it is the thing being dragged.
+// `opts.defer` sends the value to the core but leaves the display for the
+// caller to refresh, which is how MIDI keeps audio responding at full rate
+// while its redraws are batched.
+function simSetPot(i, v01, opts) {
+    if (i < 0 || i >= simPots.length) return;
+    const v = Math.max(0, Math.min(1, v01));
+    if (simPots[i] === v) return;
+    simPots[i] = v;
+
+    simPushPots();
+    if (!opts || !opts.defer) simRefreshPotDisplay(i, opts && opts.from);
 }
+
+function simRefreshPotDisplay(i, from) {
+    if (typeof document === 'undefined') return;
+    if (from !== 'slider') {
+        const slider = document.getElementById('simPot' + i);
+        if (slider) slider.value = String(Math.round(simPots[i] * 100));
+    }
+    const out = document.getElementById('simPot' + i + 'Value');
+    if (out) out.textContent = Math.round(simPots[i] * 100) + '%';
+}
+
+function simPushPots() {
+    if (simNode) simNode.port.postMessage({type: 'pots', values: simPots.slice()});
+}
+
+// Slider handler: read all six back out of the DOM, which also covers the
+// initial call at startup. The display is refreshed either way, since the
+// percentage beside an untouched slider still has to be drawn once.
+function simSendPots() {
+    for (let i = 0; i < simPots.length; i++) {
+        simSetPot(i, simNumber('simPot' + i, 50) / 100, {from: 'slider', defer: true});
+        simRefreshPotDisplay(i, 'slider');
+    }
+}
+
+// Read-only view of what the core is running, for tests and for MIDI to
+// compare against before it decides a message changed anything.
+if (typeof window !== 'undefined') window.simGetPots = () => simPots.slice();
 
 // PIN bits: 0-4 = SW0-SW4, 5 = ENABLE, 6 = TAP. The pins have pull-ups, so a
 // released switch reads 1 and a pressed one reads 0 -- the panel's buttons read
@@ -894,5 +948,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
 // The control-name parser and the latch/push algebra are pure, so they are
 // exported for the headless tests.
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { simParseControlNames, simSwOn, simLatched, simPushed };
+    module.exports = { simParseControlNames, simSwOn, simLatched, simPushed,
+        simSetSwitch, simSetEnable, simSwToggle, simSwPress, simSwRelease };
 }

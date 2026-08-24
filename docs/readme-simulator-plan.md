@@ -501,6 +501,46 @@ Changes for FXCore:
   indicators, input/output trim, bypass, auto-reload, rate selector, and a
   cycle-count readout against the ~3500 INSCLK budget.
 
+### 5.1 MIDI control (`fxcore-midi.js`)
+
+Ported from the FV-1 simulator and widened to the FXCore's controls. A
+controller attached to the computer drives the panel through the Web MIDI API;
+nothing touches the audio graph, so a program cannot tell a fader from a mouse.
+
+| CC | Control |
+| --- | --- |
+| 50-55 | POT0-POT5 |
+| 93 | tap tempo: one tap of the TAP pin |
+| 102 | ENABLE, 0-63 bypassed, 64-127 engaged |
+| 103-108 | hold SW0, SW1, SW2, SW3, SW4, TAP |
+| 109-114 | toggle the same seven, same order |
+| 115-119 | tap SW0-SW4 |
+
+Every switch gets all three of the things a foot does to one: hold (a gate that
+follows the CC's high half), toggle (acts on the way down, ignores the way up
+so a footswitch release does not flip it back), and tap (a press this file
+releases itself after 120 ms -- long enough to outlast the 480-sample debounce
+at every offered rate, short enough to stay clear of the 36000-sample sticky
+hold). Re-tapping while a tap is still down releases first, so two taps are
+always two push edges, which is all tap tempo measures.
+
+The switch CCs live in 102-119, the block the MIDI spec leaves undefined. CC93
+is the exception and is the tap assignment the pedals already use.
+
+Two details that are not obvious:
+
+- **Pot state moved out of the sliders.** A slider has 100 steps and a CC has
+  128; reading the value back out of the DOM would quantise a quarter of the
+  controller's resolution away. `simPots` holds the truth and the sliders
+  follow it.
+- **Values reach the core immediately, redraws are batched to a frame.** A
+  hidden tab keeps its audio running but stops painting, so a
+  `requestAnimationFrame` in the audio path would freeze the controller. The
+  pending flag is not even set while `document.hidden`, and
+  `visibilitychange` flushes on the way back.
+
+Covered by `assembler/sim-test/test-midi.js`.
+
 ---
 
 ## 6. Fidelity checklist

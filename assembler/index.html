@@ -27,7 +27,7 @@
                         <text x="32" y="40" text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
-                <span class="build">build 18</span>
+                <span class="build">build 19</span>
             </div>
         </div>
         <h2>Source Input</h2>
@@ -171,6 +171,7 @@
         <script src="user-preferences.js"></script>
         <script src="fxcore-emu.js"></script>
         <script src="fxcore-sim.js"></script>
+        <script src="fxcore-midi.js"></script>
 
         <script>
             // Global variables and functions to integrate FXCore with Monaco editor
@@ -483,7 +484,7 @@
         </script>
     </div>
 
-    <div class="sim-toggle" onclick="toggleFlyout('sim')">SIM</div>
+    <div class="sim-toggle" onclick="toggleFlyout('sim')">TEST DRIVE</div>
     <div class="options-toggle" onclick="toggleFlyout('options')">OPTIONS</div>
     <div class="info-toggle" onclick="toggleFlyout('info')">INFO</div>
     <div class="instructions-toggle" onclick="toggleFlyout('instructions')">HELP</div>
@@ -775,7 +776,7 @@
                 <div id="simFileRow" class="sim-row" style="display:none;">
                     <label for="simFile">File</label>
                     <input type="file" id="simFile" accept="audio/*" onchange="simLoadAudioFile(this)">
-                    <span id="simFileLabel" class="sim-value">No file chosen</span>
+                    <span id="simFileLabel" class="sim-value"></span>
                 </div>
             </div>
 
@@ -901,25 +902,41 @@
                 </div>
             </div>
 
-            <div class="flyout-section">
-                <div class="sim-note">
-                    <strong>Naming controls.</strong> Put a tag in a comment and the
-                    pot, switch, tap and LED labels follow it as you type:
-                    <code>; #POT0 Reverb time</code>,
-                    <code>; #SW1 Freeze</code>,
-                    <code>; #TAP Tempo</code>,
-                    <code>; #LED0 Bypass</code> (or <code>#USER0</code>). Tags are
-                    read from the comment part of a line, so they never collide
-                    with code. Hover a renamed control to see which one it is.
+            <div class="flyout-section" id="midiSection">
+                <h4>MIDI Control</h4>
+                <div class="sim-row">
+                    <label for="midiDevice">Input</label>
+                    <select id="midiDevice" onchange="midiOnDeviceChange()" disabled>
+                        <option value="all">All inputs</option>
+                    </select>
                 </div>
-                <div class="sim-note">
-                    Simulates the FXCore core, delay RAM, pots, LFOs, ramps, switches
-                    and tap tempo. CHR and PITCH are modelled on the equivalent FV-1
-                    structures, since neither is described internally by any published
-                    document - they sound right but are not yet confirmed against
-                    hardware, and the PITCH crossfade shapes XF0-XF3 are all treated as
-                    linear. Programs that drive external hardware over the second I2S
-                    bus will not behave as they do on a real board.
+                <div class="sim-row">
+                    <label for="midiChannel">Channel</label>
+                    <select id="midiChannel" onchange="midiOnChannelChange()">
+                        <option value="0" selected>Omni (all channels)</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                        <option value="11">11</option>
+                        <option value="12">12</option>
+                        <option value="13">13</option>
+                        <option value="14">14</option>
+                        <option value="15">15</option>
+                        <option value="16">16</option>
+                    </select>
+                </div>
+                <div class="midi-log-row">
+                    <span id="midiActivity" class="midi-activity" title="MIDI activity"></span>
+                    <span id="midiLine" class="sim-status">Not connected</span>
+                    <button id="midiConnectBtn" class="midi-rescan"
+                            onclick="midiConnect()">Enable MIDI</button>
                 </div>
             </div>
 
@@ -966,6 +983,29 @@
                     <li>File transfer problems - <i>ensure proper directory permissions</i></li>
                     <li>Assembly errors - <i>check syntax and register usage</i></li>
                     <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
+                </ul>
+                <h4>Test Drive (the simulator)</h4>
+                <p>The <b>TEST DRIVE</b> panel runs your assembled program in the browser, so you can hear it without a pedal attached. Press <b>Assemble</b>, then <b>Play</b>.</p>
+                <ul>
+                    <li><b>Naming controls</b> - put a tag in a comment and the pot, switch, tap and LED labels follow it as you type: <code>; #POT0 Reverb time</code>, <code>; #SW1 Freeze</code>, <code>; #TAP Tempo</code>, <code>; #LED0 Bypass</code> (or <code>#USER0</code>). Tags are read from the comment part of a line, so they never collide with code. Hover a renamed control to see which one it is.</li>
+                    <li><b>ENABLE</b> - drives the part's ENABLE/nBypass pin. Off routes the inputs straight to the outputs, the way the pedal's bypass does, while the program keeps running so its delay tails survive.</li>
+                    <li><b>What is modelled</b> - the FXCore core, delay RAM, pots, LFOs, ramps, switches and tap tempo. CHR and PITCH are modelled on the equivalent FV-1 structures, since neither is described internally by any published document: they sound right but are not yet confirmed against hardware, and the PITCH crossfade shapes XF0-XF3 are all treated as linear. Programs that drive external hardware over the second I2S bus will not behave as they do on a real board.</li>
+                </ul>
+                <h4>MIDI Control</h4>
+                <p>A MIDI controller plugged into this computer can move the simulator's pots and its bypass, which is a good deal closer to playing the pedal than dragging sliders with a mouse.</p>
+                <p>The map is fixed. Every switch has all three of the things a foot does to one - <i>hold</i> it down while the pedal is down, <i>toggle</i> it and leave it there, or <i>tap</i> it - so each function gets its own run of controllers:</p>
+                <ul>
+                    <li><b>CC50-CC55</b> - <b>POT0-POT5</b>.</li>
+                    <li><b>CC93</b> - <b>tap tempo</b>: one tap of the TAP pin.</li>
+                    <li><b>CC102</b> - <b>ENABLE</b>: 0-63 bypassed, 64-127 engaged.</li>
+                    <li><b>CC103-CC108</b> - <b>hold</b> SW0, SW1, SW2, SW3, SW4, TAP: 64-127 presses and holds, 0-63 releases.</li>
+                    <li><b>CC109-CC114</b> - <b>toggle</b> the same seven, in the same order: 64-127 flips the switch and leaves it, 0-63 is ignored so a footswitch's release does not flip it back.</li>
+                    <li><b>CC115-CC119</b> - <b>tap</b> SW0-SW4: a press and release the program reads as one push edge. TAP's own tap is CC93.</li>
+                    <li>The switch CCs sit in 102-119, which the MIDI spec leaves undefined, so nothing else can claim them.</li>
+                    <li>Press <b>Enable MIDI</b> once and allow the browser's MIDI prompt. The chosen input and channel are remembered, and the button becomes <b>Rescan Devices</b> for a controller plugged in later.</li>
+                    <li><b>Channel</b> defaults to Omni. Set it when more than one thing is talking on the same port.</li>
+                    <li>Web MIDI needs Chrome, Edge or Firefox. Safari has none, so the section is shown but inert there.</li>
+                    <li>The levels are not mapped, and the <b>SandboxFX</b> pedal itself has no MIDI input - this drives the simulator only.</li>
                 </ul>
                 <h4>What do these Options do?</h4>
                 <p>These are some settings that change various editor and hardware settings</p>
@@ -1538,28 +1578,20 @@
         };
 
         // Update the positions of the toggles to slide with panels
+        // An open panel takes its own handle with it, so the handle stays on the
+        // panel's edge like a tab. The other handles stay pinned to the window
+        // edge: every panel keeps an empty strip that wide down its right side,
+        // so they cover no control and all four stay reachable.
         window.updatePanelPositions = function() {
-            const optionsPanel = document.getElementById('optionsPanel');
-            const infoPanel = document.getElementById('infoPanel');
-            const instructionsPanel = document.getElementById('instructionsPanel');
-
-            const optionsToggle = document.querySelector('.options-toggle');
-            const infoToggle = document.querySelector('.info-toggle');
-            const instructionsToggle = document.querySelector('.instructions-toggle');
-
-            const simPanel = document.getElementById('simPanel');
-            const simToggle = document.querySelector('.sim-toggle');
-            if (simPanel && simToggle)
-                simToggle.style.right = simPanel.classList.contains('open') ? '330px' : '0px';
-
-            if (optionsPanel && optionsToggle)
-                optionsToggle.style.right = optionsPanel.classList.contains('open') ? '330px' : '0px';
-
-            if (infoPanel && infoToggle)
-                infoToggle.style.right = infoPanel.classList.contains('open') ? '330px' : '0px';
-
-            if (instructionsPanel && instructionsToggle)
-                instructionsToggle.style.right = instructionsPanel.classList.contains('open') ? '630px' : '0px';
+            ['sim', 'options', 'info', 'instructions'].forEach(type => {
+                const panel = document.getElementById(`${type}Panel`);
+                const toggle = document.querySelector(`.${type}-toggle`);
+                if (!panel || !toggle) return;
+                // Measured, not assumed: the instructions panel is capped at 80%
+                // of the window, so its width is not always its CSS width.
+                const open = panel.classList.contains('open');
+                toggle.style.right = open ? `${panel.offsetWidth}px` : '0px';
+            });
         };
 
         // Close all panels with Escape key
