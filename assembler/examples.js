@@ -17,23 +17,10 @@ cpy_sc  out1, acc32     ; and write accumulator to DAC`,
 ; #USER0 Blink
 ; #USER1 Blink (inverted)
 
-.rn ledflag r0
-
-; get sample counter
-cpy_cs  acc32, samplecnt
-andi    acc32, 0x1FFF       ; flip the bit every 8192 samples, approx. 2.93Hz at 48Khz sampling
-jnz     acc32, doLED
-
-; if the 13 lowest bits of sample counter are zero, flip the flag
-; this will flip once every 8192 samples as detailed above
-setFlag:
-xori    ledflag, 0x0001     ; invert LSB of ledflag, result in acc32
-cpy_cc  ledflag, acc32      ; store new result in ledflag
-
-doLED:
-set     user0|0, ledflag    ; set the usr0 output per the ledflag LSB
-xori    ledflag, 0x0001     ; XOR LSB of register to invert its state
-set     user1|0, acc32      ; set the user1 LED per the acc32 LSB`,
+cpy_cs      acc32, samplecnt    ; put the sample counter in the acc
+set     user0|13, acc32     ; if the 13th bit of the sample counter is a 1, turn on LED
+inv     acc32           ; invert the acc, turn all 1s to 0s
+set     user1|13, acc32     ; repeat for the (now-inverted) 13th bit for LED1`,
 
     fxcore_delay: `; Default program 4
 ;
