@@ -1638,3 +1638,18 @@ body.dark-mode .opcode-description {
 #simPanel .sim-row {
     margin: 3px 0;
 }
+
+
+/* A checkbox row's label carries the meaning and the control itself is tiny,
+   so the label takes the width instead of the fixed 88px column the slider
+   rows use -- otherwise "Mirror IN0/1 to IN2/3" is clipped mid-word. */
+.sim-row-check label {
+    flex: 1 1 auto;
+    overflow: visible;
+    white-space: normal;
+}
+
+.sim-row-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-left: auto;
+}

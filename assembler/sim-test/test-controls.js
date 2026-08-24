@@ -214,6 +214,93 @@ console.log('--- USER pin duty cycle ---');
         JSON.stringify(du));
 }
 
+// =====================================================================
+console.log('--- tap tempo ---');
+{
+    const FS = 48000;
+    const TAP = 1 << 6, UP = 0x7F, DOWN = 0x7F & ~(1 << 6);
+
+    const mk = () => {
+        const c = new FXCoreCore();
+        c.sampleRate = FS;
+        c.setProgram(Int32Array.from([0xB8000000]));   // no-op pass
+        c.sfr[c.SFR_MAXTEMPO] = 2 * FS;                // allow slow taps
+        return c;
+    };
+    const run = (c, n, pins) => { c.setPins(pins); for (let i = 0; i < n; i++) c.run([0, 0, 0, 0]); };
+    const tapPair = (c, gap, hold = 700) => {
+        run(c, 2000, UP);
+        run(c, hold, DOWN);
+        run(c, gap - hold, UP);
+        run(c, hold, DOWN);
+        run(c, 300, UP);
+    };
+
+    // The debounce delays both edges equally, so the measured interval is the
+    // raw one -- worth pinning down, since a naive implementation would report
+    // the interval short or long by one debounce period.
+    for (const gap of [12000, 24000, 48000]) {
+        const c = mk();
+        tapPair(c, gap);
+        ok(`two taps ${gap} samples apart measure ${gap}`,
+            c.sfr[c.SFR_TAPTEMPO] === gap, `got ${c.sfr[c.SFR_TAPTEMPO]}`);
+    }
+
+    // NEWTT is set for exactly one sample when the measurement lands.
+    {
+        const c = mk();
+        run(c, 2000, UP);
+        run(c, 700, DOWN);
+        run(c, 24000 - 700, UP);
+        c.setPins(DOWN);
+        let seen = 0;
+        for (let i = 0; i < 1500; i++) { c.run([0, 0, 0, 0]); if (c.creg[17] & 0x0008) seen++; }
+        ok('NEWTT is set for exactly one sample', seen === 1, `${seen} samples`);
+    }
+
+    // A single tap with no follow-up must time out at MAXTEMPO and leave the
+    // block ready for a fresh first tap rather than pairing across the gap.
+    {
+        const c = mk();
+        c.sfr[c.SFR_MAXTEMPO] = 10000;
+        run(c, 2000, UP);
+        run(c, 700, DOWN);
+        run(c, 20000, UP);            // well past MAXTEMPO
+        ok('a lone tap leaves TAPTEMPO unset', c.sfr[c.SFR_TAPTEMPO] === 0,
+            `got ${c.sfr[c.SFR_TAPTEMPO]}`);
+        // now a proper pair still measures correctly
+        run(c, 700, DOWN);
+        run(c, 8000 - 700, UP);
+        run(c, 700, DOWN);
+        run(c, 300, UP);
+        ok('a pair after a timeout measures normally', c.sfr[c.SFR_TAPTEMPO] === 8000,
+            `got ${c.sfr[c.SFR_TAPTEMPO]}`);
+    }
+
+    // TAPDB reflects the debounced level and is 1 when the button is up.
+    {
+        const c = mk();
+        run(c, 2000, UP);
+        ok('TAPDB is high with the button released', (c.creg[17] & 0x0001) === 1);
+        run(c, 1000, DOWN);
+        ok('TAPDB is low with the button held', (c.creg[17] & 0x0001) === 0);
+    }
+
+    // Holding past TAPSTKRLD sets TAPSTKY and holds it while pressed.
+    {
+        const c = mk();
+        c.cfgTapStkRld = 5000;
+        run(c, 2000, UP);
+        c.setPins(DOWN);
+        let sticky = 0;
+        for (let i = 0; i < 12000; i++) { c.run([0, 0, 0, 0]); if (c.creg[17] & 0x0010) sticky++; }
+        ok('TAPSTKY sets after TAPSTKRLD and stays set', sticky > 6000 && sticky < 7500,
+            `${sticky} samples of 12000`);
+        run(c, 1000, UP);
+        ok('TAPSTKY clears on release', (c.creg[17] & 0x0010) === 0);
+    }
+}
+
 console.log('');
 if (fail) { console.log('FAILURES:'); for (const f of failures) console.log('  ' + f); }
 console.log(`${pass} passed, ${fail} failed`);

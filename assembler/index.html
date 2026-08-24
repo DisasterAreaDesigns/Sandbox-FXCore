@@ -685,7 +685,7 @@
                     <label>Program</label>
                     <span id="simProgramState" class="sim-program-state">Not loaded</span>
                 </div>
-                <div class="sim-row">
+                <div class="sim-row sim-row-check">
                     <label for="simAutoReload">Reset on assemble</label>
                     <input type="checkbox" id="simAutoReload" checked>
                 </div>
@@ -710,7 +710,7 @@
                         <option value="2">OUT2</option><option value="3">OUT3</option>
                     </select>
                 </div>
-                <div class="sim-row">
+                <div class="sim-row sim-row-check">
                     <label for="simMirrorIn">Mirror IN0/1 to IN2/3</label>
                     <input type="checkbox" id="simMirrorIn" onchange="simSendRoute()">
                 </div>
@@ -859,7 +859,7 @@
                     <input type="range" id="simOutputLevel" min="-40" max="12" value="0" oninput="simApplyLevels()">
                     <span id="simOutputLevelValue" class="sim-value">0 dB</span>
                 </div>
-                <div class="sim-row">
+                <div class="sim-row sim-row-check">
                     <label for="simBypass">Bypass</label>
                     <input type="checkbox" id="simBypass" onchange="simToggleBypass()">
                 </div>
