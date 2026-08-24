@@ -73,6 +73,13 @@ class Program {
             return false;
         }
 
+        // Keep the assembler and symbol table around. The simulator needs the
+        // decoded program plus the CREG/MREG/SFR presets, and reconstructing
+        // those from the Intel HEX means undoing a packing built for the I2C
+        // protocol and throws away the symbol table the debugger wants.
+        FXCoreAssembler.lastAsm = myasm;
+        FXCoreAssembler.lastTable = mytable;
+
         // write HEX file
         debugLog('Writing HEX file', 'info');
         FXCoreAssembler.assembledHex = Program.Write_hex_file(myfxcore, mytable, myasm, Program.hexfile);
@@ -231,6 +238,8 @@ class FXCoreAssembler {
     static selectedFile = null;
     static assembledHex = null;
     static sourceCode = null;
+    static lastAsm = null;      // Assembler instance from the last good build
+    static lastTable = null;    // SymbolTable from the last good build
 
     static init() {
         const uploadArea = document.getElementById('uploadArea');
@@ -320,6 +329,65 @@ class FXCoreAssembler {
         } finally {
             document.getElementById('processBtn').disabled = false;
         }
+    }
+
+    // Build the object the simulator core consumes: decoded instruction words
+    // plus every preset the program header would load on a program change.
+    // Returns null if nothing has been assembled successfully.
+    static buildSimImage() {
+        const asm = FXCoreAssembler.lastAsm;
+        const table = FXCoreAssembler.lastTable;
+        if (!asm || !table || !asm.program || !asm.program.length) return null;
+
+        const regs = table.checkreg;
+        const program = new Int32Array(asm.program.length);
+        for (let i = 0; i < asm.program.length; i++) {
+            program[i] = asm.program[i].machine | 0;
+        }
+
+        // CREG: R0-R15 are presettable, ACC32 and FLAGS are not.
+        const creg = new Int32Array(18);
+        for (let n = 0; n < 16; n++) {
+            const info = regs.valreg(n, regtypes.creg);
+            if (info) creg[n] = info.resolvedvalue | 0;
+        }
+
+        const mreg = new Int32Array(128);
+        for (let n = 0; n < 128; n++) {
+            const info = regs.valreg(n, regtypes.mreg);
+            if (info) mreg[n] = info.resolvedvalue | 0;
+        }
+
+        // SFR presets, indexed by the SFR address in the instruction set doc.
+        // Only the settable ones carry a meaningful value; the rest stay 0.
+        const sfr = new Int32Array(49);
+        for (let n = 0; n < 49; n++) {
+            const info = regs.valreg(n, regtypes.sreg);
+            if (info && info.setable) sfr[n] = info.resolvedvalue | 0;
+        }
+
+        // Header-only registers. registers.js parks these at 117-121 and
+        // 998/999 because they have no SFR address on the part.
+        const cfgOf = (num, dflt) => {
+            const info = regs.valreg(num, regtypes.sreg);
+            return info ? (info.resolvedvalue | 0) : dflt;
+        };
+
+        return {
+            program: program,
+            creg: creg,
+            mreg: mreg,
+            sfr: sfr,
+            usr: [cfgOf(998, 0) & 1, cfgOf(999, 0) & 1],
+            cfg: {
+                tapStkRld: cfgOf(117, 0x8CA0),
+                tapDbRld: cfgOf(118, 0x01E0),
+                swDbRld: cfgOf(119, 0x01E0),
+                prgDbRld: cfgOf(120, 0x0960),
+                oflRld: cfgOf(121, 0x03C0)
+            },
+            instructionCount: asm.program.length
+        };
     }
 
     static readFileContent(file) {

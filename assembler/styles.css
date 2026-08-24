@@ -861,12 +861,14 @@ body.dark-mode .header-bar::after {
 /* Open state for all panels */
 .options-panel.open,
 .info-panel.open,
+#simPanel.open,
 #instructionsPanel.open {
     right: 0;
 }
 /* =========================
    Flyout Toggles
    ========================= */
+.sim-toggle,
 .options-toggle,
 .info-toggle,
 .instructions-toggle {
@@ -894,6 +896,10 @@ body.dark-mode .header-bar::after {
 }
 
 /* Toggle vertical positions */
+.sim-toggle {
+    top: calc(65% - 140px);
+}
+
 .options-toggle { 
     top: 65%; 
 }
@@ -907,6 +913,7 @@ body.dark-mode .header-bar::after {
 }
 
 /* Hover effect */
+.sim-toggle:hover,
 .options-toggle:hover,
 .info-toggle:hover,
 .instructions-toggle:hover {
@@ -1157,6 +1164,7 @@ body.dark-mode #instructionsPanel {
     --flyout-key-bg: #333;
 }
 
+body.dark-mode .sim-toggle,
 body.dark-mode .options-toggle,
 body.dark-mode .info-toggle,
 body.dark-mode .instructions-toggle {
@@ -1386,4 +1394,148 @@ body.dark-mode .opcode-syntax {
 body.dark-mode .opcode-description { 
     color: #b0b0b0; 
     border-top-color: #444; 
+}
+
+/* =========================
+   Simulator panel
+   ========================= */
+.sim-transport {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sim-play-btn,
+.sim-panic-btn,
+.sim-tap-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--toggle-bg, #4CAF50);
+    color: #fff;
+}
+
+/* `body.dark-mode button` is (0,1,2) and beats a bare class, so these are
+   scoped under .flyout-content to keep the panel's own colour coding. */
+.flyout-content .sim-play-btn.sim-playing { background: #c0392b; }
+.flyout-content .sim-panic-btn { background: #7f8c8d; }
+.sim-tap-btn {
+    width: 100%;
+    margin-top: 8px;
+    user-select: none;
+}
+.flyout-content .sim-tap-btn { background: #34495e; }
+.flyout-content .sim-tap-btn:active { background: #c0392b; }
+
+.sim-status {
+    font-size: 12px;
+    padding: 5px 7px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    background: rgba(127, 127, 127, 0.12);
+}
+.sim-status-ok    { color: #2e7d32; }
+.sim-status-warn  { color: #b26a00; }
+.sim-status-error { color: #c0392b; }
+
+.sim-row,
+.sim-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0;
+    font-size: 12px;
+}
+
+.sim-row label,
+.sim-slider-row label {
+    flex: 0 0 88px;
+    white-space: nowrap;
+}
+
+.sim-slider-row input[type="range"] { flex: 1; min-width: 0; }
+.sim-row select { flex: 1; min-width: 0; }
+
+.sim-value {
+    flex: 0 0 auto;
+    font-size: 11px;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+}
+
+.sim-program-state { font-size: 11px; opacity: 0.8; }
+.sim-program-state.loaded { color: #2e7d32; opacity: 1; }
+.sim-program-state.error  { color: #c0392b; opacity: 1; }
+
+.sim-meters { margin-bottom: 6px; }
+
+.sim-meter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 3px 0;
+    font-size: 10px;
+}
+.sim-meter-row span { flex: 0 0 34px; opacity: 0.75; }
+
+.sim-meter {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(127, 127, 127, 0.2);
+    overflow: hidden;
+}
+
+.sim-meter-bar {
+    height: 100%;
+    width: 0;
+    background: #4CAF50;
+    transition: width 0.05s linear;
+}
+.sim-meter-bar.sim-meter-clip { background: #c0392b; }
+
+.sim-leds {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 4px;
+    font-size: 11px;
+}
+.sim-led-label { opacity: 0.75; }
+
+.sim-led {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(127, 127, 127, 0.25);
+    border: 1px solid rgba(127, 127, 127, 0.4);
+    margin-right: 10px;
+}
+.sim-led.sim-led-on {
+    background: #ff5252;
+    box-shadow: 0 0 7px #ff5252;
+    border-color: #ff5252;
+}
+
+.sim-switches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 10px;
+    font-size: 12px;
+}
+.sim-switches label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.sim-note {
+    font-size: 11px;
+    line-height: 1.45;
+    opacity: 0.72;
 }

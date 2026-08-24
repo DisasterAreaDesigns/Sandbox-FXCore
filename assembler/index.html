@@ -166,6 +166,8 @@
         <script src="FXCoreTargets.js"></script>
         <script src="FXCoreFunctions.js"></script>
         <script src="user-preferences.js"></script>
+        <script src="fxcore-emu.js"></script>
+        <script src="fxcore-sim.js"></script>
 
         <script>
             // Global variables and functions to integrate FXCore with Monaco editor
@@ -478,6 +480,7 @@
         </script>
     </div>
 
+    <div class="sim-toggle" onclick="toggleFlyout('sim')">SIM</div>
     <div class="options-toggle" onclick="toggleFlyout('options')">OPTIONS</div>
     <div class="info-toggle" onclick="toggleFlyout('info')">INFO</div>
     <div class="instructions-toggle" onclick="toggleFlyout('instructions')">HELP</div>
@@ -662,6 +665,156 @@
                     </label>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Simulator flyout panel -->
+    <div id="simPanel" class="info-panel">
+        <div class="flyout-header">
+            <h3>FXCore Simulator</h3>
+        </div>
+        <div class="flyout-content">
+
+            <div class="flyout-section">
+                <div class="sim-transport">
+                    <button id="simPlayBtn" class="sim-play-btn" onclick="simTogglePlay()">Play</button>
+                    <button class="sim-panic-btn" onclick="simPanic()">Reset</button>
+                </div>
+                <div id="simStatus" class="sim-status">Idle</div>
+                <div class="sim-row">
+                    <label>Program</label>
+                    <span id="simProgramState" class="sim-program-state">Not loaded</span>
+                </div>
+                <div class="sim-row">
+                    <label for="simAutoReload">Reset on assemble</label>
+                    <input type="checkbox" id="simAutoReload" checked>
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Outputs</h4>
+                <div class="sim-meters">
+                    <div class="sim-meter-row"><span>OUT0</span><div class="sim-meter"><div id="simMeter0" class="sim-meter-bar"></div></div></div>
+                    <div class="sim-meter-row"><span>OUT1</span><div class="sim-meter"><div id="simMeter1" class="sim-meter-bar"></div></div></div>
+                    <div class="sim-meter-row"><span>OUT2</span><div class="sim-meter"><div id="simMeter2" class="sim-meter-bar"></div></div></div>
+                    <div class="sim-meter-row"><span>OUT3</span><div class="sim-meter"><div id="simMeter3" class="sim-meter-bar"></div></div></div>
+                </div>
+                <div class="sim-row">
+                    <label for="simOutL">Monitor L / R</label>
+                    <select id="simOutL" onchange="simSendRoute()">
+                        <option value="0" selected>OUT0</option><option value="1">OUT1</option>
+                        <option value="2">OUT2</option><option value="3">OUT3</option>
+                    </select>
+                    <select id="simOutR" onchange="simSendRoute()">
+                        <option value="0">OUT0</option><option value="1" selected>OUT1</option>
+                        <option value="2">OUT2</option><option value="3">OUT3</option>
+                    </select>
+                </div>
+                <div class="sim-row">
+                    <label for="simMirrorIn">Mirror IN0/1 to IN2/3</label>
+                    <input type="checkbox" id="simMirrorIn" onchange="simSendRoute()">
+                </div>
+                <div class="sim-leds">
+                    <span class="sim-led-label">USER0</span><span id="simUser0" class="sim-led"></span>
+                    <span class="sim-led-label">USER1</span><span id="simUser1" class="sim-led"></span>
+                </div>
+                <div id="simFlags" class="sim-value">Tap -</div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Clock</h4>
+                <div class="sim-row">
+                    <label for="simRate">Sample rate</label>
+                    <select id="simRate" onchange="simOnRateChange()">
+                        <option value="12000">12 kHz (PLL 0,0)</option>
+                        <option value="24000">24 kHz (PLL 0,1)</option>
+                        <option value="32000">32 kHz (PLL 1,0)</option>
+                        <option value="48000" selected>48 kHz (PLL 1,1)</option>
+                    </select>
+                </div>
+                <div id="simRateInfo" class="sim-value">Max delay 0.683 s, Nyquist 24.0 kHz</div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Source</h4>
+                <div class="sim-row">
+                    <label for="simSource">Input</label>
+                    <select id="simSource" onchange="simOnSourceChange()">
+                        <option value="tone">Sine</option>
+                        <option value="saw">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="noise">Noise</option>
+                        <option value="file">Audio file</option>
+                        <option value="input">Live input</option>
+                    </select>
+                </div>
+                <div id="simToneRow" class="sim-slider-row">
+                    <label for="simToneFreq">Freq</label>
+                    <input type="range" id="simToneFreq" min="20" max="5000" value="440"
+                           oninput="simOnToneFreqChange()">
+                    <span id="simToneFreqValue" class="sim-value">440 Hz</span>
+                </div>
+                <div id="simFileRow" class="sim-row" style="display:none;">
+                    <label for="simFile">File</label>
+                    <input type="file" id="simFile" accept="audio/*" onchange="simLoadAudioFile(this)">
+                    <span id="simFileLabel" class="sim-value">No file chosen</span>
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Pots</h4>
+                <div class="sim-slider-row"><label for="simPot0">POT0</label><input type="range" id="simPot0" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot0Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row"><label for="simPot1">POT1</label><input type="range" id="simPot1" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot1Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row"><label for="simPot2">POT2</label><input type="range" id="simPot2" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot2Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row"><label for="simPot3">POT3</label><input type="range" id="simPot3" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot3Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row"><label for="simPot4">POT4</label><input type="range" id="simPot4" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot4Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row"><label for="simPot5">POT5</label><input type="range" id="simPot5" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot5Value" class="sim-value">50%</span></div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Switches</h4>
+                <div class="sim-switches">
+                    <label><input type="checkbox" id="simSw0" onchange="simSendPins()"> SW0</label>
+                    <label><input type="checkbox" id="simSw1" onchange="simSendPins()"> SW1</label>
+                    <label><input type="checkbox" id="simSw2" onchange="simSendPins()"> SW2</label>
+                    <label><input type="checkbox" id="simSw3" onchange="simSendPins()"> SW3</label>
+                    <label><input type="checkbox" id="simSw4" onchange="simSendPins()"> SW4</label>
+                    <label><input type="checkbox" id="simEnable" checked onchange="simSendPins()"> ENABLE</label>
+                </div>
+                <button class="sim-tap-btn" id="simTapBtn"
+                        onmousedown="simTapPress()" onmouseup="simTapRelease()"
+                        onmouseleave="simTapRelease()"
+                        ontouchstart="simTapPress()" ontouchend="simTapRelease()">TAP</button>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Levels</h4>
+                <div class="sim-slider-row">
+                    <label for="simInputLevel">In</label>
+                    <input type="range" id="simInputLevel" min="-40" max="12" value="-6" oninput="simApplyLevels()">
+                    <span id="simInputLevelValue" class="sim-value">-6 dB</span>
+                </div>
+                <div class="sim-slider-row">
+                    <label for="simOutputLevel">Out</label>
+                    <input type="range" id="simOutputLevel" min="-40" max="12" value="0" oninput="simApplyLevels()">
+                    <span id="simOutputLevelValue" class="sim-value">0 dB</span>
+                </div>
+                <div class="sim-row">
+                    <label for="simBypass">Bypass</label>
+                    <input type="checkbox" id="simBypass" onchange="simToggleBypass()">
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <div class="sim-note">
+                    Simulates the FXCore core, delay RAM, pots, LFOs, ramps, switches
+                    and tap tempo. CHR and PITCH are not modelled - the simulator says
+                    so rather than producing wrong audio. Programs that drive external
+                    hardware over the second I2S bus will not behave as they do on a
+                    real board.
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -1227,7 +1380,7 @@
             const isOpen = panel.classList.contains('open');
 
             // Close all other panels
-            ['options', 'info', 'instructions'].forEach(t => {
+            ['sim', 'options', 'info', 'instructions'].forEach(t => {
                 if (t !== type) {
                     const p = document.getElementById(`${t}Panel`);
                     const tog = document.querySelector(`.${t}-toggle`);
@@ -1285,6 +1438,11 @@
             const optionsToggle = document.querySelector('.options-toggle');
             const infoToggle = document.querySelector('.info-toggle');
             const instructionsToggle = document.querySelector('.instructions-toggle');
+
+            const simPanel = document.getElementById('simPanel');
+            const simToggle = document.querySelector('.sim-toggle');
+            if (simPanel && simToggle)
+                simToggle.style.right = simPanel.classList.contains('open') ? '330px' : '0px';
 
             if (optionsPanel && optionsToggle)
                 optionsToggle.style.right = optionsPanel.classList.contains('open') ? '330px' : '0px';
