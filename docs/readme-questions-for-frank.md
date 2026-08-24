@@ -57,6 +57,15 @@ says what the instruction computes. So:
   know what we're approximating.
 - Is the result the sum of the two crossfaded taps, and does it saturate?
 
+**Partly answered.** Frank: page 7 of the FV-1's AN-0001 shows the ramp and XF
+relationship, the second XF — the one for ramp + 0.5 — is just 1 − XF, and
+FXCore uses the same logic. So the two readers are complementary, which is what
+the simulator already does: reader one is scaled by XF and reader two, half a
+block behind it, by 1 − XF. Still open: which shape each of `XF0`–`XF3`
+selects, and whether the four codes differ from one another at all. Until that
+is settled the simulator keeps the FV-1's ramp relationship — 0 at the block
+edge, 1 at the middle — for every code, and `PITCH` stays flagged provisional.
+
 ### 1.2 Does `CHR` interpolate its fractional address?
 
 **What we've implemented:** linear interpolation between the two adjacent

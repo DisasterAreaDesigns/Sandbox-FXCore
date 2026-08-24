@@ -1051,6 +1051,13 @@ class FXCoreCore {
                 // R field is 00XX LL0R: XX is the crossfade shape (not yet
                 // modelled -- the shapes are undocumented, so the crossfade is
                 // linear regardless), LL the block length, R the ramp.
+                //
+                // The complementary pairing below is confirmed: Experimental
+                // Noize point at the ramp/XF figure on page 7 of the FV-1's
+                // AN-0001 and say the second XF, the one for ramp + 0.5, is
+                // just 1 - XF, and that FXCore follows the same logic. What
+                // XF0-XF3 select is still unanswered, so the shape stays the
+                // FV-1's and PITCH stays provisional.
                 const rampSel = r & 0x01;
                 const L = 512 << ((r >> 2) & 0x03);
                 const base = m & 0x7FFF;
