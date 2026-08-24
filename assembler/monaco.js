@@ -20,6 +20,39 @@ require(['vs/editor/editor.main'], function() {
         id: 'fxcore'
     });
 
+    // Language configuration. Monaco's editor actions read this rather than
+    // the tokenizer, so without it Cmd+/ (toggle line comment) and
+    // Shift+Alt+A (toggle block comment) do nothing at all.
+    //
+    // The tokenizer accepts ';', '//' and '/* */'. ';' is what Cmd+/ inserts
+    // because it is the style this repo's own sources and examples use; '//'
+    // still highlights, so code pasted from the Experimental Noize
+    // application notes keeps its comments.
+    monaco.languages.setLanguageConfiguration('fxcore', {
+        comments: {
+            lineComment: ';',
+            blockComment: ['/*', '*/']
+        },
+        brackets: [
+            ['(', ')'],
+            ['[', ']']
+        ],
+        autoClosingPairs: [
+            { open: '(', close: ')' },
+            { open: '[', close: ']' },
+            { open: '"', close: '"', notIn: ['string', 'comment'] }
+        ],
+        surroundingPairs: [
+            { open: '(', close: ')' },
+            { open: '[', close: ']' },
+            { open: '"', close: '"' }
+        ],
+        // Register and symbol names are C identifiers per the 2025 assembler,
+        // but .equ/.mem/.rn directives and the '#' / '!' memory suffixes need
+        // to count as part of a word for double-click and Cmd+/ selection.
+        wordPattern: /(-?\d*\.\d\w*)|([^\`\~\@\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+    });
+
     monaco.languages.setMonarchTokensProvider('fxcore', {
         ignoreCase: true,
         tokenizer: {
