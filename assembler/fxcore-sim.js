@@ -19,7 +19,6 @@ let simNode = null;
 let simSource = null;
 let simInputGain = null;
 let simOutputGain = null;
-let simDryGain = null;
 let simStream = null;
 let simFileBuffer = null;
 let simFileBytes = null;
@@ -52,6 +51,7 @@ function simBuildWorkletSource() {
         '        this.pins = 0x7F;',       // pull-ups: nothing pressed
         '        this.outL = 0; this.outR = 1;',
         '        this.mirror = false;',
+        '        this.bypass = false;',
         '        this.peak = [0, 0, 0, 0];',
         '        this.frames = 0;',
         '        this.ready = false;',
@@ -74,6 +74,8 @@ function simBuildWorkletSource() {
         '                this.pins = d.mask;',
         '            } else if (d.type === "route") {',
         '                this.outL = d.l; this.outR = d.r; this.mirror = d.mirror;',
+        '            } else if (d.type === "bypass") {',
+        '                this.bypass = d.on;',
         '            } else if (d.type === "reset") {',
         '                this.core.reset();',
         '            }',
@@ -101,7 +103,14 @@ function simBuildWorkletSource() {
         '            inbuf[2] = this.mirror ? inbuf[0] : 0;',
         '            inbuf[3] = this.mirror ? inbuf[1] : 0;',
         '            core.run(inbuf);',
-        '            const o = core.outputs;',
+        // Bypass is a routing change downstream of the core, not a halt: the
+        // program keeps running -- delay tails, LFOs, tap tempo and the USER
+        // pins all carry on -- and each input replaces the matching output,
+        // IN0 to OUT0 and so on, the way the part routes I2S when nBypass is
+        // asserted. Taking it from core.inputs rather than from a dry feed
+        // upstream is what makes the monitor pair selector still mean
+        // something while bypassed.
+        '            const o = this.bypass ? core.inputs : core.outputs;',
         '            for (let k = 0; k < 4; k++) {',
         '                const a = o[k] < 0 ? -o[k] : o[k];',
         '                if (a > this.peak[k]) this.peak[k] = a;',
@@ -173,23 +182,20 @@ async function simInitEngine() {
 
     const inputGain = ctx.createGain();
     const outputGain = ctx.createGain();
-    const dryGain = ctx.createGain();
 
     inputGain.connect(node);
     node.connect(outputGain);
-    dryGain.connect(outputGain);
     outputGain.connect(ctx.destination);
-    dryGain.gain.value = 0;
 
     simCtx = ctx;
     simNode = node;
     simInputGain = inputGain;
     simOutputGain = outputGain;
-    simDryGain = dryGain;
     simApplyLevels();
     simSendRoute();
     simSendPots();
     simSendPins();
+    simSendBypass();
 }
 
 function simTeardownEngine() {
@@ -201,7 +207,6 @@ function simTeardownEngine() {
     simNode = null;
     simInputGain = null;
     simOutputGain = null;
-    simDryGain = null;
 }
 
 async function simStart() {
@@ -317,7 +322,7 @@ function simSourceType() {
 
 async function simConnectSource() {
     simDisconnectSource();
-    if (!simCtx || !simInputGain || !simDryGain) return;
+    if (!simCtx || !simInputGain) return;
     const type = simSourceType();
 
     if (type === 'tone' || type === 'saw' || type === 'square') {
@@ -362,10 +367,7 @@ async function simConnectSource() {
         }
     }
 
-    if (simSource) {
-        simSource.connect(simInputGain);
-        simSource.connect(simDryGain);
-    }
+    if (simSource) simSource.connect(simInputGain);
 }
 
 function simDisconnectSource() {
@@ -679,12 +681,9 @@ function simApplyLevels() {
     if (inLabel) inLabel.textContent = inDb.toFixed(0) + ' dB';
     if (outLabel) outLabel.textContent = outDb.toFixed(0) + ' dB';
 
-    const inGain = Math.pow(10, inDb / 20);
-    const outGain = Math.pow(10, outDb / 20);
-    const bypass = !simEnabled();
-    if (simInputGain) simInputGain.gain.value = bypass ? 0 : inGain;
-    if (simDryGain) simDryGain.gain.value = bypass ? inGain : 0;
-    if (simOutputGain) simOutputGain.gain.value = outGain;
+    // Both trims sit outside the part, so they apply bypassed as well.
+    if (simInputGain) simInputGain.gain.value = Math.pow(10, inDb / 20);
+    if (simOutputGain) simOutputGain.gain.value = Math.pow(10, outDb / 20);
 }
 
 function simEnabled() {
@@ -692,15 +691,19 @@ function simEnabled() {
     return el ? el.checked : true;
 }
 
-// ENABLE is the pedal's effect-enable signal, so it does both jobs: it drives
-// the ENABLE pin the program reads, and it puts the dry path in circuit when
-// it is off. A program that implements its own soft bypass from the pin will
-// not be heard doing it while the switch is off -- the dry signal is already
-// on the output, exactly as it is on the hardware.
+function simSendBypass() {
+    if (simNode) simNode.port.postMessage({ type: 'bypass', on: !simEnabled() });
+}
+
+// ENABLE is the one control for the part's ENABLE/nBypass pin, so it does both
+// of that pin's jobs: it drives the pin and the ENABLEDB switch bit the program
+// reads, and it routes the inputs straight to the outputs. The program keeps
+// running either way, which is what lets a program read the pin and decide for
+// itself, and what keeps its delay tails alive across a bypass.
 function simToggleEnable() {
     simSendPins();
-    simApplyLevels();
-    if (!simEnabled()) simStatus('ENABLE off - bypassed, hearing dry signal', 'warn');
+    simSendBypass();
+    if (!simEnabled()) simStatus('ENABLE off - bypassed, inputs routed to outputs', 'warn');
     else simReportRate();
 }
 

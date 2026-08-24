@@ -730,33 +730,9 @@ documents cited at the top of this file.
 
 Things known to be wrong or missing, not yet scheduled.
 
-### 12.1 ENABLE and Bypass are two halves of one control
-
-The panel has two controls that each do part of what the hardware's
-ENABLE/nBypass pin does, and neither does all of it:
-
-- **The ENABLE checkbox** sets `PIN` bit 5 and `SWITCH` bit 15 (`ENABLEDB`),
-  so a program can read the pin. That part is right, but it has no effect on
-  audio — which is why it currently appears to do nothing.
-- **The Bypass checkbox**, down in Levels, swaps the audio path to a dry feed
-  but leaves the pin bits alone, so a program cannot tell it happened.
-
-On hardware there is one behaviour: when the part is bypassed, the I2S bus
-routes input straight to output — `IN0`→`OUT0`, `IN1`→`OUT1`, and so on per
-channel — **while the program keeps executing**. It is a routing change
-downstream of the core, not a halt.
-
-Fold them into a single control that:
-
-1. sets `PIN` bit 5 and `SWITCH` bit 15 as the ENABLE checkbox does now;
-2. keeps running the program, exactly as now — delay memory, LFOs, tap tempo
-   and the USER pins must all carry on, since a real program uses the bypass
-   state to decide what to do and needs its tails intact when it comes back;
-3. routes each input to the matching output *after* the core, replacing the
-   core's own `OUTn` values, rather than substituting a dry source upstream
-   as the current Bypass does. The distinction matters once the monitor pair
-   selector is off `OUT0`/`OUT1`: bypass should feed the monitored pair from
-   the correspondingly numbered inputs, not from whatever the test source is.
-
-Then delete the Bypass checkbox from Levels, so there is one place that does
-this rather than two that each do half.
+*(Nothing outstanding. The ENABLE/Bypass split that sat here is done: ENABLE is
+now the single control for the ENABLE/nBypass pin. It sets `PIN` bit 5 and
+`SWITCH` bit 15 as before, and the worklet swaps each input for the matching
+output after the core has run, so the program keeps executing with its delay
+tails, LFOs, tap tempo and USER pins intact and the monitor pair selector still
+picks a real channel. The separate Bypass checkbox is gone from Levels.)*
