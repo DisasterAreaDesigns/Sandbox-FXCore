@@ -257,6 +257,18 @@ function simTogglePlay() {
     if (simRunning) simStop(); else simStart();
 }
 
+// Ctrl+P (Alt+P off the Mac) reaches this from anywhere in the app, including
+// with the editor focused. Starting from the keyboard also opens the panel:
+// every bit of feedback the simulator gives -- the meters, the LEDs, the
+// status line, whether Play even took -- lives in there, so audio starting
+// behind a closed panel would be a sound with no visible cause. Stopping
+// leaves the panel as it found it.
+function simShortcutTogglePlay() {
+    const starting = !simRunning;
+    simTogglePlay();
+    if (starting && typeof openFlyout === 'function') openFlyout('sim');
+}
+
 // ---- program loading ------------------------------------------------------
 
 // Pull the current build out of the assembler. The simulator wants the
@@ -315,6 +327,41 @@ function simSetProgramState(text, cls) {
 
 // ---- sources --------------------------------------------------------------
 
+// The click train. One second between clicks, and the click itself is a short
+// 2 kHz burst rather than a bare one-sample impulse. An impulse puts most of
+// its energy above where a laptop speaker can reproduce it, so it barely
+// registers, and its DC content walks the state of anything with a feedback
+// path. A 2 kHz burst is audible, sits below Nyquist even at the 12 kHz rate,
+// and at 3 ms is still brief enough to read as an impulse against the delay
+// times these programs work in.
+const SIM_CLICK_PERIOD = 1.0;      // seconds between clicks
+const SIM_CLICK_FREQ = 2000;       // Hz
+const SIM_CLICK_CYCLES = 6;        // whole cycles per burst -- 3 ms at 2 kHz
+
+// A whole number of cycles, so the window closes on a zero crossing. Every
+// rate the selector offers divides 2 kHz exactly, so this is never rounded.
+function simClickLength(sampleRate) {
+    return Math.round(SIM_CLICK_CYCLES * sampleRate / SIM_CLICK_FREQ);
+}
+
+// Write one click into the head of `data` and leave the rest silent. Pure, so
+// the headless tests can check the shape without a Web Audio context.
+function simFillClick(data, sampleRate) {
+    const n = simClickLength(sampleRate);
+    const len = Math.min(data.length, n);
+    const w = 2 * Math.PI * SIM_CLICK_FREQ / sampleRate;
+    for (let i = 0; i < len; i++) {
+        // A Hann window over whole cycles both starts and ends at zero, so the
+        // loop point never puts a step in the signal, and it leaves the burst
+        // symmetric enough that the positive and negative half-cycles cancel
+        // instead of handing the program a DC offset to integrate.
+        const win = 0.5 * (1 - Math.cos(2 * Math.PI * i / n));
+        data[i] = Math.sin(w * i) * win;
+    }
+    for (let i = len; i < data.length; i++) data[i] = 0;
+    return data;
+}
+
 function simSourceType() {
     const el = document.getElementById('simSource');
     return el ? el.value : 'tone';
@@ -331,6 +378,20 @@ async function simConnectSource() {
         osc.frequency.value = simNumber('simToneFreq', 440);
         osc.start();
         simSource = osc;
+    } else if (type === 'click') {
+        // A one-second buffer with a single click at the top of it, looped, so
+        // the clicks land exactly a second apart however the rate is set. That
+        // makes it a stopwatch you can hear: a delay's repeats, a reverb tail
+        // and a tap tempo can all be read straight off the gap between clicks
+        // without measuring anything.
+        const buf = simCtx.createBuffer(1, Math.round(simCtx.sampleRate * SIM_CLICK_PERIOD),
+            simCtx.sampleRate);
+        simFillClick(buf.getChannelData(0), simCtx.sampleRate);
+        const node = simCtx.createBufferSource();
+        node.buffer = buf;
+        node.loop = true;
+        node.start();
+        simSource = node;
     } else if (type === 'noise') {
         const len = Math.floor(simCtx.sampleRate * 2);
         const buf = simCtx.createBuffer(1, len, simCtx.sampleRate);
@@ -949,5 +1010,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
 // exported for the headless tests.
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { simParseControlNames, simSwOn, simLatched, simPushed,
-        simSetSwitch, simSetEnable, simSwToggle, simSwPress, simSwRelease };
+        simSetSwitch, simSetEnable, simSwToggle, simSwPress, simSwRelease,
+        simFillClick, simClickLength, SIM_CLICK_PERIOD };
 }

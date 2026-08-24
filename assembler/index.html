@@ -27,7 +27,7 @@
                         <text x="32" y="40" text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
-                <span class="build">build 19</span>
+                <span class="build">build 20</span>
             </div>
         </div>
         <h2>Source Input</h2>
@@ -375,6 +375,14 @@
                                 }
                                 handled = true;
                                 break;
+                            case 'p':
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (typeof simShortcutTogglePlay === 'function') {
+                                    simShortcutTogglePlay();
+                                }
+                                handled = true;
+                                break;
                         }
                     }
                 } else {
@@ -401,6 +409,14 @@
                                 event.stopPropagation();
                                 if (typeof assembleFXCore === 'function') {
                                     assembleFXCore();
+                                }
+                                handled = true;
+                                break;
+                            case 'p':
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (typeof simShortcutTogglePlay === 'function') {
+                                    simShortcutTogglePlay();
                                 }
                                 handled = true;
                                 break;
@@ -645,6 +661,10 @@
                             <span class="key"><strong>Alt+D</strong></span>
                             <span class="desc">Download Hex / Run from RAM</span>
                         </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Alt+P</strong></span>
+                            <span class="desc">Play / Stop the simulator</span>
+                        </span>
                     </label>
 
                     <label class="mac-only">
@@ -675,6 +695,10 @@
                         <span class="shortcut">
                             <span class="key"><strong>⌃+D</strong></span>
                             <span class="desc">Download Hex / Run from RAM</span>
+                        </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌃+P</strong></span>
+                            <span class="desc">Play / Stop the simulator</span>
                         </span>
                     </label>
                 </div>
@@ -763,6 +787,7 @@
                         <option value="saw">Sawtooth</option>
                         <option value="square">Square</option>
                         <option value="noise">Noise</option>
+                        <option value="click">Clicks (1 s)</option>
                         <option value="file">Audio file</option>
                         <option value="input">Live input</option>
                     </select>

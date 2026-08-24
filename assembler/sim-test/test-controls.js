@@ -4,7 +4,8 @@
 //   node assembler/sim-test/test-controls.js
 
 const FXCoreCore = require('../fxcore-emu.js');
-const { simParseControlNames, simSwOn, simLatched, simPushed } =
+const { simParseControlNames, simSwOn, simLatched, simPushed,
+    simFillClick, simClickLength, SIM_CLICK_PERIOD } =
     require('../fxcore-sim.js');
 
 let pass = 0, fail = 0; const failures = [];
@@ -373,6 +374,51 @@ console.log('--- tap tempo ---');
         run(c, 1000, UP);
         ok('TAPSTKY clears on release', (c.creg[17] & 0x0010) === 0);
     }
+}
+
+// =====================================================================
+// The click source. The buffer is a second long and looped, so what matters
+// is that the click sits at the very top of it and everything after it is
+// silent -- that is what puts the clicks exactly a second apart.
+console.log('--- click source ---');
+for (const rate of [12000, 24000, 32000, 48000]) {
+    const period = Math.round(rate * SIM_CLICK_PERIOD);
+    const data = simFillClick(new Float32Array(period), rate);
+    const clickLen = simClickLength(rate);
+
+    let peak = 0, peakAt = -1;
+    for (let i = 0; i < data.length; i++) {
+        if (Math.abs(data[i]) > peak) { peak = Math.abs(data[i]); peakAt = i; }
+    }
+    ok(`${rate}: one second of samples`, data.length === period, `${data.length}`);
+    ok(`${rate}: click is loud enough to hear`, peak > 0.5 && peak <= 1,
+        `peak ${peak.toFixed(3)}`);
+    ok(`${rate}: peak is inside the click, not the silence`, peakAt < clickLen,
+        `peak at ${peakAt} of ${clickLen}`);
+
+    let tail = 0;
+    for (let i = clickLen; i < data.length; i++) tail += Math.abs(data[i]);
+    eq(`${rate}: dead silent between clicks`, tail, 0);
+
+    // Down to nothing by the time the buffer goes silent, so looping does not
+    // chop the burst off mid-swing and put a step in the signal.
+    ok(`${rate}: click closes on a zero crossing`, Math.abs(data[clickLen - 1]) < 0.01,
+        `last sample ${data[clickLen - 1].toExponential(2)}`);
+
+    // A bare impulse would push DC through any feedback path; a windowed
+    // whole-cycle burst should very nearly average out.
+    let dc = 0;
+    for (let i = 0; i < clickLen; i++) dc += data[i];
+    ok(`${rate}: click carries no meaningful DC`, Math.abs(dc) < 0.01 * peak,
+        `sum ${dc.toFixed(4)} vs peak ${peak.toFixed(3)}`);
+}
+
+{
+    // A buffer shorter than one click still gets filled without running off
+    // the end of it.
+    const short = simFillClick(new Float32Array(4), 48000);
+    ok('a buffer shorter than the click is filled, not overrun', short.length === 4);
+    eq('first sample of a short buffer is the click start', short[0], 0);
 }
 
 console.log('');
