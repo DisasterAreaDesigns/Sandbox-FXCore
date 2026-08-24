@@ -116,6 +116,7 @@ function simBuildWorkletSource() {
         '                peak: [this.peak[0] / 2147483648, this.peak[1] / 2147483648,',
         '                       this.peak[2] / 2147483648, this.peak[3] / 2147483648],',
         '                userDuty: this.core.readUserDuty(),',
+        '                user: this.core.user.slice(),',
         '                flags: this.core.creg[17],',
         '                taptempo: this.core.sfr[45],',
         '                unimplemented: Object.keys(this.core.unimplemented),',
@@ -689,7 +690,7 @@ function simUpdateTransport() {
 
 function simUpdateStatusDisplay(d) {
     simUpdateMeters(d.peak);
-    simUpdateLEDs(d.userDuty);
+    simUpdateLEDs(d.userDuty, d.user);
     simUpdateFlags(d.flags, d.taptempo);
     if (d.unimplemented && d.unimplemented.length) {
         simStatus('This program uses ' + d.unimplemented.join(', ') +
@@ -721,16 +722,30 @@ function simUpdateMeters(peak) {
 // bit. Programs PWM these pins in software -- a 256-sample cycle is 187 Hz at
 // 48 kHz -- so sampling the bit at display rate would alias a smooth fade into
 // random flicker.
-function simUpdateLEDs(duty) {
+function simUpdateLEDs(duty, raw) {
+    const pwmEl = document.getElementById('simLedPwm');
+    const pwm = pwmEl ? pwmEl.checked : true;
+
     for (let i = 0; i < 2; i++) {
         const el = document.getElementById('simUser' + i);
         if (!el) continue;
         let d = duty && duty[i] != null ? duty[i] : 0;
         if (!(d > 0)) d = 0; else if (d > 1) d = 1;
 
+        // Two ways to show a pin that switches faster than the display
+        // refreshes. PWM mode uses the integrated duty cycle, which is what an
+        // LED and an eye do with a dimmed output. Raw mode uses the pin state
+        // at the moment the frame was posted, which gives a crisp on/off for
+        // programs that only blink -- there the integration smears the
+        // transition into a meaningless intermediate brightness.
+        let level = d;
+        if (!pwm) level = raw && raw[i] ? 1 : 0;
+        el.classList.toggle('sim-led-crisp', !pwm);
+
         // Perceived brightness is not linear in duty cycle, so a 50% duty
         // shown at 50% opacity reads far too dim. Gamma-correct for display.
-        const b = Math.pow(d, 1 / 2.2);
+        const b = Math.pow(level, 1 / 2.2);
+        d = level;
 
         if (d > 0.002) {
             // Interpolate the lit colour over the unlit face rather than using
@@ -749,9 +764,14 @@ function simUpdateLEDs(duty) {
             el.style.boxShadow = '';
         }
 
+        // The readout always reports the real measured duty, whichever way
+        // the lamp is being drawn -- that is the number worth having when a
+        // PWM is not doing what was intended.
+        const trueDuty = duty && duty[i] != null ? Math.max(0, Math.min(1, duty[i])) : 0;
         const pct = document.getElementById('simUser' + i + 'Duty');
-        if (pct) pct.textContent = Math.round(d * 100) + '%';
-        el.title = 'USER' + i + ' duty ' + (d * 100).toFixed(1) + '%';
+        if (pct) pct.textContent = Math.round(trueDuty * 100) + '%';
+        el.title = 'USER' + i + ' duty ' + (trueDuty * 100).toFixed(1) + '%' +
+            (pwm ? '' : '  (lamp showing raw pin state)');
     }
 }
 

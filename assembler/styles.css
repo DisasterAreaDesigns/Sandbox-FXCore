@@ -1533,6 +1533,11 @@ body.dark-mode .opcode-description {
     transition: background 0.06s linear, box-shadow 0.06s linear;
 }
 
+/* Raw mode is meant to look like a switch, not a lamp fading up. */
+.sim-led.sim-led-crisp {
+    transition: none;
+}
+
 .sim-led-duty {
     font-size: 10px;
     opacity: 0.6;
