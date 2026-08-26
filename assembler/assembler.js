@@ -1063,12 +1063,16 @@ class Assembler {
                 break;
                 
             case 'imm8d':
+                // An S.7 fraction: value = word / 128. Round to the field's own
+                // width rather than truncating a wider intermediate -- scaling by
+                // 0x7FFFFFFF and flooring cost a whole LSB on every positive
+                // value, so 0.5 assembled as 0.4921875.
                 if (value < -1.0 || value >= 1.0) {
                     debug.error(`Parameter ${paramName} out of range for imm8d at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                const val8d = Math.floor(value * 0x7FFFFFFF);
-                instruction.paramint[paramIndex] = (val8d >> 24) & 0xFF;
+                instruction.paramint[paramIndex] =
+                    Math.max(-128, Math.min(127, Math.round(value * 128))) & 0xFF;
                 break;
                 
             case 'imm16d':
@@ -1080,16 +1084,25 @@ class Assembler {
                     }
                     instruction.paramint[paramIndex] = Math.floor(value) & 0xFFFF;
                 } else {
-                    // Decimal value
+                    // Decimal value: an S.15 fraction, value = word / 32768.
+                    //
+                    // This used to scale by 0x7FFFFFFF and floor, which is one
+                    // LSB low on EVERY positive value -- 0.5 assembled as 16383
+                    // rather than 16384, and every coefficient in a program came
+                    // out a step small. Rounding at the field's own width fixes
+                    // it; the .L form still needs the 32-bit intermediate, since
+                    // it is asking for that value's low half.
                     if (value < -1.0 || value >= 1.0) {
                         debug.error(`Parameter ${paramName} out of range for imm16d at line ${instruction.linenum}`, 'ASSEMBLER');
                         return false;
                     }
-                    const val16d = Math.floor(value * 0x7FFFFFFF);
                     if (paramName.toUpperCase().endsWith('.L')) {
-                        instruction.paramint[paramIndex] = val16d & 0xFFFF;
+                        const val32 = Math.max(-0x80000000,
+                            Math.min(0x7FFFFFFF, Math.round(value * 0x80000000)));
+                        instruction.paramint[paramIndex] = val32 & 0xFFFF;
                     } else {
-                        instruction.paramint[paramIndex] = (val16d >> 16) & 0xFFFF;
+                        instruction.paramint[paramIndex] =
+                            Math.max(-32768, Math.min(32767, Math.round(value * 32768))) & 0xFFFF;
                     }
                 }
                 break;
