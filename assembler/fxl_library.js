@@ -168,6 +168,11 @@ class FXLibrary {
         return Array.from(this.subs.values()).map(s => s.name);
     }
 
+    /** Every subroutine, in the order the .fxl file declared them. */
+    subList() {
+        return Array.from(this.subs.values());
+    }
+
     /**
      * Build a library from .fxl text. Throws on malformed XML or a missing
      * library name; individual malformed subs are reported in warnings.
@@ -281,6 +286,11 @@ class FXLibrarySet {
         return Array.from(this.libs.values()).map(l => l.name);
     }
 
+    /** Every library, for the pickers that list what has been loaded. */
+    all() {
+        return Array.from(this.libs.values());
+    }
+
     subCount() {
         let n = 0;
         for (const lib of this.libs.values()) n += lib.subs.size;
@@ -288,6 +298,29 @@ class FXLibrarySet {
     }
 }
 
+/**
+ * The call that invokes a subroutine, with each parameter's own name standing
+ * in for the argument: "@lx.fs4bypass(bypstate_sub, temp_sub)". This is what
+ * the picker pastes and what the editor's suggestions show, so both agree on
+ * the argument order the preprocessor is going to check.
+ */
+function fxlCallSignature(lib, sub) {
+    const args = sub.params.map(p => p.name).join(', ');
+    return `@${lib.name}.${sub.name}(${args})`;
+}
+
+/**
+ * The same call as a Monaco snippet, so each parameter is a tab stop the
+ * argument can be typed straight over. Placeholder text is escaped because a
+ * "$" or "}" in a parameter name would otherwise end the placeholder early.
+ */
+function fxlCallSnippet(lib, sub) {
+    const args = sub.params.map((p, i) =>
+        '${' + (i + 1) + ':' + String(p.name).replace(/[\\$}]/g, '\\$&') + '}');
+    return `@${lib.name}.${sub.name}(${args.join(', ')})`;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { FXLibrary, FXLibrarySet, fxlParseXml };
+    module.exports = { FXLibrary, FXLibrarySet, fxlParseXml,
+        fxlCallSignature, fxlCallSnippet };
 }

@@ -1082,6 +1082,72 @@ body.dark-mode .header-bar::after {
     display: block;
 }
 
+/* Library subroutine picker */
+.library-sub-list {
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 8px;
+    border: 1px solid var(--flyout-border, #dee2e6);
+    border-radius: 5px;
+    background: var(--flyout-input-bg, #ffffff);
+}
+
+.library-sub-lib {
+    padding: 4px 10px;
+    font-size: 0.8em;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--flyout-text-muted, #666);
+    background: var(--flyout-key-bg, #f8f9fa);
+    border-bottom: 1px solid var(--flyout-border-light, #f0f0f0);
+    position: sticky;
+    top: 0;
+}
+
+/* Tighter than the panel's usual buttons -- there is one per subroutine and a
+   framework library has dozens -- but still at reading size, and wrapping
+   rather than scrolling sideways, since a call is wider than the panel. */
+.flyout-content .library-sub-item {
+    display: block;
+    /* The panel's buttons are content-box, so a full width row plus its own
+       padding would overhang the list and put a second scrollbar under it. */
+    box-sizing: border-box;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95em;
+    line-height: 1.35;
+    white-space: normal;
+    /* break-word rather than anywhere: only a name too long for the panel is
+       split, so ordinary ones stay whole and the arguments wrap instead. */
+    overflow-wrap: break-word;
+}
+
+.library-sub-name {
+    font-weight: bold;
+}
+
+.library-sub-args {
+    color: var(--flyout-text-muted, #666);
+}
+
+.flyout-content .library-sub-item:hover {
+    background: var(--flyout-button-hover, #dee2e6);
+}
+
+.library-sub-empty {
+    padding: 8px 10px;
+    font-size: 0.85em;
+    font-style: italic;
+    color: var(--flyout-text-muted, #666);
+}
+
 /* FXCore address input */
 .fxcore-address-input {
     padding: 6px 10px;
@@ -1220,6 +1286,22 @@ body.dark-mode .shortcut:first-child {
 }
 
 body.dark-mode .shortcut .desc {
+    color: var(--flyout-text-muted, #999);
+}
+
+body.dark-mode .library-sub-list {
+    border-color: var(--flyout-border, #444);
+    background: var(--flyout-input-bg, #1e1e1e);
+}
+
+body.dark-mode .library-sub-lib {
+    color: var(--flyout-text-muted, #999);
+    background: var(--flyout-key-bg, #2a2a2a);
+    border-bottom-color: var(--flyout-border-light, #333);
+}
+
+body.dark-mode .library-sub-empty,
+body.dark-mode .library-sub-args {
     color: var(--flyout-text-muted, #999);
 }
 

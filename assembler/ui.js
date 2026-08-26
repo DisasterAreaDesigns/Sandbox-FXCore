@@ -65,6 +65,7 @@ function clearLibraryDirectory() {
     const libs = typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.getLibraries() : null;
     if (libs) libs.clear();
     updateLibraryFolderLabel('No folder selected', false);
+    renderLibrarySubList();
     debugLog('Library folder cleared', 'info');
 }
 
@@ -114,6 +115,7 @@ async function scanLibraryDirectory(quiet) {
     const label = libraryDirectoryHandle.name +
         ` (${loaded} librar${loaded === 1 ? 'y' : 'ies'}, ${libs.subCount()} subroutines)`;
     updateLibraryFolderLabel(label, loaded > 0);
+    renderLibrarySubList();
 
     if (!quiet) {
         if (loaded === 0) {
@@ -145,6 +147,120 @@ function updateLibraryFolderLabel(text, connected) {
     if (!label) return;
     label.textContent = text.startsWith('No ') ? text : `Selected: ${text}`;
     label.style.color = connected ? '#28a745' : '';
+}
+
+// ---------------------------------------------------------------------------
+// Library subroutine picker
+//
+// A .fxl file describes what each subroutine does and what its parameters are,
+// but none of that is visible from the editor once the folder has been read.
+// This lists every subroutine that was found and pastes the call for the one
+// clicked, arguments and all, so a library can be used without the .fxl having
+// to be opened alongside. Monaco offers the same set from "@" as you type.
+// ---------------------------------------------------------------------------
+
+function renderLibrarySubList() {
+    const section = document.getElementById('librarySubSection');
+    const list = document.getElementById('librarySubList');
+    if (!section || !list) return;
+
+    const libs = typeof FXCoreAssembler !== 'undefined' &&
+        FXCoreAssembler.getLibraries ? FXCoreAssembler.getLibraries() : null;
+    list.textContent = '';
+    if (!libs || !libs.size) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = '';
+
+    const filterEl = document.getElementById('librarySubFilter');
+    const filter = (filterEl ? filterEl.value : '').trim().toLowerCase();
+    let shown = 0;
+
+    for (const lib of libs.all()) {
+        const subs = lib.subList().filter(sub => !filter ||
+            `${lib.name}.${sub.name} ${sub.desc || ''}`.toLowerCase().includes(filter));
+        if (!subs.length) continue;
+
+        const head = document.createElement('div');
+        head.className = 'library-sub-lib';
+        head.textContent = lib.name;
+        if (lib.desc) head.title = lib.desc;
+        // Libraries may carry their own colours, which is how the desktop tool
+        // tells one apart from another at a glance.
+        if (lib.color) head.style.background = lib.color;
+        if (lib.textColor) head.style.color = lib.textColor;
+        list.appendChild(head);
+
+        for (const sub of subs) {
+            // Name and arguments as separate spans: a framework library's
+            // calls are far wider than the panel, and the name is the part
+            // that has to stay readable when the line wraps.
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'library-sub-item';
+            const name = document.createElement('span');
+            name.className = 'library-sub-name';
+            name.textContent = `@${lib.name}.${sub.name}`;
+            btn.appendChild(name);
+            const args = document.createElement('span');
+            args.className = 'library-sub-args';
+            args.textContent = '(' + sub.params.map(p => p.name).join(', ') + ')';
+            btn.appendChild(args);
+            btn.title = librarySubTooltip(lib, sub);
+            btn.onclick = () => insertLibraryCall(lib.name, sub.name);
+            list.appendChild(btn);
+            shown++;
+        }
+    }
+
+    if (!shown) {
+        const none = document.createElement('div');
+        none.className = 'library-sub-empty';
+        none.textContent = 'No subroutine matches "' + filter + '"';
+        list.appendChild(none);
+    }
+}
+
+function librarySubTooltip(lib, sub) {
+    const lines = [fxlCallSignature(lib, sub)];
+    if (sub.desc) lines.push(sub.desc);
+    for (const p of sub.params) {
+        lines.push(`  ${p.name} : ${p.type}` +
+            (p.side ? ` (${p.side})` : '') + (p.desc ? ` - ${p.desc}` : ''));
+    }
+    lines.push(lib.file ? `from ${lib.file}` : `library ${lib.name}`);
+    return lines.join('\n');
+}
+
+// Paste the call as a snippet so each argument is a tab stop, and get out of
+// the way: the panel covers the editor the call has just landed in.
+function insertLibraryCall(libName, subName) {
+    const libs = typeof FXCoreAssembler !== 'undefined' &&
+        FXCoreAssembler.getLibraries ? FXCoreAssembler.getLibraries() : null;
+    const lib = libs ? libs.get(libName) : null;
+    const sub = lib ? lib.sub(subName) : null;
+    if (!sub) return;
+    if (typeof editor === 'undefined' || !editor) {
+        debugLog('The editor is not ready yet', 'errors');
+        return;
+    }
+    if (typeof closeFlyout === 'function') closeFlyout('options');
+    editor.focus();
+    // Snippet insertion is a Monaco contribution rather than an editor action,
+    // so it is reached through the controller; if a future build drops it the
+    // call still lands, just without the tab stops.
+    const snippets = editor.getContribution('snippetController2');
+    if (snippets && snippets.insert) {
+        snippets.insert(fxlCallSnippet(lib, sub));
+    } else {
+        editor.executeEdits('library-picker', [{
+            range: editor.getSelection(),
+            text: fxlCallSignature(lib, sub),
+            forceMoveMarkers: true
+        }]);
+    }
+    debugLog(`Inserted ${fxlCallSignature(lib, sub)}`, 'info');
 }
 
 // Libraries are read once when the folder is chosen, but a .fxl edited in

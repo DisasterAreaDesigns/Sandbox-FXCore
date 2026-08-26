@@ -362,6 +362,101 @@ function simFillClick(data, sampleRate) {
     return data;
 }
 
+// A plucked string, taken from the FV-1 converter's listening harness. It is
+// the most useful thing to judge an effect by: a sharp transient, real
+// harmonic content, and a gap after each pluck where a delay or reverb tail
+// can be heard on its own. Karplus-Strong -- a burst of noise round a delay
+// line one period long, filtered once per pass.
+//
+// Plain Karplus-Strong loses its energy per trip round the string rather than
+// per second, so a low note holds on several times longer than a high one and
+// rings like a metal bar. Both losses here are quoted in seconds and hertz
+// instead, and scaled to the string, so a bass note fades like a bass note.
+const SIM_PLUCK_SECONDS = 2;       // buffer length, so a pluck every 2 s
+const SIM_PLUCK_DECAY = 0.04;      // what is left of the note after a second
+const SIM_PLUCK_TONE = 7000;       // Hz, the string's own damping
+const SIM_PLUCK_PICK = 3000;       // Hz, how hard the string was picked
+let simPluckRetune = null;
+
+function simRng(seed) {
+    let s = (seed >>> 0) || 1;
+    return () => {
+        s ^= s << 13; s >>>= 0;
+        s ^= s >>> 17;
+        s ^= s << 5;  s >>>= 0;
+        return s / 4294967296;
+    };
+}
+
+// One pole coefficient for a cutoff in Hz at the rate being rendered.
+function simOnePole(hz, rate) {
+    return 1 - Math.exp(-2 * Math.PI * hz / rate);
+}
+
+/**
+ * Fill `out` with one pluck. The noise burst comes from a fixed seed so the
+ * same settings always give the same signal, which is what makes an A/B
+ * between two versions of a program mean anything.
+ */
+function simPluckSignal(out, rate, hz, seed) {
+    const period = Math.max(2, Math.round(rate / hz));
+    // The string is damped once per trip and makes rate/period trips a second,
+    // so raising the per second figure to that power keeps the note's length
+    // the same whatever it is tuned to and whatever the PLL rate is.
+    const damp = Math.pow(SIM_PLUCK_DECAY, period / rate);
+    const tone = simOnePole(SIM_PLUCK_TONE, rate);
+    const pick = simOnePole(SIM_PLUCK_PICK, rate);
+
+    const random = seed === undefined ? simRng(1) : simRng(seed);
+    const string = new Float32Array(period);
+    for (let i = 0; i < period; i++) string[i] = random() * 2 - 1;
+
+    // White noise is a pick with no width to it, all fizz and no note. Round
+    // the burst off first -- twice, so the filter carries over the wrap and
+    // the string starts where it ends -- then put the level back.
+    let lp = string[period - 1];
+    for (let pass = 0; pass < 2; pass++) {
+        for (let i = 0; i < period; i++) {
+            lp += pick * (string[i] - lp);
+            if (pass) string[i] = lp;
+        }
+    }
+    let loudest = 0;
+    for (let i = 0; i < period; i++) loudest = Math.max(loudest, Math.abs(string[i]));
+    if (loudest > 0) for (let i = 0; i < period; i++) string[i] /= loudest;
+
+    // The buffer loops, so the tail has to reach silence before the seam or
+    // every repeat would start with a click of its own.
+    const n = out.length;
+    const fade = Math.floor(n * 0.75);
+    let loop = 0, index = 0;
+    for (let i = 0; i < n; i++) {
+        const next = (index + 1) % period;
+        // A one pole rather than the usual two point average: its corner is
+        // fixed in hertz, so the harmonics a long string carries are lost as
+        // quickly in time as a short string's, which is what stops a low
+        // pluck ringing on as a clang.
+        loop += tone * (0.5 * (string[index] + string[next]) - loop);
+        out[i] = string[index] * 0.4;
+        string[index] = loop * damp;
+        index = next;
+        if (i > fade) out[i] *= (n - i) / (n - fade);
+    }
+    return out;
+}
+
+function simMakePluckSource() {
+    const len = Math.max(1, Math.round(simCtx.sampleRate * SIM_PLUCK_SECONDS));
+    const buf = simCtx.createBuffer(1, len, simCtx.sampleRate);
+    simPluckSignal(buf.getChannelData(0), simCtx.sampleRate,
+        simNumber('simToneFreq', 440));
+    const node = simCtx.createBufferSource();
+    node.buffer = buf;
+    node.loop = true;
+    node.start();
+    return node;
+}
+
 function simSourceType() {
     const el = document.getElementById('simSource');
     return el ? el.value : 'tone';
@@ -392,6 +487,8 @@ async function simConnectSource() {
         node.loop = true;
         node.start();
         simSource = node;
+    } else if (type === 'pluck') {
+        simSource = simMakePluckSource();
     } else if (type === 'noise') {
         const len = Math.floor(simCtx.sampleRate * 2);
         const buf = simCtx.createBuffer(1, len, simCtx.sampleRate);
@@ -490,7 +587,8 @@ async function simOnSourceChange() {
     const toneRow = document.getElementById('simToneRow');
     const fileRow = document.getElementById('simFileRow');
     if (toneRow) toneRow.style.display =
-        (type === 'tone' || type === 'saw' || type === 'square') ? '' : 'none';
+        (type === 'tone' || type === 'saw' || type === 'square' ||
+         type === 'pluck') ? '' : 'none';
     if (fileRow) fileRow.style.display = (type === 'file') ? '' : 'none';
     if (simRunning) await simConnectSource();
 }
@@ -501,6 +599,12 @@ function simOnToneFreqChange() {
     if (out) out.textContent = f + ' Hz';
     if (simSource && simSource.frequency) {
         simSource.frequency.setTargetAtTime(f, simCtx.currentTime, 0.01);
+    } else if (simRunning && simSourceType() === 'pluck') {
+        // A rendered buffer cannot be retuned the way an oscillator can, so the
+        // pluck has to be built again -- once the slider has settled, or every
+        // step of a drag would restart the note.
+        clearTimeout(simPluckRetune);
+        simPluckRetune = setTimeout(() => simConnectSource(), 200);
     }
 }
 
@@ -1011,5 +1115,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { simParseControlNames, simSwOn, simLatched, simPushed,
         simSetSwitch, simSetEnable, simSwToggle, simSwPress, simSwRelease,
-        simFillClick, simClickLength, SIM_CLICK_PERIOD };
+        simFillClick, simClickLength, SIM_CLICK_PERIOD,
+        simPluckSignal, SIM_PLUCK_SECONDS, SIM_PLUCK_DECAY };
 }

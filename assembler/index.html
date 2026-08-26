@@ -557,6 +557,16 @@
                 </div>
             </div>
 
+            <div id="librarySubSection" class="flyout-section" style="display:none;">
+                <h4>Library Subroutines</h4>
+                <div class="options">
+                    <input type="text" id="librarySubFilter" placeholder="Filter subroutines"
+                           oninput="renderLibrarySubList()">
+                    <div id="librarySubList" class="library-sub-list"></div>
+                    <span class="project-folder-label">Click one to paste its call at the cursor</span>
+                </div>
+            </div>
+
             <div class="flyout-section">
                 <h4>Hardware Options</h4>
                 <div class="options">
@@ -786,6 +796,7 @@
                         <option value="tone">Sine</option>
                         <option value="saw">Sawtooth</option>
                         <option value="square">Square</option>
+                        <option value="pluck">Pluck</option>
                         <option value="noise">Noise</option>
                         <option value="click">Clicks (1 s)</option>
                         <option value="file">Audio file</option>

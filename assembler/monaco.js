@@ -258,6 +258,128 @@ require(['vs/editor/editor.main'], function() {
         }
     });
 
+    // -----------------------------------------------------------------------
+    // Library call suggestions
+    //
+    // Which subroutines exist depends on the folder the user picked, so the
+    // set is read when a suggestion is asked for rather than registered once
+    // with the language: point the assembler at a different folder and the
+    // next "@" offers the new subroutines with no reload.
+    //
+    // Monaco's own word pattern stops at "@" and ".", so the fragment being
+    // completed is taken from the raw line instead of from getWordUntilPosition().
+    // -----------------------------------------------------------------------
+    const LIBRARY_CALL_RE = /@([A-Za-z0-9_\-]*)(?:\.([A-Za-z0-9_\-]*))?$/;
+
+    function loadedLibraries() {
+        if (typeof FXCoreAssembler === 'undefined' || !FXCoreAssembler.getLibraries) {
+            return null;
+        }
+        const libs = FXCoreAssembler.getLibraries();
+        return (libs && libs.size) ? libs : null;
+    }
+
+    // The hover card and the suggestion detail both want the same paragraph:
+    // what the subroutine does, then what each argument has to be.
+    function libraryCallDocs(lib, sub) {
+        const lines = [];
+        if (sub.desc) lines.push(sub.desc, '');
+        for (const p of sub.params) {
+            lines.push(`- \`${p.name}\` *${p.type}*` +
+                (p.side ? ` *(${p.side})*` : '') +
+                (p.desc ? ` &mdash; ${p.desc}` : ''));
+        }
+        if (!sub.params.length) lines.push('*takes no arguments*');
+        lines.push('', lib.file ? `From \`${lib.file}\`` :
+            `From library \`${lib.name}\``);
+        return { value: lines.join('\n') };
+    }
+
+    function librarySuggestion(lib, sub, range, qualified) {
+        return {
+            label: qualified ? `@${lib.name}.${sub.name}` : sub.name,
+            kind: monaco.languages.CompletionItemKind.Function,
+            detail: fxlCallSignature(lib, sub),
+            documentation: libraryCallDocs(lib, sub),
+            insertText: fxlCallSnippet(lib, sub),
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            filterText: `@${lib.name}.${sub.name}`,
+            sortText: `${lib.name}.${sub.name}`,
+            range: range
+        };
+    }
+
+    monaco.languages.registerCompletionItemProvider('fxcore', {
+        triggerCharacters: ['@', '.'],
+        provideCompletionItems: function(model, position) {
+            const libs = loadedLibraries();
+            if (!libs) return { suggestions: [] };
+
+            const line = model.getValueInRange({
+                startLineNumber: position.lineNumber, startColumn: 1,
+                endLineNumber: position.lineNumber, endColumn: position.column
+            });
+            const m = LIBRARY_CALL_RE.exec(line);
+            if (!m) return { suggestions: [] };
+
+            // The whole "@lib.sub" fragment is replaced, "@" included, because
+            // the suggestion writes the call out in full.
+            const range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: position.column - m[0].length,
+                endColumn: position.column
+            };
+
+            const suggestions = [];
+            if (m[2] === undefined) {
+                // Still on the library part: offer every subroutine there is,
+                // so a half remembered name finds its library.
+                for (const lib of libs.all()) {
+                    for (const sub of lib.subList()) {
+                        suggestions.push(librarySuggestion(lib, sub, range, true));
+                    }
+                }
+            } else {
+                const lib = libs.get(m[1]);
+                if (!lib) return { suggestions: [] };
+                for (const sub of lib.subList()) {
+                    suggestions.push(librarySuggestion(lib, sub, range, false));
+                }
+            }
+            return { suggestions: suggestions };
+        }
+    });
+
+    // A call that is already written says nothing about its arguments, so read
+    // them back out of the .fxl on hover.
+    monaco.languages.registerHoverProvider('fxcore', {
+        provideHover: function(model, position) {
+            const libs = loadedLibraries();
+            if (!libs) return null;
+            const line = model.getLineContent(position.lineNumber);
+            const call = /@([A-Za-z0-9_\-]+)\.([A-Za-z0-9_\-]+)/g;
+            let m;
+            while ((m = call.exec(line)) !== null) {
+                const start = m.index + 1;                 // 1 based columns
+                const end = start + m[0].length;
+                if (position.column < start || position.column > end) continue;
+                const lib = libs.get(m[1]);
+                const sub = lib ? lib.sub(m[2]) : null;
+                if (!sub) return null;
+                return {
+                    range: new monaco.Range(position.lineNumber, start,
+                        position.lineNumber, end),
+                    contents: [
+                        { value: '**' + fxlCallSignature(lib, sub) + '**' },
+                        libraryCallDocs(lib, sub)
+                    ]
+                };
+            }
+            return null;
+        }
+    });
+
     // Change tracking functions
     function updateChangeState() {
         const currentContent = editor.getValue();
