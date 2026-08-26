@@ -1023,6 +1023,7 @@
                 <h4>Test Drive (the simulator)</h4>
                 <p>The <b>TEST DRIVE</b> panel runs your assembled program in the browser, so you can hear it without a pedal attached. Press <b>Assemble</b>, then <b>Play</b>.</p>
                 <ul>
+                    <li><b>Source</b> - what the program is fed: a tone (sine, saw or square), noise, a click train, a plucked string, an audio file, or this computer's audio input. <b>Clicks</b> puts one sample high every second, which shows a delay's taps and a reverb's early reflections as plainly as anything can. <b>Pluck</b> is a plucked string, retuned by the <b>Freq</b> box and struck every two seconds, so a delay or reverb tail is heard on its own between notes rather than buried under a steady tone.</li>
                     <li><b>Naming controls</b> - put a tag in a comment and the pot, switch, tap and LED labels follow it as you type: <code>; #POT0 Reverb time</code>, <code>; #SW1 Freeze</code>, <code>; #TAP Tempo</code>, <code>; #LED0 Bypass</code> (or <code>#USER0</code>). Tags are read from the comment part of a line, so they never collide with code. Hover a renamed control to see which one it is.</li>
                     <li><b>ENABLE</b> - drives the part's ENABLE/nBypass pin. Off routes the inputs straight to the outputs, the way the pedal's bypass does, while the program keeps running so its delay tails survive.</li>
                     <li><b>What is modelled</b> - the FXCore core, delay RAM, pots, LFOs, ramps, switches and tap tempo. CHR and PITCH are modelled on the equivalent FV-1 structures, since neither is described internally by any published document: they sound right but are not yet confirmed against hardware, and the PITCH crossfade shapes XF0-XF3 are all treated as linear. Programs that drive external hardware over the second I2S bus will not behave as they do on a real board.</li>
@@ -1043,10 +1044,19 @@
                     <li>Web MIDI needs Chrome, Edge or Firefox. Safari has none, so the section is shown but inert there.</li>
                     <li>The levels are not mapped, and the <b>SandboxFX</b> pedal itself has no MIDI input - this drives the simulator only.</li>
                 </ul>
+                <h4>Using Libraries</h4>
+                <p>Point the assembler at a folder of <code>.fxl</code> libraries with <b>Editor Options - Select Library Folder</b>, and any subroutine in them can be called from your source as <code>@library.subroutine(arg, arg)</code>. There are three ways to write that call without having to remember its arguments:</p>
+                <ul>
+                    <li><b>The Library Subroutines list</b> - once a folder is loaded, this Options panel grows a list of every subroutine found, grouped by library, with a filter box above it. Click one and its call is pasted at the cursor with the argument names in place as editable placeholders; press <b>Tab</b> to step from one to the next.</li>
+                    <li><b>Editor completions</b> - type <code>@</code> in the editor to be offered every subroutine, or <code>@library.</code> to narrow it to one library. The call arrives with the same placeholders.</li>
+                    <li><b>Hover</b> - point at an existing <code>@library.subroutine</code> call to see what it does and what each argument expects.</li>
+                    <li>The folder is rescanned whenever this window regains focus, so a <code>.fxl</code> edited in another program is picked up without re-selecting it. The browser cannot remember the folder between sessions, so it has to be chosen again each time.</li>
+                </ul>
                 <h4>What do these Options do?</h4>
                 <p>These are some settings that change various editor and hardware settings</p>
                 <ul>
                     <h3>Editor Options</h3>
+                    <li>Select Library Folder: <i>Load a folder of <code>.fxl</code> libraries, and list their subroutines - see <b>Using Libraries</b> above</i></li>
                     <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
                     <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
                     <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>

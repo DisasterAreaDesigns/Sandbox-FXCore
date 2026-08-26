@@ -204,6 +204,16 @@ re-selected each session. The folder is rescanned quietly whenever the window
 regains focus, so editing a `.fxl` in another editor is picked up without
 re-selecting it.
 
+**Picking a subroutine:** once a folder is loaded there are three ways to write
+a call without remembering its arguments. The Options flyout grows a *Library
+Subroutines* list — every subroutine found, grouped by library, with a filter
+box; clicking one pastes its call at the cursor with the parameter names as
+editable snippet placeholders. Typing `@` in the editor offers the same set as
+completions, and `@lib.` narrows to one library. Hovering an existing
+`@lib.sub(...)` call shows the subroutine's description and its parameter list
+with each declared type. All three read the loaded library set directly, so a
+rescan updates them without reloading the page.
+
 **Save Expanded Source** writes the preprocessed program out as a `.fxo` file,
 matching what the command line preprocessor produces. Note that line numbers in
 assembler messages refer to the *expanded* source once any library call has been

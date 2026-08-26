@@ -489,7 +489,16 @@ Changes for FXCore:
   rate of most browsers, a real improvement on the FV-1's 32768 Hz that
   browsers frequently refused. Max delay is `32768 / Fs` seconds (1.0 s at
   32 kHz, 0.68 s at 48 kHz); show it, as the FV-1 panel does.
-- **Sources.** Reuse wholesale: tone/saw/square, noise, file, live input.
+- **Sources.** Reuse wholesale: tone/saw/square, noise, file, live input. Two
+  more earn their place on a delay-and-reverb part: a click train, one sample
+  high every second, which shows a delay's taps and a reverb's early
+  reflections as plainly as an impulse response; and a plucked string
+  (Karplus-Strong, retuned by the tone frequency), plucked every two seconds so
+  the tail is audible on its own between notes. The pluck's two losses are
+  quoted in the units a musician thinks in — how much of the note survives a
+  second, and the damping corner in hertz — rather than per trip round the
+  string, so it behaves the same at every one of the four sample rates and low
+  notes do not ring on like a metal bar.
 - **Output routing.** Selector for which `OUTn` pair feeds the monitor, meters
   on all four, and clip indicators driven from the real `FLAGS` overflow bits
   rather than a separate check.
