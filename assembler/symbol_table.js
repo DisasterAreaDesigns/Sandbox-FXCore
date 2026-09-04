@@ -331,18 +331,36 @@ class SymbolTable {
             }
         }
         
+        // The deprecated ".I" suffix forces the value to a whole number. It can
+        // sit on the directive (".equ.i n 2.7") or on the value
+        // (".creg r0 2.7.I"), and neither spelling worked. The test was on the
+        // directive only and was case sensitive, so the lower case form the
+        // manual uses never fired; and the value form kept the suffix, leaving
+        // ".creg r0 200.I" as an unresolved symbol.
+        let forced = 'EMPTY';
+        let symbolValue = paramValue.trim();
+        const forcedByDirective = /\.I$/i.test(directive.value);
+        if (forcedByDirective || /\.I$/i.test(symbolValue)) {
+            forced = 'INT';
+            if (!forcedByDirective) {
+                symbolValue = symbolValue.substring(0, symbolValue.length - 2);
+            }
+            debug.warn(`".I" is deprecated and will be removed in a future release, use `
+                + `floor(), ceiling(), round() or truncate() instead, at line ${this.linecount}`, 'SYMBOLS');
+        }
+
         // Create symbol
         const symbol = {
             name: symbolName,
             type: directive.type,
-            subtype: this.determineType(paramValue),
+            subtype: this.determineType(symbolValue),
             resolved: false,
-            value: paramValue.trim(),
+            value: symbolValue,
             rvalue: 0,
             linenum: this.linecount,
             lhs: false,
             regnum: 0,
-            forced: directive.value.endsWith('.I') ? 'INT' : 'EMPTY'
+            forced: forced
         };
         
         // Try immediate resolution for simple values
@@ -378,6 +396,24 @@ class SymbolTable {
      * Try to resolve a symbol immediately
      * @param {object} symbol - Symbol to resolve
      */
+    /**
+     * Record a resolved value for a symbol.
+     *
+     * The deprecated ".I" suffix is applied here rather than where a register
+     * preset is built, so the forcing travels with the symbol: ".equ n 2.9.I"
+     * makes n 2, and "n*10" is 20 rather than 29. ".I" is defined as
+     * truncation, so -2.7 becomes -2, not -3.
+     */
+    setResolved(symbol, value) {
+        symbol.resolved = true;
+        if (symbol.forced === 'INT') {
+            symbol.rvalue = Math.trunc(value);
+            symbol.subtype = 'INT';
+        } else {
+            symbol.rvalue = value;
+        }
+    }
+
     tryResolveSymbol(symbol) {
         const value = symbol.value;
         
@@ -385,8 +421,7 @@ class SymbolTable {
             case 'DEC':
                 const decVal = parseFloat(value);
                 if (!isNaN(decVal)) {
-                    symbol.resolved = true;
-                    symbol.rvalue = decVal;
+                    this.setResolved(symbol, decVal);
                     debug.symbols(`Immediately resolved decimal: ${symbol.name} = ${decVal}`, 'SYMBOLS');
                 }
                 break;
@@ -394,8 +429,7 @@ class SymbolTable {
             case 'INT':
                 const intVal = parseInt(value);
                 if (!isNaN(intVal)) {
-                    symbol.resolved = true;
-                    symbol.rvalue = intVal;
+                    this.setResolved(symbol, intVal);
                     debug.symbols(`Immediately resolved integer: ${symbol.name} = ${intVal}`, 'SYMBOLS');
                 }
                 break;
@@ -403,8 +437,7 @@ class SymbolTable {
             case 'HEX':
                 const hexVal = parseInt(value.substring(2), 16);
                 if (!isNaN(hexVal)) {
-                    symbol.resolved = true;
-                    symbol.rvalue = hexVal;
+                    this.setResolved(symbol, hexVal);
                     debug.symbols(`Immediately resolved hex: ${symbol.name} = ${hexVal}`, 'SYMBOLS');
                 }
                 break;
@@ -412,8 +445,7 @@ class SymbolTable {
             case 'BINARY':
                 const binVal = parseInt(value.substring(2).replace(/_/g, ''), 2);
                 if (!isNaN(binVal)) {
-                    symbol.resolved = true;
-                    symbol.rvalue = binVal;
+                    this.setResolved(symbol, binVal);
                     debug.symbols(`Immediately resolved binary: ${symbol.name} = ${binVal}`, 'SYMBOLS');
                 }
                 break;
@@ -590,8 +622,6 @@ class SymbolTable {
                                     continue; // Try again next pass
                                 }
                                 
-                                symbol.resolved = true;
-                                symbol.rvalue = result;
                                 // Type the result by what it is, not by the fact
                                 // that it came from an equation. Marking every
                                 // result DEC made a register preset written as
@@ -599,6 +629,7 @@ class SymbolTable {
                                 // 200" gave 200 but ".creg r0 100*2" scaled and
                                 // wrapped to -200 with no error.
                                 symbol.subtype = Number.isInteger(result) ? 'INT' : 'DEC';
+                                this.setResolved(symbol, result);
                                 resFound = true;
                                 
                                 debug.symbols(`Resolved math expression: ${symbol.name} = ${symbol.value} = ${result}`, 'SYMBOLS');
@@ -621,14 +652,12 @@ class SymbolTable {
                         );
                         
                         if (refSymbol) {
-                            symbol.resolved = true;
-                            symbol.rvalue = refSymbol.rvalue;
+                            this.setResolved(symbol, refSymbol.rvalue);
                             symbol.subtype = refSymbol.subtype;
                             resFound = true;
                             debug.symbols(`Resolved symbol reference: ${symbol.name} = ${symbol.value} = ${symbol.rvalue}`, 'SYMBOLS');
                         } else if (reservedWords.isreserved(symbol.value.toUpperCase())) {
-                            symbol.resolved = true;
-                            symbol.rvalue = reservedWords.value(symbol.value.toUpperCase());
+                            this.setResolved(symbol, reservedWords.value(symbol.value.toUpperCase()));
                             symbol.subtype = 'INT';
                             resFound = true;
                             debug.symbols(`Resolved reserved word: ${symbol.name} = ${symbol.value} = ${symbol.rvalue}`, 'SYMBOLS');
@@ -772,8 +801,9 @@ processRegisterDirectives() {
 
                 // Check if forced to integer (.I suffix)
                 if (symbol.forced === 'INT') {
-                    // Just use the integer value directly, no S.31 conversion
-                    value = Math.floor(symbol.rvalue);
+                    // Just use the integer value directly, no S.31 conversion.
+                    // ".I" is defined as truncation, so -2.7 is -2, not -3.
+                    value = Math.trunc(symbol.rvalue);
                     debug.registers(`Forced integer: ${symbol.name} = ${value}`, 'SYMBOLS');
                 } else if (symbol.subtype === 'DEC') {
                     // An S.31 fraction: value = word / 2^31. Round at the

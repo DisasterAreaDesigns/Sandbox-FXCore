@@ -557,6 +557,16 @@ class Assembler {
                     paramValue = paramValue.substring(0, paramValue.length - 2);
                     debug.parameters(`  Split value detected, base parameter: "${paramValue}"`, 'ASSEMBLER');
                 }
+
+                // And the deprecated ".I". This pass used to strip only ".L"
+                // and ".U", so "coeff.I" was looked up with the suffix still
+                // attached and reported as an unknown symbol.
+                let forcei = false;
+                if (paramValue.toUpperCase().endsWith('.I')) {
+                    forcei = true;
+                    paramValue = paramValue.substring(0, paramValue.length - 2);
+                    debug.parameters(`  Integer force detected, base parameter: "${paramValue}"`, 'ASSEMBLER');
+                }
                 
                 // Address offset (jump labels)
                 if (instInfo.theparams[i] === 'addroffset') {
@@ -709,6 +719,12 @@ class Assembler {
                         debug.error(`  ERROR: Error resolving mathematical expression "${paramValue}": ${error.message}`, 'ASSEMBLER');
                         return false;
                     }
+                }
+
+                // ".I" truncates, whichever way the value was resolved.
+                if (forcei && instruction.resolved[i]) {
+                    instruction.paramvals[i] = Math.trunc(instruction.paramvals[i]);
+                    debug.parameters(`  Applied .I suffix: ${instruction.paramvals[i]}`, 'ASSEMBLER');
                 }
             }
             
@@ -926,6 +942,8 @@ class Assembler {
                     forcei = true;
                     paramValue = paramValue.substring(0, paramValue.length - 2);
                     debug.verbose(`    Integer force suffix detected, base: "${paramValue}"`, 'ASSEMBLER');
+                    debug.warn(`".I" is deprecated and will be removed in a future release, use `
+                        + `floor(), ceiling(), round() or truncate() instead, at line ${linenum}`, 'ASSEMBLER');
                 }
                 
                 // Try to resolve simple values immediately
@@ -947,7 +965,8 @@ class Assembler {
                     }
                     
                     if (forcei) {
-                        instruction.paramvals[i] = Math.floor(instruction.paramvals[i]);
+                        // ".I" is defined as truncation, so -2.7 is -2, not -3.
+                        instruction.paramvals[i] = Math.trunc(instruction.paramvals[i]);
                         debug.verbose(`    Applied .I suffix: ${instruction.paramvals[i]}`, 'ASSEMBLER');
                     }
                 } else {
