@@ -117,35 +117,12 @@ class Preprocessor {
     // ---------------------------------------------------------------------
 
     /**
-     * Remove line and block comments from one line of source.
+     * Remove line and block comments from one line of source. Shared with the
+     * assembler and the symbol table so all three agree on what a comment is.
      * @returns {{code:string, inBlock:boolean}}
      */
     static stripComments(line, inBlock) {
-        let src = String(line);
-        let out = '';
-        let i = 0;
-        let block = !!inBlock;
-
-        while (i < src.length) {
-            if (block) {
-                const end = src.indexOf('*/', i);
-                if (end === -1) return { code: out, inBlock: true };
-                block = false;
-                i = end + 2;
-                continue;
-            }
-            const ch = src.charAt(i);
-            if (ch === ';') break;
-            if (ch === '/' && src.charAt(i + 1) === '/') break;
-            if (ch === '/' && src.charAt(i + 1) === '*') {
-                block = true;
-                i += 2;
-                continue;
-            }
-            out += ch;
-            i++;
-        }
-        return { code: out, inBlock: block };
+        return common.stripComments(line, inBlock);
     }
 
     /**

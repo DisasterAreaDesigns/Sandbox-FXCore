@@ -50,13 +50,24 @@ class SymbolTable {
         debug.symbols('Starting symbol table processing', 'SYMBOLS');
         
         // First pass - collect all symbols
+        let inBlockComment = false;
         for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
             this.linecount = lineIndex + 1;
             let line = lines[lineIndex];
             
             // Preprocess line
             line = line.toUpperCase().trim();
-            line = line.replace(/\s+/g, ' '); // Replace multiple spaces with single space
+            
+            if (line.length === 0) continue;
+            
+            // Strip comments before tokenizing, carrying the block state from
+            // line to line. This used to be a per-line flag inside the token
+            // loop, so a block comment ended at the newline: a .equ sitting
+            // inside /* */ still defined its symbol, and a commented out copy
+            // of a live .equ was reported as a duplicate declaration.
+            const stripped = common.stripComments(line, inBlockComment);
+            inBlockComment = stripped.inBlock;
+            line = stripped.code.replace(/\s+/g, ' ').trim();
             
             if (line.length === 0) continue;
             
@@ -65,25 +76,9 @@ class SymbolTable {
             if (tokens.length === 0) continue;
             
             let tokenIndex = 0;
-            let inComment = false;
             
             while (tokenIndex < tokens.length) {
                 const token = tokens[tokenIndex];
-                
-                // Handle comments
-                if (token.type === 'BLOCK_COMMENT_START') {
-                    inComment = true;
-                    tokenIndex++;
-                    continue;
-                }
-                
-                if (inComment) {
-                    if (token.type === 'BLOCK_COMMENT_END') {
-                        inComment = false;
-                    }
-                    tokenIndex++;
-                    continue;
-                }
                 
                 // Handle jump labels
                 if (token.type === 'JMP_LABEL') {
@@ -597,7 +592,13 @@ class SymbolTable {
                                 
                                 symbol.resolved = true;
                                 symbol.rvalue = result;
-                                symbol.subtype = 'DEC'; // Result of calculation is decimal
+                                // Type the result by what it is, not by the fact
+                                // that it came from an equation. Marking every
+                                // result DEC made a register preset written as
+                                // an expression take the S.31 path: ".creg r0
+                                // 200" gave 200 but ".creg r0 100*2" scaled and
+                                // wrapped to -200 with no error.
+                                symbol.subtype = Number.isInteger(result) ? 'INT' : 'DEC';
                                 resFound = true;
                                 
                                 debug.symbols(`Resolved math expression: ${symbol.name} = ${symbol.value} = ${result}`, 'SYMBOLS');
@@ -767,29 +768,33 @@ processRegisterDirectives() {
                 const regType = symbol.type === 'CREG_DIRECTIVE' ? 'creg' : 
                                symbol.type === 'MREG_DIRECTIVE' ? 'mreg' : 'sreg';
 
-                let value = Math.round(symbol.rvalue);
+                let value;
 
-                // fix minor bug in assembler here
                 // Check if forced to integer (.I suffix)
                 if (symbol.forced === 'INT') {
                     // Just use the integer value directly, no S.31 conversion
                     value = Math.floor(symbol.rvalue);
                     debug.registers(`Forced integer: ${symbol.name} = ${value}`, 'SYMBOLS');
-                } else if (symbol.subtype === 'DEC' && ['CREG_DIRECTIVE', 'MREG_DIRECTIVE', 'SREG_DIRECTIVE'].includes(symbol.type)) {
+                } else if (symbol.subtype === 'DEC') {
+                    // An S.31 fraction: value = word / 2^31. Round at the
+                    // field's own width, the same way imm8d and imm16d do.
+                    // Scaling by 0x7FFFFFFF and truncating was a whole LSB low
+                    // on every value -- 0.5 preset as 0x3FFFFFFF and -1.0 as
+                    // 0x80000001 -- so a .creg preset and the same number
+                    // written as an immediate disagreed.
+                    if (symbol.rvalue < -1.0 || symbol.rvalue >= 1.0) {
+                        debug.error(`Register preset ${symbol.name} = ${symbol.rvalue} out of range for S.31 (-1.0 to just under 1.0) at line ${symbol.linenum}`, 'SYMBOLS');
+                        return false;
+                    }
                     debug.registers(`Converting ${symbol.name}: decimal=${symbol.rvalue} to S.31 format`, 'SYMBOLS');
-                    // Convert S.31 format to integer - use truncation like C#
-                    const temp = symbol.rvalue * 2147483647; // 0x7FFFFFFF
-                    debug.registers(`Scaled value: ${temp}`, 'SYMBOLS');
-                    
-                    // Use truncation instead of rounding to match C# behavior
-                    value = this.truncateToInt(temp);
-                    
-                    // Ensure it's treated as signed 32-bit integer
-                    value = value | 0;
-                    
+                    value = Math.max(-0x80000000,
+                        Math.min(0x7FFFFFFF, Math.round(symbol.rvalue * 0x80000000))) | 0;
                     debug.registers(`Final S.31 value: ${value} (0x${(value >>> 0).toString(16).toUpperCase()})`, 'SYMBOLS');
+                } else {
+                    // An integer: a raw register word, used as written.
+                    value = Math.round(symbol.rvalue);
                 }
-                
+
                 this.checkreg.setpreset(symbol.regnum, regType, value);
                 debug.registers(`Set register preset: ${symbol.name}[${symbol.regnum}] = ${value}`, 'SYMBOLS');
                 this.thetable.splice(i, 1);
@@ -799,104 +804,6 @@ processRegisterDirectives() {
     
     return true;
 }
-    // /**
-    //  * Process register directives
-    //  * @returns {boolean} Success
-    //  */
-    // processRegisterDirectives() {
-    //     debug.symbols('Processing register directives', 'SYMBOLS');
-        
-    //     // Process in reverse order for safe removal
-    //     for (let i = this.thetable.length - 1; i >= 0; i--) {
-    //         const symbol = this.thetable[i];
-            
-    //         if (['CREG_DIRECTIVE', 'MREG_DIRECTIVE', 'SREG_DIRECTIVE'].includes(symbol.type)) {
-    //             debug.registers(`Processing ${symbol.type}: ${symbol.name}`, 'SYMBOLS');
-                
-    //             // Resolve register name
-    //             if (!symbol.lhs) {
-    //                 let regType = null;
-    //                 let regNumber = null;
-                    
-    //                 // Determine expected register type from directive
-    //                 const expectedType = symbol.type === 'CREG_DIRECTIVE' ? 'creg' :
-    //                                    symbol.type === 'MREG_DIRECTIVE' ? 'mreg' : 'sreg';
-                    
-    //                 // First try direct lookup
-    //                 regType = this.checkreg.regset(symbol.name);
-    //                 if (regType !== null) {
-    //                     const regInfo = this.checkreg.value(symbol.name, regType);
-    //                     regNumber = regInfo.number;
-    //                     debug.registers(`Direct lookup: ${symbol.name} -> ${regType}[${regNumber}]`, 'SYMBOLS');
-    //                 }
-                    
-    //                 // If not found, try uppercase
-    //                 if (regType === null) {
-    //                     const upperName = symbol.name.toUpperCase();
-    //                     regType = this.checkreg.regset(upperName);
-    //                     if (regType !== null) {
-    //                         const regInfo = this.checkreg.value(upperName, regType);
-    //                         regNumber = regInfo.number;
-    //                         debug.registers(`Uppercase lookup: ${upperName} -> ${regType}[${regNumber}]`, 'SYMBOLS');
-    //                     }
-    //                 }
-                    
-    //                 // If still not found, try using the expected type directly (for aliases)
-    //                 if (regType === null) {
-    //                     try {
-    //                         debug.registers(`Trying expected type "${expectedType}" for alias "${symbol.name}"`, 'SYMBOLS');
-    //                         const regInfo = this.checkreg.value(symbol.name.toUpperCase(), expectedType);
-    //                         if (regInfo && regInfo.number !== undefined) {
-    //                             regType = expectedType;
-    //                             regNumber = regInfo.number;
-    //                             debug.registers(`Alias lookup: ${symbol.name.toUpperCase()} -> ${expectedType}[${regNumber}]`, 'SYMBOLS');
-    //                         }
-    //                     } catch (error) {
-    //                         debug.registers(`Expected type lookup failed: ${error.message}`, 'SYMBOLS');
-    //                     }
-    //                 }
-                    
-    //                 if (regType !== null && regNumber !== null) {
-    //                     symbol.lhs = true;
-    //                     symbol.regnum = regNumber;
-    //                     debug.registers(`Resolved register: ${symbol.name} -> ${regType}[${regNumber}]`, 'SYMBOLS');
-    //                 } else {
-    //                     debug.error(`Unknown register ${symbol.name} at line ${symbol.linenum}`, 'SYMBOLS');
-    //                     return false;
-    //                 }
-    //             }
-                
-    //             // Set register value and remove from table
-    //             if (symbol.resolved && symbol.lhs) {
-    //                 const regType = symbol.type === 'CREG_DIRECTIVE' ? 'creg' : 
-    //                                symbol.type === 'MREG_DIRECTIVE' ? 'mreg' : 'sreg';
-                    
-    //                 let value = Math.round(symbol.rvalue);
-    //                 if (symbol.subtype === 'DEC' && ['CREG_DIRECTIVE', 'MREG_DIRECTIVE', 'SREG_DIRECTIVE'].includes(symbol.type)) {
-    //                     debug.registers(`Converting ${symbol.name}: decimal=${symbol.rvalue} to S.31 format`, 'SYMBOLS');
-    //                     // Convert S.31 format to integer - use truncation like C#
-    //                     const temp = symbol.rvalue * 2147483647; // 0x7FFFFFFF
-    //                     debug.registers(`Scaled value: ${temp}`, 'SYMBOLS');
-                        
-    //                     // Use truncation instead of rounding to match C# behavior
-    //                     value = this.truncateToInt(temp);
-                        
-    //                     // Ensure it's treated as signed 32-bit integer
-    //                     value = value | 0;
-                        
-    //                     debug.registers(`Final S.31 value: ${value} (0x${(value >>> 0).toString(16).toUpperCase()})`, 'SYMBOLS');
-    //                 }
-                    
-    //                 this.checkreg.setpreset(symbol.regnum, regType, value);
-    //                 debug.registers(`Set register preset: ${symbol.name}[${symbol.regnum}] = ${value}`, 'SYMBOLS');
-    //                 this.thetable.splice(i, 1);
-    //             }
-    //         }
-    //     }
-        
-    //     return true;
-    // }
-
     /**
      * Process memory directives
      * @returns {boolean} Success
@@ -983,92 +890,6 @@ processRegisterDirectives() {
         }
         
         return true;
-    }
-
-    // processMemoryDirectives() {
-    //     let membase = 0;
-        
-    //     debug.memory('Processing memory directives', 'SYMBOLS');
-        
-    //     for (let i = 0; i < this.thetable.length; i++) {
-    //         const symbol = this.thetable[i];
-            
-    //         if (symbol.type === 'MEM_DIRECTIVE' && 
-    //             symbol.subtype !== 'MEML' && symbol.subtype !== 'MEMR') {
-                
-    //             const memSize = Math.round(symbol.rvalue);
-    //             if (memSize < 0) {
-    //                 debug.error(`Negative memory size ${memSize} for ${symbol.name} at line ${symbol.linenum}`, 'SYMBOLS');
-    //                 return false;
-    //             }
-                
-    //             // Update symbol with write address
-    //             symbol.rvalue = membase;
-    //             symbol.lhs = true;
-                
-    //             debug.memory(`Memory allocation: ${symbol.name} = ${membase} (size: ${memSize})`, 'SYMBOLS');
-                
-    //             // Add read address symbol
-    //             const readSymbol = {
-    //                 name: symbol.name + '#',
-    //                 type: symbol.type,
-    //                 value: symbol.value,
-    //                 linenum: symbol.linenum,
-    //                 resolved: true,
-    //                 subtype: 'MEMR',
-    //                 forced: 'EMPTY',
-    //                 rvalue: membase + memSize,
-    //                 lhs: true,
-    //                 regnum: 0
-    //             };
-                
-    //             if (!this.isSymbol(readSymbol.name)) {
-    //                 this.thetable.push(readSymbol);
-    //                 debug.memory(`Added read symbol: ${readSymbol.name} = ${readSymbol.rvalue}`, 'SYMBOLS');
-    //                 membase += memSize + 1;
-    //             } else {
-    //                 debug.error(`Memory read symbol ${readSymbol.name} already exists at line ${symbol.linenum}`, 'SYMBOLS');
-    //                 return false;
-    //             }
-                
-    //             // Add length symbol
-    //             const lengthSymbol = {
-    //                 name: symbol.name + '!',
-    //                 type: symbol.type,
-    //                 value: symbol.value,
-    //                 linenum: symbol.linenum,
-    //                 resolved: true,
-    //                 subtype: 'MEML',
-    //                 forced: 'EMPTY',
-    //                 rvalue: memSize,
-    //                 lhs: true,
-    //                 regnum: 0
-    //             };
-                
-    //             if (!this.isSymbol(lengthSymbol.name)) {
-    //                 this.thetable.push(lengthSymbol);
-    //                 debug.memory(`Added length symbol: ${lengthSymbol.name} = ${lengthSymbol.rvalue}`, 'SYMBOLS');
-    //             } else {
-    //                 debug.error(`Memory length symbol ${lengthSymbol.name} already exists at line ${symbol.linenum}`, 'SYMBOLS');
-    //                 return false;
-    //             }
-    //         }
-    //     }
-        
-    //     if (membase > 0) {
-    //         debug.memory(`Total memory allocated: ${membase} words`, 'SYMBOLS');
-    //     }
-        
-    //     return true;
-    // }
-
-    /**
-     * Truncate to integer - matches C# Math.Truncate behavior for S.31 conversion
-     * @param {number} value - Value to truncate
-     * @returns {number} Truncated value
-     */
-    truncateToInt(value) {
-        return Math.trunc(value);
     }
 
     /**

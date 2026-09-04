@@ -56,44 +56,15 @@ class Assembler {
         
         if (line.length === 0) continue;
 
-        // Handle block comments at the line level BEFORE tokenizing
-        if (inBlockComment) {
-            // We're inside a block comment - look for the end
-            const commentEnd = line.indexOf('*/');
-            if (commentEnd !== -1) {
-                // Found the end of the block comment
-                inBlockComment = false;
-                // Process the rest of the line after the comment end
-                line = line.substring(commentEnd + 2).trim();
-                if (line.length === 0) continue;
-            } else {
-                // Still in block comment, skip entire line
-                continue;
-            }
-        }
-
-        // Check if this line starts a block comment
-        const blockCommentStart = line.indexOf('/*');
-        if (blockCommentStart !== -1) {
-            // Found start of block comment
-            const beforeComment = line.substring(0, blockCommentStart).trim();
-            const afterCommentStart = line.substring(blockCommentStart + 2);
-            
-            // Check if the comment also ends on this line
-            const commentEnd = afterCommentStart.indexOf('*/');
-            if (commentEnd !== -1) {
-                // Complete block comment on one line
-                const afterComment = afterCommentStart.substring(commentEnd + 2).trim();
-                // Reconstruct line without the comment
-                line = (beforeComment + ' ' + afterComment).trim();
-                if (line.length === 0) continue;
-            } else {
-                // Block comment continues to next line
-                inBlockComment = true;
-                line = beforeComment.trim();
-                if (line.length === 0) continue;
-            }
-        }
+        // Strip comments before tokenizing. common.stripComments is the one
+        // place that decides what a comment is, so a "/*" sitting inside a ";"
+        // or "//" comment no longer opens a block and swallow the rest of the
+        // program, and the block state carries across lines the same way it
+        // does in the symbol table and the preprocessor.
+        const stripped = common.stripComments(line, inBlockComment);
+        inBlockComment = stripped.inBlock;
+        line = stripped.code.replace(/\s+/g, ' ').trim();
+        if (line.length === 0) continue;
 
         const tokens = this.tokenizeLine(line);
         if (tokens.length === 0) continue;

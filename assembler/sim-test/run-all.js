@@ -6,7 +6,8 @@ const path = require('path');
 
 const SUITES = ['test-core.js', 'test-shiftreg.js', 'test-programs.js',
     'test-pitch-chr.js', 'test-controls.js', 'test-source.js', 'test-midi.js',
-    'test-preproc.js', 'test-immediates.js'];
+    'test-preproc.js', 'test-immediates.js', 'test-presets.js',
+    'test-comments.js'];
 let failed = 0;
 
 for (const s of SUITES) {

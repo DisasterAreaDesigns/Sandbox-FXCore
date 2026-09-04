@@ -40,15 +40,7 @@ class ShuntingYard {
     *ShuntingYardParse(tokens) {
         const stack = [];
         let lasttok = 'EMPTY';
-        let lasttok2 = 'EMPTY';
-        const pushtok = {
-            Type: 'EMPTY',
-            Value: ''
-        };
         let equ_line = '';
-        let has_param = false;
-        let in_func = false;
-        let ret_zero = false;
         const theparser = new LineParse();
         
         for (const tok of tokens) {
@@ -63,13 +55,11 @@ class ShuntingYard {
                 case 'BINARY':
                 case 'INT':
                 case 'DEC':
-                    lasttok2 = lasttok;
                     lasttok = tok.Type;
                     yield tok;
                     break;
                 case 'STRN':
                     // an STRN may be a number with a .L or .U or .I attached, if so strip it and re-evaluate the type
-                    lasttok2 = lasttok;
                     if ((tok.Value.toString().endsWith(".L")) || (tok.Value.toString().endsWith(".U")) || (tok.Value.toString().endsWith(".I"))) {
                         // return with a token but check the type and strip the last 2 chars
                         lasttok = theparser.DetermineType(tok.Value.toString().substring(0, tok.Value.toString().length - 2));
@@ -100,16 +90,13 @@ class ShuntingYard {
                     }
                     // push this token on the stack
                     stack.push(tok);
-                    lasttok2 = lasttok;
                     lasttok = tok.Type;
                     break;
                 case 'OPEN_PAREN':
-                    lasttok2 = lasttok;
                     lasttok = 'OPEN_PAREN';
                     stack.push(tok);
                     break;
                 case 'CLOSE_PAREN':
-                    lasttok2 = lasttok;
                     lasttok = 'CLOSE_PAREN';
                     // we have a closing parenthesis so start popping any values on the stack up to an open paren
                     // also catch a missing opening paren, we could clear the stack in that case and have an error
