@@ -64,6 +64,8 @@ function makeContext(opts) {
         'globalThis.common = common;' +
         'globalThis.FXLibrarySet = FXLibrarySet;' +
         'globalThis.Preprocessor = Preprocessor;' +
+        'globalThis.ShuntingYard = ShuntingYard;' +
+        'globalThis.LineParse = LineParse;' +
         // debug_config.js installs a debugLog that writes into the messages
         // pane. Replace it with a collector so failures surface as text.
         'globalThis.debugLog = function (msg, level) {' +
@@ -125,6 +127,19 @@ function assemble(source, name, opts) {
     };
 }
 
+// Solve one expression the way the assembler's parameter resolver does:
+// tokenize, convert to RPN, evaluate. Names are not resolved, so this takes
+// numbers and operators only. Throws the evaluator's own error.
+function evaluate(text, ctx) {
+    const c = ctx || makeContext();
+    return vm.runInContext(`(function (t) {
+        const yard = new ShuntingYard();
+        const rpn = [];
+        for (const tok of yard.ShuntingYardParse(new LineParse().Tokenize(t))) rpn.push(tok);
+        return yard.Solve(rpn);
+    })(${JSON.stringify(text)})`, c);
+}
+
 function assembleFile(file, opts) {
     return assemble(fs.readFileSync(file, 'utf8'), path.basename(file), opts);
 }
@@ -139,4 +154,4 @@ function loadInto(core, image) {
     return core;
 }
 
-module.exports = { assemble, assembleFile, loadInto, makeContext };
+module.exports = { assemble, assembleFile, loadInto, makeContext, evaluate };
