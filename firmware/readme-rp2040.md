@@ -21,17 +21,21 @@ The system automatically uploads compiled programs to the FXCore via I2C communi
 The system intelligently switches between two operational modes:
 
 #### 1. FXCore Programming Mode (Default)
-- **File present**: Uploads and executes the program
-- **File deleted**: Stops execution and returns to normal operation
+- **File present at boot**: Uploads and executes the program
 - **Location Programming**: Files named `0.hex` through `F.hex` program specific flash locations
 
+Hex files are read once, during startup. Adding one to the CIRCUITPY drive
+takes effect at the next reset, and deleting `output.hex` does not stop a
+program that is already running -- use "Clear Hardware" in the assembler, which
+sends RETURN_0 over the bridge.
+
 #### 2. FT260 Bridge Mode (On-Demand)
-- **USB HID Reports**: Activates when FT260-compatible software sends I2C commands
-- **Automatic Timeout**: Returns to FXCore mode after 10 seconds of inactivity
-- **Shared I2C Bus**: Uses same I2C interface with priority arbitration
+- **USB HID Reports**: Handled whenever FT260-compatible software sends I2C commands
+- **No Timeout**: The bridge stays available; the inactivity timeout was removed in v4.1
+- **Shared I2C Bus**: Uses the same I2C interface, under the bus lock
 
 ### File-Based Control
-The system monitors for the presence of hex files:
+At boot the system looks for hex files:
 - **`output.hex`**: Uploads and executes program from RAM
 - **`0.hex` - `F.hex`**: Programs specific flash locations (0x0 through 0xF)
 - **File operations**: Create to start, delete to stop
@@ -53,25 +57,26 @@ ft260 = FT260Emulator()
 
 The system initializes shared I2C communication, NeoPixel LED, and FT260 emulation if HID is configured.
 
-### 2. Mode Arbitration System
+### 2. Sharing the I2C Bus
 
-The system uses a priority-based approach to manage the shared I2C bus:
+There is no arbitration between the two modes and none is needed: file
+programming happens at boot, before the main loop starts serving the bridge.
+Both go through the same lock, which is taken with a deadline rather than spun
+on for ever:
 
 ```python
-def main_loop():
-    # Check FT260 activity first (highest priority)
-    ft260_active = ft260.process_reports()
-    
-    # Only process FXCore operations if FT260 is inactive
-    if not ft260_active:
-        process_fxcore_operations()
+def lock_i2c(timeout=I2C_LOCK_TIMEOUT):
+    deadline = time.monotonic() + timeout
+    while not i2c.try_lock():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.001)
+    return True
 ```
 
-**Priority Rules:**
-1. FT260 bridge commands have immediate priority
-2. FXCore operations pause during bridge activity  
-3. Bridge mode times out after 10 seconds of inactivity
-4. Seamless switching with status indication
+Nothing else on the board takes the lock, so failing to get it means something
+has already gone wrong. Every caller reports that and gives up, rather than
+leaving the board wedged with nothing on the console to say why.
 
 ### 3. Status LED System
 
@@ -108,7 +113,9 @@ The emulator handles standard FT260 HID reports:
 ```python
 def handle_output_report_c2(self, data):
     i2c_addr = data[0]
-    bytes_to_read = data[2] | (data[3] << 8)
+    # One input report carries a count byte and 62 bytes of data, so that is
+    # the most a read can return however many the host asks for
+    bytes_to_read = min(data[2] | (data[3] << 8), MAX_I2C_READ)
     
     # Perform I2C read with shared bus
     read_buffer = bytearray(bytes_to_read)
@@ -132,9 +139,9 @@ def handle_output_report_d0(self, data):
 #### Bus Sharing Protocol
 ```python
 def safe_i2c_operation():
-    # Acquire I2C bus lock
-    while not i2c.try_lock():
-        time.sleep(0.001)
+    # Acquire the I2C bus lock, or report that we could not
+    if not lock_i2c():
+        return False
     
     try:
         # Perform operation
@@ -205,25 +212,33 @@ Different data types use specific command prefixes:
 |-----------|---------|--------|
 | CREG | 0x01 0x0F | 64 bytes + checksum |
 | SFR | 0x02 0x0B | 50 bytes + checksum |
-| MREG | 0x04 0xFF | 512 bytes + checksum |
+| MREG | 0x04 0x7F | 512 bytes + checksum |
 | Program | 0x08XX | Variable length + checksum |
 | Execute RAM | 0x0D 0x00 | Execute uploaded program |
 | Write Flash | 0x0C 0xXX | Write to flash location XX |
 | Return to State 0 | 0x0E 0x00 | Stop execution |
 
 #### Transfer Strategy
-The system attempts single large transfers first, falling back to chunked transfers if needed:
+Each block goes out as one transfer, and a failure is reported as one:
 
 ```python
 def send_i2c_data(data, description):
+    if not lock_i2c():
+        return False
     try:
-        # Try single transfer
         i2c.writeto(FXCORE_ADDRESS, data)
-    except OSError:
-        # Fallback to chunked transfer
-        for chunk in chunks(data, 32):
-            i2c.writeto(FXCORE_ADDRESS, chunk)
+        return True
+    except OSError as e:
+        return False
+    finally:
+        i2c.unlock()
 ```
+
+There used to be a chunked fallback here. The FXCore counts the bytes of a
+block within one I2C transaction, so 514 bytes sent as seventeen transfers is
+not the same message -- the chip sees seventeen short blocks and the checksum
+cannot come out. Worse, the fallback reported success whatever came of it, so
+an upload that never arrived looked like one that had.
 
 ### 7. Upload Sequence
 
@@ -281,49 +296,36 @@ def write_to_flash_location(location):
 
 ## Main Control Loop
 
-The system runs a continuous monitoring loop with mode arbitration:
+After the boot-time file handling, the loop just serves the bridge:
 
 ```python
 def main():
-    running = False
-    ft260_active = False
+    # Hex files are handled once, at startup
+    output_hex_valid, location_files = find_valid_hex_files()
+    for location, filename in location_files.items():
+        program_location(location, filename)
+    if output_hex_valid:
+        running = run_ram_execution()
     
     while True:
-        # Process FT260 emulation (highest priority)
+        # Serve the bridge, and blink the LED while a program runs from RAM
         ft260_processed = ft260.process_reports()
-        
-        # Check for FT260 timeout
-        ft260_active = ft260.check_timeout()
-        
-        # Only process FXCore if FT260 is inactive
-        if not ft260_active:
-            # Check for location files (0.hex - F.hex)
-            process_location_programming()
-            
-            # Check for RAM execution (output.hex)
-            hex_exists = check_hex_file_exists()
-            
-            if hex_exists and not running:
-                run_ram_execution()
-                running = True
-            elif not hex_exists and running:
-                stop_execution()
-                running = False
+        if running and (time.monotonic() - last_blink_time >= blink_interval):
+            ...
+        time.sleep(0.0001 if ft260_processed else 0.001)
 ```
 
-## Firmware Variants
+## The Build
 
-### HID + Disk Mode (Full Functionality)
+- **Source**: `disk-hid/src/`
 - **USB Endpoints**: HID + Mass Storage
 - **Features**: FXCore programming + FT260 bridge
-- **Use Case**: Development and general I2C debugging
-- **File**: `SANDBOXFX_DISK_HID.uf2`
 
-### Disk-Only Mode (Programming Only)
-- **USB Endpoints**: Mass Storage only
-- **Features**: FXCore programming only
-- **Use Case**: Dedicated FXCore development
-- **File**: `SANDBOXFX_DISK.uf2`
+There used to be a second, disk-only build alongside it. It did nothing this
+one does not, so it has been removed; it remains in the history.
+
+No `.uf2` is checked in at the moment. Install CircuitPython on the Pico and
+copy `disk-hid/src/` onto the CIRCUITPY drive, or build a fresh image.
 
 ## Error Handling
 
@@ -333,10 +335,9 @@ def main():
 - Handles missing or corrupted data
 
 ### I2C Communication
-- Retry mechanisms for failed transfers
-- Graceful degradation to chunked transfers
-- Timeout handling and recovery
-- Bus arbitration between modes
+- A failed transfer is reported as a failure, not retried into a different one
+- The bus lock is taken with a deadline, so a stuck bus is reported rather than hung on
+- Both modes go through the same lock
 
 ### State Management
 - Ensures proper programming mode entry/exit
@@ -347,9 +348,8 @@ def main():
 ## Key Features
 
 ### 1. **Dual Mode Operation**
-- Seamless switching between FXCore and bridge modes
-- Priority-based I2C bus arbitration
-- Automatic timeout management
+- File programming at boot, bridge service thereafter
+- One I2C lock, taken with a deadline
 
 ### 2. **FT260 Compatibility**
 - Standard FT260 HID report protocol
@@ -362,7 +362,7 @@ def main():
 - Comprehensive status indication
 
 ### 4. **Robust Data Transfer**
-- Multiple transfer strategies (single/chunked)
+- One transaction per block, as the FXCore protocol requires
 - Comprehensive error checking
 - Data integrity verification
 
@@ -403,7 +403,6 @@ def main():
 1. **Launch I2C Software**: Use any FT260-compatible FXCore programming application
 2. **Automatic Detection**: Bridge mode activates when USB commands received
 3. **I2C Operations**: Read/write I2C devices through USB interface
-4. **Timeout**: Bridge mode deactivates after 10 seconds of inactivity
-5. **Return to FXCore**: System resumes FXCore monitoring automatically
+4. **No Timeout**: The bridge stays available for as long as the board is powered
 
 This system provides a comprehensive interface for FXCore development and general I2C debugging, allowing developers to focus on audio programming while the uploader handles the complex details of hex parsing, I2C communication, program execution management, and USB bridge functionality.

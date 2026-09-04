@@ -1,57 +1,49 @@
 FXCore Programmer with FT260 USB-I2C Bridge Emulation
 ======================================================
 
-This folder contains firmware for a dual-mode CircuitPython device that can function as:
+This folder contains firmware for a CircuitPython device that acts as both:
 1. FXCore hex file programmer for Experimental Noize DSP chips
 2. FT260-compatible USB-I2C bridge emulator
 
 FOLDER STRUCTURE:
 ================
 
-disk-hid/
-├── SANDBOXFX_DISK_HID.uf2      # Main firmware file for Raspberry Pi Pico
-├── src/
-│   ├── boot.py                 # Boot configuration for HID and disk mode
-│   ├── code.py                 # Main application code
-│   ├── hardware_id.json       # Hardware identification file
-│   └── lib/                    # CircuitPython libraries (if needed)
-
-disk-mode/
-├── SANDBOXFX_DISK.uf2          # Disk-only mode firmware
-├── src/
-│   ├── boot.py                 # Boot configuration for disk mode only
-│   ├── code.py                 # FXCore programmer only
-│   ├── hardware_id.json       # Hardware identification file
-│   └── lib/                    # CircuitPython libraries (if needed)
+disk-hid/                       # The firmware, version 4.4
+└── src/
+    ├── boot.py                 # Boot configuration for HID and disk mode
+    ├── code.py                 # Main application code
+    ├── hardware_id.json       # Hardware identification file
+    └── lib/                    # CircuitPython libraries
 
 readme-firmware.txt             # This file
 readme-rp2040.md               # Detailed hardware documentation
 
+disk-hid is now the only build. A disk-mode/ build that did the programming
+without the HID bridge, and a hid-only/ pair of FT260 emulation experiments,
+both used to sit beside it; disk-hid covers what they did, so they have been
+removed. They are in the history if they are ever wanted back.
 
-FIRMWARE MODES:
-===============
+No .uf2 images are checked in at the moment. The ones that used to be here had
+drifted well behind src/, which is a worse trap than having none.
 
-DISK-HID MODE (disk-hid/):
-- Full dual functionality
-- FXCore programming via hex files on disk
-- FT260 USB-I2C bridge emulation
-- Automatic mode switching based on activity
+
+WHAT THE FIRMWARE DOES:
+=======================
+
+- FXCore programming via hex files on disk, read at boot
+- FT260 USB-I2C bridge emulation, served continuously thereafter
 - USB HID device + USB mass storage
-
-DISK-ONLY MODE (disk-mode/):
-- FXCore programming only
-- Simpler operation
-- USB mass storage only
-- No HID functionality
 
 
 INSTALLATION:
 =============
 
+Until a new .uf2 is built, install CircuitPython on the Pico and copy the
+contents of disk-hid/src/ onto the CIRCUITPY drive.
+
+With a .uf2 in hand:
 1. Hold BOOTSEL button on Raspberry Pi Pico while connecting USB
-2. Copy desired .uf2 file to RPI-RP2 drive:
-   - SANDBOXFX_DISK_HID.uf2 for full functionality
-   - SANDBOXFX_DISK.uf2 for programming only
+2. Copy the .uf2 file to the RPI-RP2 drive
 3. Device will reboot automatically
 4. UF2 files contain entire flash contents, no other installation is necessary 
 
@@ -67,7 +59,7 @@ Required connections for FXCore programming:
 - 3.3V: Power (if needed)
 
 Optional:
-- Built-in LED on GP25 for FT260 activity indication
+- GP2 drives an LED for programming and bridge activity
 
 
 USAGE - FXCORE PROGRAMMING:
@@ -85,21 +77,25 @@ USAGE - FXCORE PROGRAMMING:
    - OFF: Normal operation
 
 3. File Operations:
-   - Add output.hex → Starts RAM execution
-   - Delete output.hex → Stops execution
-   - Add X.hex (0-F) → Programs flash location X
+   Hex files are read once, at startup, so add them and then reset the board.
+   - output.hex present at boot → Starts RAM execution
+   - X.hex (0-F) present at boot → Programs flash location X
+   Deleting output.hex does not stop a running program; send RETURN_0 over
+   the bridge instead ("Clear Hardware" in the assembler).
 
 
 USAGE - FT260 USB-I2C BRIDGE:
 =============================
 
-(Only available in disk-hid mode)
-
 1. Connect I2C devices to GP0/GP1
 2. Use FT260-compatible software to access I2C bus
-3. Bridge mode activates automatically when USB commands received
-4. Times out after 10 seconds of inactivity
+3. Bridge commands are served whenever they arrive
+4. No inactivity timeout; the bridge stays available (removed in v4.1)
 5. Compatible with standard FT260 drivers and software
+
+A single I2C read returns at most 62 bytes, the space left in one HID input
+report after the count byte. A larger request is clamped, and the reply says
+how many bytes actually came back.
 
 
 TECHNICAL DETAILS:
@@ -109,8 +105,10 @@ TECHNICAL DETAILS:
 - Firmware: CircuitPython 8.x or later
 - I2C Bus: Hardware I2C on GP0/GP1
 - USB: Dual endpoint support (HID + Mass Storage)
-- Memory: Shared I2C bus with priority arbitration
+- Memory: Shared I2C bus, guarded by a lock taken with a one second deadline
 - Protocol: Intel HEX file parsing, FXCore binary protocol
+- Transfers: each FXCore block is one I2C transaction; the chip counts the
+  bytes of a block within a single transaction, so a block cannot be split
 
 
 TROUBLESHOOTING:
@@ -119,13 +117,14 @@ TROUBLESHOOTING:
 - If FXCore programming fails: Check I2C connections and power
 - If FT260 not detected: Verify HID configuration in boot.py
 - If files don't appear: Check CircuitPython installation
-- For device conflicts: Use disk-mode version for programming only
 - Reset device: Short RUN pin to GND or power cycle
 
 
 VERSION HISTORY:
 ================
 
+v4.4 - Unified buffer and programming functions, LED state fixes
+v4.1 - Removed the FT260 inactivity timeout; hex files are read at boot only
 v4.0 - Added FT260 USB-I2C bridge emulation with automatic mode switching
 v3.0 - Added location-specific programming (0.hex - F.hex)
 v2.0 - Added comprehensive logging and state monitoring  

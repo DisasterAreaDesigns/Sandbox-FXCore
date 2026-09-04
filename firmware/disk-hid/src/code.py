@@ -18,37 +18,15 @@ DEBUG_MODE = True
 # are we running from RAM?
 running = False
 
-# unified buffer for both HID and File mode
-class BufferManager:
-    def __init__(self):
-        # Pre-allocated reusable buffers - sized for max 1024 instructions
-        self.i2c_buffer = bytearray(4098)  # 1024 instructions * 4 bytes + 2 checksum = 4098 bytes
-        self.status_buffer = bytearray(12)  # For status reads
-        self.temp_buffer = bytearray(64)   # For small operations
-        self.hex_line_buffer = bytearray(50)  # For hex parsing
-    
-    def get_i2c_buffer(self, size):
-        """Get a view of the I2C buffer for the requested size"""
-        if size <= len(self.i2c_buffer):
-            # Clear only the portion we'll use
-            for i in range(size):
-                self.i2c_buffer[i] = 0
-            return memoryview(self.i2c_buffer[:size])
-        # Fallback for oversized requests
-        return bytearray(size)
-    
-    def get_status_buffer(self):
-        """Get pre-allocated status buffer"""
-        return self.status_buffer
-    
-    def get_temp_buffer(self, size):
-        """Get temporary buffer for small operations"""
-        if size <= len(self.temp_buffer):
-            return memoryview(self.temp_buffer[:size])
-        return bytearray(size)
-
-# Initialize buffer manager
-buffer_mgr = BufferManager()
+# One 12-byte buffer, reused for every status read.
+#
+# This was a BufferManager holding four pre-allocated buffers, three of which
+# nothing ever asked for -- a 4098-byte one for I2C, a 64-byte scratch one and
+# a 50-byte one for hex lines, against the 264KB the board has. The two getters
+# that handed them out sliced before wrapping the slice in a memoryview, and
+# slicing a bytearray copies it, so a caller got a fresh allocation of exactly
+# the size it asked for: the opposite of what the class was there to do.
+status_buffer = bytearray(12)
 
 # FXCore I2C address
 FXCORE_ADDRESS = 0x30
@@ -102,6 +80,29 @@ except Exception as e:
     while True:
         time.sleep(1)
 
+# Nothing else on the board takes the I2C lock, so failing to get it means
+# something has already gone wrong rather than that another task is busy.
+# Waiting for it for ever just hangs the board with nothing on the LED and
+# nothing on the console to say why, which is what every one of these waits
+# used to do.
+I2C_LOCK_TIMEOUT = 1.0
+
+
+def lock_i2c(timeout=I2C_LOCK_TIMEOUT):
+    """Take the I2C lock. False if it does not come free in time."""
+    deadline = time.monotonic() + timeout
+    while not i2c.try_lock():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.001)
+    return True
+
+
+# One input report carries a count byte and 62 bytes of data, so 62 is the most
+# a read can return however many the host asks for.
+MAX_I2C_READ = 62
+
+
 def is_executing_from_ram(status_info):
     """
     Detect if FXCore is executing from RAM based on status patterns.
@@ -137,12 +138,13 @@ def is_executing_from_ram(status_info):
 
 def read_fxcore_status():
     """Read the 12-byte status from FXCore and return parsed information"""
+    if not lock_i2c():
+        error_message("Error reading FXCore status: I2C bus busy")
+        return None
+    
     try:
-        while not i2c.try_lock():
-            pass
-        
         # Use pre-allocated buffer instead of creating new one
-        status_bytes = buffer_mgr.get_status_buffer()
+        status_bytes = status_buffer
         i2c.readfrom_into(FXCORE_ADDRESS, status_bytes)
         i2c.unlock()
         
@@ -265,15 +267,39 @@ def blink_status_led(color, count=3, duration=0.01):
         pixel[0] = OFF
         time.sleep(duration)
 
+# The bridge's activity light. Blinking it in place cost a sleep on both edges,
+# so every report the bridge handled stalled it for 10ms -- on the one path
+# where the board has nothing to spare, and for a light nobody is watching that
+# closely. It also left the LED off afterwards whatever it had been showing.
+_activity_off_at = 0
+_activity_restore = OFF
+
+def show_activity(color=YELLOW, duration=0.02):
+    """Light the status LED for a moment, without waiting for it."""
+    global _activity_off_at, _activity_restore
+    if not _activity_off_at:
+        _activity_restore = pixel[0]
+    pixel[0] = color
+    _activity_off_at = time.monotonic() + duration
+
+def service_activity_led():
+    """Put the activity colour away once its time is up."""
+    global _activity_off_at
+    if _activity_off_at and time.monotonic() >= _activity_off_at:
+        pixel[0] = _activity_restore
+        _activity_off_at = 0
+
 def calculate_checksum(data):
     """Calculate simple sum checksum of all bytes"""
     return sum(data) & 0xFFFF
 
 def enter_prog_mode():
     """Enter programming mode on the FXCore"""
+    if not lock_i2c():
+        error_message("Error entering PROG mode: I2C bus busy")
+        return False
+    
     try:
-        while not i2c.try_lock():
-            pass
         
         command = bytes([0xA5, 0x5A, FXCORE_ADDRESS])
         i2c.writeto(FXCORE_ADDRESS, command)
@@ -295,9 +321,11 @@ def enter_prog_mode():
 def exit_prog_mode():
     global running
     """Exit programming mode and return to RUN mode"""
+    if not lock_i2c():
+        error_message("Error exiting PROG mode: I2C bus busy")
+        return False
+    
     try:
-        while not i2c.try_lock():
-            pass
         
         command = bytes([0x5A, 0xA5])
         i2c.writeto(FXCORE_ADDRESS, command)
@@ -464,42 +492,36 @@ def read_fxcore_hex_file(filename):
         return None
 
 def send_i2c_data(data, description):
-    """Send data over I2C as a single transfer"""
+    """Send one block to the FXCore, as the single transfer it has to be."""
+    if not lock_i2c():
+        error_message(f"Error sending {description}: I2C bus busy")
+        return False
+    
     try:
-        while not i2c.try_lock():
-            pass
-        
-        try:
-            i2c.writeto(FXCORE_ADDRESS, data)
-            i2c.unlock()
-            debug_message(f"Sent {len(data)} bytes of {description} in single transfer")
-            return True
-        except OSError as e:
-            debug_message(f"Single transfer failed ({e}), trying chunked transfer...")
-            chunk_size = 32
-            for i in range(0, len(data), chunk_size):
-                chunk = data[i:i + chunk_size]
-                i2c.writeto(FXCORE_ADDRESS, chunk)
-                time.sleep(0.005) # was 0.01
-            
-            i2c.unlock()
-            debug_message(f"Sent {len(data)} bytes of {description} in {(len(data) + chunk_size - 1) // chunk_size} chunks")
-            return True
+        i2c.writeto(FXCORE_ADDRESS, data)
+        debug_message(f"Sent {len(data)} bytes of {description} in single transfer")
+        return True
         
     except OSError as e:
+        # There used to be a chunked retry here, and it reported success
+        # whatever came of it. The FXCore counts the bytes of a block within
+        # one I2C transaction, so 514 bytes sent as seventeen transfers is not
+        # the same message -- the chip sees seventeen short blocks, the checksum
+        # cannot come out, and the upload that never arrived was logged as
+        # having been sent.
         error_message(f"Error sending {description}: {e}")
-        try:
-            i2c.unlock();
-        except:
-            pass
         return False
+        
+    finally:
+        i2c.unlock()
 
 def send_command(cmd_bytes, description):
     """Send a command to FXCore"""
+    if not lock_i2c():
+        error_message(f"Error sending {description} command: I2C bus busy")
+        return False
+    
     try:
-        while not i2c.try_lock():
-            pass
-        
         command = bytes(cmd_bytes)
         i2c.writeto(FXCORE_ADDRESS, command)
         hex_bytes = [f'0x{b:02X}' for b in cmd_bytes]
@@ -924,17 +946,25 @@ class SmartFT260Emulator:
             return
             
         i2c_addr = data[0]
-        bytes_to_read = data[2] | (data[3] << 8)
+        requested = data[2] | (data[3] << 8)
+        
+        # The request used to be taken as written. A host asking for 0xFFFF got
+        # a 64KB buffer on a board with 264KB of RAM, and if the read somehow
+        # came back the reply loop then walked off the end of the 63-byte report
+        # it had to fit in.
+        bytes_to_read = min(requested, MAX_I2C_READ)
+        if bytes_to_read != requested:
+            debug_message(f"FT260: I2C Read of {requested} bytes trimmed to {bytes_to_read}")
         
         debug_message(f"FT260: I2C Read: 0x{i2c_addr:02X}, {bytes_to_read} bytes")
         
         # Perform actual I2C read
         read_data = None
         if bytes_to_read > 0:
-            try:
-                while not i2c.try_lock():
-                    time.sleep(0.001)
-                
+            if not lock_i2c():
+                self.i2c_status = 0x26
+                debug_message("FT260: ✗ Read failed, I2C bus busy")
+            else:
                 try:
                     read_buffer = bytearray(bytes_to_read)
                     i2c.readfrom_into(i2c_addr, read_buffer)
@@ -946,14 +976,6 @@ class SmartFT260Emulator:
                     read_data = None
                 finally:
                     i2c.unlock()
-                    
-            except Exception:
-                self.i2c_status = 0x26
-                read_data = None
-                try:
-                    i2c.unlock()
-                except:
-                    pass
         
         # Create response in FT260 format
         response_data = bytearray(63)
@@ -1196,38 +1218,34 @@ class SmartFT260Emulator:
             data_preview = ' '.join([f'0x{byte_val:02X}' for byte_val in write_data[:min(8, len(write_data))]])
             debug_message(f"FT260: Pass-through I2C Write: 0x{i2c_addr:02X}, {byte_count} bytes - Data: {data_preview}{'...' if len(write_data) > 8 else ''}")
         
-        try:
-            while not i2c.try_lock():
-                time.sleep(0.001)
-            
-            try:
-                i2c.writeto(i2c_addr, bytes(write_data))
-                self.i2c_status = 0x20  # Success
-                debug_message("FT260: ✓ Pass-through write successful")
-                
-            except OSError:
-                self.i2c_status = 0x26  # Error
-                debug_message("FT260: ✗ Pass-through write failed")
-            finally:
-                i2c.unlock()
-                
-        except Exception:
+        if not lock_i2c():
             self.i2c_status = 0x26
-            debug_message("FT260: ✗ Pass-through write error")
-            try:
-                i2c.unlock()
-            except:
-                pass
+            debug_message("FT260: ✗ Pass-through write failed, I2C bus busy")
+            return
+        
+        try:
+            i2c.writeto(i2c_addr, bytes(write_data))
+            self.i2c_status = 0x20  # Success
+            debug_message("FT260: ✓ Pass-through write successful")
+            
+        except OSError:
+            self.i2c_status = 0x26  # Error
+            debug_message("FT260: ✗ Pass-through write failed")
+            
+        finally:
+            i2c.unlock()
     
     def process_reports(self):
         """Process incoming HID reports"""
+        service_activity_led()
+        
         if not self.enabled:
             return False
             
         try:
             report_id, data = self.get_last_received_report()
             if report_id is not None:
-                blink_status_led(YELLOW, 1, 0.005)
+                show_activity()
                 
                 if not self.active:
                     debug_message("FT260: Smart bridge mode activated")
