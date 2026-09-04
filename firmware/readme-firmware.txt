@@ -8,14 +8,14 @@ This folder contains firmware for a CircuitPython device that acts as both:
 FOLDER STRUCTURE:
 ================
 
-disk-hid/                       # Dev unit firmware, version 4.4
+disk-hid/                       # Dev unit firmware, version 4.6
 └── src/
     ├── boot.py                 # Boot configuration for HID and disk mode
     ├── code.py                 # Main application code
     ├── hardware_id.json       # Hardware identification file
     └── lib/                    # CircuitPython libraries
 
-production-prog/                # Production programmer firmware, version 4.5
+production-prog/                # Production programmer firmware, version 4.6
 └── src/
     ├── boot.py                 # Boot configuration
     ├── code.py                 # Main application code
@@ -160,6 +160,9 @@ TROUBLESHOOTING:
 VERSION HISTORY:
 ================
 
+v4.6 - Both builds: one I2C transfer per block with no chunked retry
+       reporting false success, bus lock taken with a deadline, FT260 read
+       length clamped to one report, non-blocking activity LED
 v4.5 - (production-prog) .prj project file support, OLED and SD card
 v4.4 - Unified buffer and programming functions, LED state fixes
 v4.1 - Removed the FT260 inactivity timeout; hex files are read at boot only

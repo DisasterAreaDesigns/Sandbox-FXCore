@@ -320,12 +320,12 @@ def main():
 Two, sharing their FXCore and FT260 code. A fix to one usually belongs in the
 other.
 
-### `disk-hid/src/` -- the dev unit, v4.4
+### `disk-hid/src/` -- the dev unit, v4.6
 - **USB Endpoints**: HID + Mass Storage
 - **Features**: FXCore programming + FT260 bridge
 - This is the build the assembler talks to
 
-### `production-prog/src/` -- the bench programmer, v4.5
+### `production-prog/src/` -- the bench programmer, v4.6
 Everything disk-hid does, plus the parts that let it program a unit with no
 host attached:
 - **SSD1306 OLED**, 128x32, on the *same* I2C bus at `0x3C`

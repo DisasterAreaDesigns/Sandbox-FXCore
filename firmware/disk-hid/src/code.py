@@ -1,6 +1,10 @@
 # FXCore Hex File Uploader with FT260 Emulation
-# Version 4.4
-# Date: 2025-08-20
+# Version 4.6
+# Date: 2026-09-04
+# I2C: one transfer per block, no chunked retry reporting false success
+# I2C: bus lock taken with a deadline instead of spinning for ever
+# FT260: read length clamped to what one input report holds
+# LED: activity light is a deadline, not a sleep in the report path
 # unifed buffer and programming functions
 # fixed issue with LED state in HID mode
 
