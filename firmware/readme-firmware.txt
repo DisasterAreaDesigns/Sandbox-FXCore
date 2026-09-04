@@ -8,38 +8,69 @@ This folder contains firmware for a CircuitPython device that acts as both:
 FOLDER STRUCTURE:
 ================
 
-disk-hid/                       # The firmware, version 4.4
+disk-hid/                       # Dev unit firmware, version 4.4
 └── src/
     ├── boot.py                 # Boot configuration for HID and disk mode
     ├── code.py                 # Main application code
     ├── hardware_id.json       # Hardware identification file
     └── lib/                    # CircuitPython libraries
 
+production-prog/                # Production programmer firmware, version 4.5
+└── src/
+    ├── boot.py                 # Boot configuration
+    ├── code.py                 # Main application code
+    ├── hardware_id.json       # Hardware identification file
+    ├── settings.toml           # CircuitPython settings
+    ├── sd/                     # SD card mount point
+    └── lib/                    # CircuitPython libraries, incl. the OLED
+                                # driver and display text
+
 readme-firmware.txt             # This file
 readme-rp2040.md               # Detailed hardware documentation
 
-disk-hid is now the only build. A disk-mode/ build that did the programming
-without the HID bridge, and a hid-only/ pair of FT260 emulation experiments,
-both used to sit beside it; disk-hid covers what they did, so they have been
-removed. They are in the history if they are ever wanted back.
+A disk-mode/ build that did the programming without the HID bridge, and a
+hid-only/ pair of FT260 emulation experiments, used to sit beside these.
+disk-hid covers what they did, so they have been removed; they are in the
+history if they are ever wanted back.
 
 No .uf2 images are checked in at the moment. The ones that used to be here had
 drifted well behind src/, which is a worse trap than having none.
 
 
-WHAT THE FIRMWARE DOES:
-=======================
+THE TWO BUILDS:
+===============
 
-- FXCore programming via hex files on disk, read at boot
+DISK-HID (disk-hid/) -- the dev unit
+- FXCore programming via hex files on the CIRCUITPY drive, read at boot
 - FT260 USB-I2C bridge emulation, served continuously thereafter
 - USB HID device + USB mass storage
+- This is the one the assembler talks to
+
+PRODUCTION-PROG (production-prog/) -- the bench programmer we use in
+production
+- Everything disk-hid does, plus:
+- SSD1306 OLED on the same I2C bus at 0x3C, for programming without a host
+- SD card, mounted at src/sd/
+- .prj project files: one plain text file naming the hex file for each of
+  the sixteen flash slots, so a whole unit is programmed in one pass
+
+      # comment lines are ignored
+      name=My Project Name
+      0=some_file.hex
+      1=another_file.hex
+      A=yet_another.hex
+
+  The first .prj found alphabetically is the one used.
+
+The two share their FXCore and FT260 code; a fix to one usually belongs in
+the other.
 
 
 INSTALLATION:
 =============
 
 Until a new .uf2 is built, install CircuitPython on the Pico and copy the
-contents of disk-hid/src/ onto the CIRCUITPY drive.
+contents of the build's src/ onto the CIRCUITPY drive.
 
 With a .uf2 in hand:
 1. Hold BOOTSEL button on Raspberry Pi Pico while connecting USB
@@ -60,6 +91,10 @@ Required connections for FXCore programming:
 
 Optional:
 - GP2 drives an LED for programming and bridge activity
+
+production-prog additionally uses:
+- The same GP0/GP1 I2C bus for an SSD1306 OLED at address 0x3C
+- An SD card for hex and .prj files
 
 
 USAGE - FXCORE PROGRAMMING:
@@ -105,7 +140,9 @@ TECHNICAL DETAILS:
 - Firmware: CircuitPython 8.x or later
 - I2C Bus: Hardware I2C on GP0/GP1
 - USB: Dual endpoint support (HID + Mass Storage)
-- Memory: Shared I2C bus, guarded by a lock taken with a one second deadline
+- Memory: Shared I2C bus, guarded by a lock taken with a one second deadline.
+  On production-prog the OLED is on that same bus, so the lock is genuinely
+  contended and the deadline is what keeps a stuck bus from wedging the board
 - Protocol: Intel HEX file parsing, FXCore binary protocol
 - Transfers: each FXCore block is one I2C transaction; the chip counts the
   bytes of a block within a single transaction, so a block cannot be split
@@ -123,6 +160,7 @@ TROUBLESHOOTING:
 VERSION HISTORY:
 ================
 
+v4.5 - (production-prog) .prj project file support, OLED and SD card
 v4.4 - Unified buffer and programming functions, LED state fixes
 v4.1 - Removed the FT260 inactivity timeout; hex files are read at boot only
 v4.0 - Added FT260 USB-I2C bridge emulation with automatic mode switching

@@ -315,17 +315,44 @@ def main():
         time.sleep(0.0001 if ft260_processed else 0.001)
 ```
 
-## The Build
+## The Builds
 
-- **Source**: `disk-hid/src/`
+Two, sharing their FXCore and FT260 code. A fix to one usually belongs in the
+other.
+
+### `disk-hid/src/` -- the dev unit, v4.4
 - **USB Endpoints**: HID + Mass Storage
 - **Features**: FXCore programming + FT260 bridge
+- This is the build the assembler talks to
 
-There used to be a second, disk-only build alongside it. It did nothing this
-one does not, so it has been removed; it remains in the history.
+### `production-prog/src/` -- the bench programmer, v4.5
+Everything disk-hid does, plus the parts that let it program a unit with no
+host attached:
+- **SSD1306 OLED**, 128x32, on the *same* I2C bus at `0x3C`
+- **SD card**, mounted at `src/sd/`
+- **`.prj` project files**: one plain text file naming the hex file for each
+  of the sixteen flash slots, so a whole unit goes in one pass
+
+```
+# comment lines are ignored
+name=My Project Name
+0=some_file.hex
+1=another_file.hex
+A=yet_another.hex
+```
+
+The first `.prj` found alphabetically is the one used.
+
+Because the OLED sits on the bus the FXCore code uses, the lock on this build
+is genuinely contended -- `displayio` takes it to refresh the panel. That is
+what the deadline in `lock_i2c` is for.
+
+A disk-only build and a pair of standalone FT260 emulation scripts used to sit
+alongside these. They did nothing disk-hid does not, so they have been removed;
+they remain in the history.
 
 No `.uf2` is checked in at the moment. Install CircuitPython on the Pico and
-copy `disk-hid/src/` onto the CIRCUITPY drive, or build a fresh image.
+copy the build's `src/` onto the CIRCUITPY drive, or build a fresh image.
 
 ## Error Handling
 
