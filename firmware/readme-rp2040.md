@@ -351,8 +351,11 @@ A disk-only build and a pair of standalone FT260 emulation scripts used to sit
 alongside these. They did nothing disk-hid does not, so they have been removed;
 they remain in the history.
 
-No `.uf2` is checked in at the moment. Install CircuitPython on the Pico and
-copy the build's `src/` onto the CIRCUITPY drive, or build a fresh image.
+Each build's `.uf2` sits beside its `src/`, and `build-uf2.sh` rebuilds both.
+They are full 2MB flash images -- CircuitPython 10.1.4 in the low 1MB, the
+CIRCUITPY filesystem in the high 1MB -- so flashing one replaces everything.
+For a `code.py` change alone, copying `src/` onto a mounted CIRCUITPY drive is
+quicker. See `readme-firmware.txt` for how the build works.
 
 ## Error Handling
 

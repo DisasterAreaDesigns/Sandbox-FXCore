@@ -8,7 +8,13 @@ This folder contains firmware for a CircuitPython device that acts as both:
 FOLDER STRUCTURE:
 ================
 
+build-uf2.sh                    # Rebuilds both .uf2 images from src/
+mkuf2.py                        # UF2 wrap/unwrap helper
+base/                           # The CircuitPython halves the build starts
+                                # from, split out of a working board's dump
+
 disk-hid/                       # Dev unit firmware, version 4.6
+├── sandbox.uf2                 # Flashable image
 └── src/
     ├── boot.py                 # Boot configuration for HID and disk mode
     ├── code.py                 # Main application code
@@ -16,6 +22,7 @@ disk-hid/                       # Dev unit firmware, version 4.6
     └── lib/                    # CircuitPython libraries
 
 production-prog/                # Production programmer firmware, version 4.6
+├── production.uf2              # Flashable image
 └── src/
     ├── boot.py                 # Boot configuration
     ├── code.py                 # Main application code
@@ -33,8 +40,10 @@ hid-only/ pair of FT260 emulation experiments, used to sit beside these.
 disk-hid covers what they did, so they have been removed; they are in the
 history if they are ever wanted back.
 
-No .uf2 images are checked in at the moment. The ones that used to be here had
-drifted well behind src/, which is a worse trap than having none.
+Each build's .uf2 is checked in beside its src/, and build-uf2.sh rebuilds
+both from src/. Run it whenever code.py changes: an image that has drifted
+behind the source is worse than no image at all, which is why the previous
+pair were deleted rather than left to rot.
 
 
 THE TWO BUILDS:
@@ -69,14 +78,37 @@ the other.
 INSTALLATION:
 =============
 
-Until a new .uf2 is built, install CircuitPython on the Pico and copy the
-contents of the build's src/ onto the CIRCUITPY drive.
-
-With a .uf2 in hand:
-1. Hold BOOTSEL button on Raspberry Pi Pico while connecting USB
-2. Copy the .uf2 file to the RPI-RP2 drive
+1. Hold BOOTSEL button on the RP2040-Zero while connecting USB
+2. Copy the build's .uf2 to the RPI-RP2 drive:
+   - disk-hid/sandbox.uf2          for the dev unit
+   - production-prog/production.uf2 for the bench programmer
 3. Device will reboot automatically
-4. UF2 files contain entire flash contents, no other installation is necessary 
+4. UF2 files contain entire flash contents, no other installation is necessary
+
+For a change to code.py alone, copying src/ onto the CIRCUITPY drive of a
+board that already has CircuitPython is quicker than reflashing.
+
+
+BUILDING THE IMAGES:
+====================
+
+    ./build-uf2.sh
+
+The images are full 2MB flash images for a Waveshare RP2040-Zero:
+CircuitPython in the low 1MB, the CIRCUITPY filesystem in the high 1MB. Both
+halves in base/ came out of a working board's flash dump (CircuitPython
+10.1.4, 2026-03-09), so the script rebuilds only the filesystem and leaves the
+interpreter exactly as it was found.
+
+To move to a newer CircuitPython, dump a board running it with
+
+    picotool save -a newdump.uf2
+
+and re-split it with mkuf2.py rather than editing base/ by hand.
+
+macOS only: the script uses hdiutil to mount the FAT image. Two runs are not
+byte-identical, because about seventy bytes of FAT directory entries hold the
+files' timestamps; the contents are the same.
 
 
 HARDWARE CONNECTIONS:
