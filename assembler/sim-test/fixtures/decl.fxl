@@ -1,0 +1,66 @@
+<library>
+	<name>dcl</name>
+	<desc>Fixture for declarations made inside library code</desc>
+	<sub>
+		<name>setup</name>
+		<type>header</type>
+		<desc>declares equates globally so every call site shares them</desc>
+		<param>
+			<name>depth</name>
+			<type>DEC</type>
+			<desc>shared depth</desc>
+		</param>
+		<code>
+			.equ	SHARED_DEPTH	depth
+			.mem	SHARED_RING	128
+		</code>
+	</sub>
+	<sub>
+		<name>delay</name>
+		<desc>owns a delay line, so repeat calls must not collide</desc>
+		<param>
+			<name>tmp</name>
+			<type>CREG</type>
+			<desc>working register</desc>
+		</param>
+		<code>
+			.mem	buf	256
+			.equ	mid	64
+			cpy_cs	acc32, in0
+			multri	acc32, SHARED_DEPTH
+			wrdel	buf, acc32
+			rddel	tmp, buf#
+			rddel	tmp, buf!/2
+			rddel	tmp, SHARED_RING#
+			cpy_cc	tmp, acc32
+		</code>
+	</sub>
+	<sub>
+		<name>lengths</name>
+		<desc>a block length inside an equate, which the assembler cannot yet solve</desc>
+		<param>
+			<name>tmp</name>
+			<type>CREG</type>
+			<desc>working register</desc>
+		</param>
+		<code>
+			.mem	ring	128
+			.equ	span	ring!/2
+			rddel	tmp, ring#
+		</code>
+	</sub>
+	<sub>
+		<name>halves</name>
+		<desc>a parameter carrying a half selector or a leading minus</desc>
+		<param>
+			<name>p</name>
+			<type>INT</type>
+			<desc>anything</desc>
+		</param>
+		<code>
+			.equ	UP	p.U
+			.equ	LOW	p.L
+			.equ	NEG	-p
+		</code>
+	</sub>
+</library>

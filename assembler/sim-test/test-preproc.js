@@ -238,6 +238,71 @@ console.log('--- hand written and library built programs agree ---');
 }
 
 // ---------------------------------------------------------------
+console.log('--- declarations inside library code ---');
+{
+    const DECL = { 'decl.fxl': fs.readFileSync(path.join(__dirname, 'fixtures', 'decl.fxl'), 'utf8') };
+    const src = '.rn t1 r1\n.rn t2 r2\n@dcl.setup(0.5)\n@dcl.delay(t1)\n@dcl.delay(t2)\n';
+    const r = preproc(src, DECL);
+    ok('ok', r.ok === true, JSON.stringify(r.errors));
+
+    // A header subroutine declares globally: the name stays as the library
+    // spelled it, so every call site refers to the one symbol.
+    ok('header equate keeps its name', /^\.EQU SHARED_DEPTH\b/m.test(r.text),
+        r.text.split('\n').find(l => l.includes('SHARED_DEPTH')));
+    ok('header equate takes the argument', /\.EQU SHARED_DEPTH\s+0\.5/.test(r.text));
+    ok('header equate declared once',
+        (r.text.match(/\.EQU SHARED_DEPTH/g) || []).length === 1);
+    ok('both calls read the shared equate',
+        (r.text.match(/MULTRI ACC32 , SHARED_DEPTH/g) || []).length === 2);
+    ok('header block keeps its name', /^\.MEM SHARED_RING\s/m.test(r.text),
+        r.text.split('\n').find(l => l.includes('SHARED_RING')));
+    ok('header block allocated once',
+        (r.text.match(/\.MEM SHARED_RING/g) || []).length === 1);
+    ok('both calls address the shared block',
+        (r.text.match(/RDDEL T\d , SHARED_RING#/g) || []).length === 2,
+        r.text.split('\n').filter(l => l.includes('SHARED_RING')).join(' '));
+
+    // Everything else a subroutine declares is local to the call.
+    ok('memory block renamed per call',
+        r.text.includes('.MEM BUF_4') && r.text.includes('.MEM BUF_5'),
+        r.text.split('\n').filter(l => l.includes('.MEM')).join(' '));
+    ok('local equate renamed per call',
+        r.text.includes('.EQU MID_4') && r.text.includes('.EQU MID_5'));
+    ok('no two calls share a block', !/\.MEM BUF\s/.test(r.text));
+    ok('a mem1 operand follows the rename', r.text.includes('WRDEL BUF_4 , ACC32'));
+    ok('a mem2 operand keeps its tail suffix', r.text.includes('RDDEL T1 , BUF_4#'),
+        r.text.split('\n').find(l => l.startsWith('RDDEL')));
+    ok('a length suffix follows the rename', r.text.includes('RDDEL T1 , BUF_4!/2'),
+        r.text.split('\n').filter(l => l.startsWith('RDDEL')).join(' '));
+
+    // The same rename inside an equate value. The assembler cannot solve a
+    // block length in a .equ yet, so this checks the text the preprocessor
+    // hands it rather than assembling it.
+    const len = preproc('.rn t1 r1\n@dcl.lengths(t1)\n', DECL);
+    ok('a length inside an equate follows the rename',
+        len.text.includes('.EQU SPAN_2	RING_2!/2'),
+        len.text.split('\n').find(l => l.includes('SPAN')));
+
+    // Half selectors and a leading minus survive substitution.
+    const h = preproc('@dcl.halves(1234)\n', DECL);
+    ok('a .U selector substitutes', /\.EQU UP_1\s+1234\.U/.test(h.text),
+        h.text.split('\n').find(l => l.includes('UP_1')));
+    ok('a .L selector substitutes', /\.EQU LOW_1\s+1234\.L/.test(h.text));
+    ok('a leading minus survives', /\.EQU NEG_1\s+-1234/.test(h.text));
+
+    // And the whole thing has to assemble, which the old preprocessor could
+    // not manage: it declared BUF and MID once per call under the one name.
+    try {
+        const img = assemble(src + 'cpy_sc out0, acc32\n', 'decl.fxc', { libraries: DECL });
+        ok('declarations assemble', true);
+        ok('the delay line was allocated twice',
+            typeof img.expandedSource === 'string' && img.expandedSource.includes('.MEM BUF_5'));
+    } catch (e) {
+        ok('declarations assemble', false, e.message.replace(/\s+/g, ' '));
+    }
+}
+
+// ---------------------------------------------------------------
 console.log(`\n${pass} passed, ${fail} failed`);
 if (failures.length) {
     console.log('\nfailures:');

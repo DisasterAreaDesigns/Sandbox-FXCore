@@ -225,10 +225,14 @@ class FXLibrary {
                 warnings.push(`${file || 'library'}: subroutine "${subName}" declared more than once, later one wins`);
             }
             lib.subs.set(key, {
-                name: subName,
-                desc: fxlText(subNode, 'desc'),
-                params: params,
-                code: codeNode.text
+                name:       subName,
+                desc:       fxlText(subNode, 'desc'),
+                params:     params,
+                code:       codeNode.text,
+                // headerType is true when the sub has <type>header</type>.
+                // The preprocessor uses this to decide whether .equ names
+                // inside the sub are global (no _NN suffix) or local (_NN).
+                headerType: fxlText(subNode, 'type').toLowerCase() === 'header',
             });
         }
 
