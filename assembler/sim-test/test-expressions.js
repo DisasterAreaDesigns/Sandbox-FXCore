@@ -169,6 +169,60 @@ console.log('--- and the same through a whole assembly ---');
     ok('and does not crash with process.exit', msg === null || !/process is not defined/.test(msg), msg);
 }
 
+// A .equ may be built from a memory block's length (buf!) or read address
+// (buf#). Symbol resolution used to run to completion before the blocks were
+// allocated, so those symbols did not exist yet and the equate was reported
+// unresolved -- even though the same expression worked as an instruction
+// operand, which is resolved later.
+{
+    const same = (name, withEqu, withLiteral) => {
+        try {
+            ok(name, assemble(withEqu, 'equ').hex === assemble(withLiteral, 'lit').hex,
+                'machine code differs');
+        } catch (e) {
+            ok(name, false, e.message.replace(/\s+/g, ' '));
+        }
+    };
+
+    same('a block length in a .equ is its size',
+        '.mem buf 256\n.equ LEN buf!\ncpy_cs acc32, in0\nrddel r1, LEN\n',
+        '.mem buf 256\ncpy_cs acc32, in0\nrddel r1, 256\n');
+    same('a block length can be divided',
+        '.mem buf 256\n.equ MID buf!/2\ncpy_cs acc32, in0\nrddel r1, MID\n',
+        '.mem buf 256\ncpy_cs acc32, in0\nrddel r1, 128\n');
+    same('a read address in a .equ matches the operand',
+        '.mem buf 256\n.equ RD buf#\ncpy_cs acc32, in0\nrddel r1, RD\n',
+        '.mem buf 256\ncpy_cs acc32, in0\nrddel r1, buf#\n');
+    same('one equate may build on another',
+        '.mem buf 256\n.equ LEN buf!\n.equ HALF LEN/2\ncpy_cs acc32, in0\nrddel r1, HALF\n',
+        '.mem buf 256\ncpy_cs acc32, in0\nrddel r1, 128\n');
+    same('the equate may be written before the block',
+        '.equ MID buf!/2\n.mem buf 256\ncpy_cs acc32, in0\nrddel r1, MID\n',
+        '.mem buf 256\ncpy_cs acc32, in0\nrddel r1, 128\n');
+    same('the second block gets its own length',
+        '.mem a 100\n.mem b 64\n.equ L b!\ncpy_cs acc32, in0\nrddel r1, L\n',
+        '.mem a 100\n.mem b 64\ncpy_cs acc32, in0\nrddel r1, 64\n');
+
+    // Sizing a block by an equate still works, which is what forced the
+    // resolution pass to run before allocation in the first place.
+    same('a block may still be sized by a .equ',
+        '.equ SZ 256\n.mem buf SZ\ncpy_cs acc32, in0\nrddel r1, buf#\n',
+        '.mem buf 256\ncpy_cs acc32, in0\nrddel r1, buf#\n');
+
+    // And the two things that must still fail.
+    const fails = (name, src, re) => {
+        let msg = null;
+        try { assemble(src, 'bad'); } catch (e) { msg = e.message.replace(/\s+/g, ' '); }
+        ok(name, msg !== null && re.test(msg), msg === null ? 'it assembled' : msg);
+    };
+    fails('a block sized by its own length is rejected',
+        '.equ SZ buf!\n.mem buf SZ\ncpy_cs acc32, in0\n',
+        /could not be worked out/i);
+    fails('an undefined name in a .equ is still unresolved',
+        '.equ MID NOSUCH/2\ncpy_cs acc32, in0\n',
+        /UNRESOLVED SYMBOLS/i);
+}
+
 // ---------------------------------------------------------------
 console.log('');
 if (fail) { console.log('FAILURES:'); for (const f of failures) console.log('  ' + f); }

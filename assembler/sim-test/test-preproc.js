@@ -275,13 +275,20 @@ console.log('--- declarations inside library code ---');
     ok('a length suffix follows the rename', r.text.includes('RDDEL T1 , BUF_4!/2'),
         r.text.split('\n').filter(l => l.startsWith('RDDEL')).join(' '));
 
-    // The same rename inside an equate value. The assembler cannot solve a
-    // block length in a .equ yet, so this checks the text the preprocessor
-    // hands it rather than assembling it.
-    const len = preproc('.rn t1 r1\n@dcl.lengths(t1)\n', DECL);
+    // The same rename inside an equate value, so a subroutine can size an
+    // equate from the delay line it owns and still get one block per call.
+    const lenSrc = '.rn t1 r1\n@dcl.lengths(t1)\n@dcl.lengths(t1)\n';
+    const len = preproc(lenSrc, DECL);
     ok('a length inside an equate follows the rename',
-        len.text.includes('.EQU SPAN_2	RING_2!/2'),
-        len.text.split('\n').find(l => l.includes('SPAN')));
+        len.text.includes('.EQU SPAN_2	RING_2!/2') &&
+        len.text.includes('.EQU SPAN_3	RING_3!/2'),
+        len.text.split('\n').filter(l => l.includes('SPAN')).join(' '));
+    try {
+        assemble(lenSrc + 'cpy_sc out0, acc32\n', 'len.fxc', { libraries: DECL });
+        ok('and the block it is sized from assembles', true);
+    } catch (e) {
+        ok('and the block it is sized from assembles', false, e.message.replace(/\s+/g, ' '));
+    }
 
     // A .rn inside library code names a register for the rest of the program,
     // so an argument using that name is checked against the parameter's bank

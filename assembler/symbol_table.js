@@ -111,8 +111,10 @@ class SymbolTable {
             return false;
         }
         
-        // Resolve symbols (multiple passes)
-        if (!this.resolveSymbols()) {
+        // Resolve symbols (multiple passes). Anything left over at this point
+        // may still be waiting on a memory block's length or read address, so
+        // the complaint is deferred to the second pass below.
+        if (!this.resolveSymbols(false)) {
             return false;
         }
         
@@ -123,6 +125,12 @@ class SymbolTable {
         
         // Process memory directives
         if (!this.processMemoryDirectives()) {
+            return false;
+        }
+        
+        // Now that every block has an address, a length (buf!) and a read
+        // address (buf#), resolve what was waiting on them.
+        if (!this.resolveSymbols()) {
             return false;
         }
         
@@ -481,7 +489,16 @@ class SymbolTable {
      * Resolve symbols with proper variable substitution and clean debug output
      * @returns {boolean} Success
      */
-    resolveSymbols() {
+    /**
+     * Resolve symbol values, in repeated passes so one .equ may build on
+     * another.
+     * @param {boolean} reportUnresolved - fail on symbols still unresolved at
+     *   the end. False on the pass that runs before memory is allocated, where
+     *   a symbol built from a block's length or read address cannot be
+     *   resolved yet because those symbols do not exist.
+     * @returns {boolean} Success
+     */
+    resolveSymbols(reportUnresolved = true) {
         let resFound = true;
         let passCount = 0;
         const reservedWords = new ReservedWords();
@@ -677,8 +694,16 @@ class SymbolTable {
             }
         }
         
-        // Final check - report any unresolved symbols
+        // Final check - report any unresolved symbols. Before the memory
+        // directives are processed a ".equ" built from a block's length (buf!)
+        // or read address (buf#) has nothing to resolve against, so on that
+        // pass the leftovers are handed on rather than treated as an error.
         const stillUnresolved = this.thetable.filter(s => !s.resolved);
+        if (stillUnresolved.length > 0 && !reportUnresolved) {
+            debug.symbols(`${stillUnresolved.length} symbol(s) unresolved so far, ` +
+                `retrying once memory is allocated`, 'SYMBOLS');
+            return true;
+        }
         if (stillUnresolved.length > 0) {
             debug.error('UNRESOLVED SYMBOLS:', 'SYMBOLS');
             stillUnresolved.forEach(symbol => {
@@ -849,6 +874,14 @@ processRegisterDirectives() {
             
             if (symbol.type === 'MEM_DIRECTIVE' && 
                 symbol.subtype !== 'MEML' && symbol.subtype !== 'MEMR') {
+                
+                if (!symbol.resolved || typeof symbol.rvalue !== 'number' ||
+                    !isFinite(symbol.rvalue)) {
+                    debug.error(`Memory size for ${symbol.name} at line ${symbol.linenum} ` +
+                        `could not be worked out from "${symbol.value}" - a block cannot be ` +
+                        `sized by its own length or read address`, 'SYMBOLS');
+                    return false;
+                }
                 
                 const memSize = Math.round(symbol.rvalue);
                 if (memSize < 0) {

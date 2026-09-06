@@ -38,7 +38,7 @@
 	</sub>
 	<sub>
 		<name>lengths</name>
-		<desc>a block length inside an equate, which the assembler cannot yet solve</desc>
+		<desc>an equate sized from the block the subroutine owns</desc>
 		<param>
 			<name>tmp</name>
 			<type>CREG</type>
@@ -47,7 +47,9 @@
 		<code>
 			.mem	ring	128
 			.equ	span	ring!/2
-			rddel	tmp, ring#
+			cpy_cs	acc32, in0
+			wrdel	ring, acc32
+			rddel	tmp, span
 		</code>
 	</sub>
 	<sub>
