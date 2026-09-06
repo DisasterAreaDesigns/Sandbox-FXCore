@@ -592,11 +592,23 @@ class Preprocessor {
 
         let text = keyword + ' ' + name;
         if (value.length) {
-            text += '\t' + value.map(t =>
+            const valueText = value.map(t =>
                 t.Type === 'STRN'
                     ? this.resolveMemToken(t.Value, matcher, memblocks, tag)
                     : t.Value.trim()
             ).join('');
+            text += '\t' + valueText;
+
+            // A .rn names a register for the rest of the program, so remember
+            // which bank it lands in. Without this an argument to a later call
+            // would be a name scanAliases never saw - it only reads the source
+            // as the user wrote it - so a CREG handed to an MREG parameter
+            // would go unchecked here and surface further on as the assembler
+            // failing to find the register.
+            if (kind === 'RN_DIRECTIVE') {
+                const bank = this.registerKindOf(valueText);
+                if (bank) this.aliases.set(name.trim().toUpperCase(), bank);
+            }
         }
         return text;
     }

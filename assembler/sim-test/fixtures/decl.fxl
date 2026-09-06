@@ -13,6 +13,7 @@
 		<code>
 			.equ	SHARED_DEPTH	depth
 			.mem	SHARED_RING	128
+			.rn	SHARED_C	r8
 		</code>
 	</sub>
 	<sub>
@@ -47,6 +48,18 @@
 			.mem	ring	128
 			.equ	span	ring!/2
 			rddel	tmp, ring#
+		</code>
+	</sub>
+	<sub>
+		<name>needsmreg</name>
+		<desc>takes an MREG, to check what a library declared .rn is worth</desc>
+		<param>
+			<name>dst</name>
+			<type>MREG</type>
+			<desc>where the result goes</desc>
+		</param>
+		<code>
+			cpy_mc	dst, acc32
 		</code>
 	</sub>
 	<sub>

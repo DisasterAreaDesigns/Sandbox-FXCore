@@ -283,6 +283,17 @@ console.log('--- declarations inside library code ---');
         len.text.includes('.EQU SPAN_2	RING_2!/2'),
         len.text.split('\n').find(l => l.includes('SPAN')));
 
+    // A .rn inside library code names a register for the rest of the program,
+    // so an argument using that name is checked against the parameter's bank
+    // just as one the user named themselves would be.
+    const bank = preproc('@dcl.setup(0.5)\n@dcl.needsmreg(SHARED_C)\n', DECL);
+    ok('a library declared alias is type checked', bank.ok === false);
+    ok('and the mismatch is explained',
+        bank.errors.some(e => /"SHARED_C".*is a CREG but parameter "dst" is a MREG/.test(e.message)),
+        JSON.stringify(bank.errors.map(e => e.message)));
+    const good = preproc('.rn m1 mr0\n@dcl.setup(0.5)\n@dcl.needsmreg(m1)\n', DECL);
+    ok('the right bank still binds', good.ok === true, JSON.stringify(good.errors));
+
     // Half selectors and a leading minus survive substitution.
     const h = preproc('@dcl.halves(1234)\n', DECL);
     ok('a .U selector substitutes', /\.EQU UP_1\s+1234\.U/.test(h.text),
