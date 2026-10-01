@@ -30,6 +30,7 @@
 
 let regsWin = null;
 let regsWinFloating = false;   // a picture-in-picture window rather than a popup
+let regsDock = null;           // the in-page panel, when the browser allowed neither
 let regsEls = null;            // element handles inside the popup
 let regsPoll = null;           // watches for the window being closed
 let regsThemeObserver = null;
@@ -279,7 +280,58 @@ function regsDocument() {
 // ---- open / close ---------------------------------------------------------
 
 function simRegsIsOpen() {
+    if (regsDock) return regsDock.isConnected && !!regsWin;
     return !!(regsWin && !regsWin.closed);
+}
+
+// The last resort, for a browser that offers neither a floating window nor a
+// popup -- an embedded browser pane, or a popup blocker that has been told no.
+// The viewer is a document like any other, so it goes in an iframe in a panel
+// that floats over the page: draggable by its title, resizable from its
+// corner, and closed with the cross.
+function regsOpenDock() {
+    const box = document.createElement('div');
+    box.id = 'regsDock';
+    box.style.cssText = 'position:fixed;left:16px;top:70px;width:' + REGS_SIZE.width +
+        'px;max-width:calc(100vw - 32px);height:' + Math.min(REGS_SIZE.height, window.innerHeight - 100) +
+        'px;z-index:10000;display:flex;flex-direction:column;resize:both;overflow:hidden;' +
+        'min-width:320px;min-height:200px;border:1px solid rgba(127,127,127,0.5);' +
+        'border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,0.35);background:#2a2a2a;';
+    const bar = document.createElement('div');
+    bar.style.cssText = 'flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:4px 8px;' +
+        'background:#3a3a3a;color:#ddd;font:12px sans-serif;cursor:move;user-select:none;';
+    bar.innerHTML = '<span style="flex:1">FXCore Registers - drag to move, corner to resize</span>';
+    const x = document.createElement('span');
+    x.textContent = '\u2715';
+    x.title = 'Close';
+    x.style.cssText = 'cursor:pointer;padding:0 4px;';
+    x.addEventListener('click', () => simRegsClose());
+    x.addEventListener('pointerdown', (e) => e.stopPropagation());
+    bar.appendChild(x);
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'flex:1;width:100%;border:0;';
+    box.append(bar, frame);
+    document.body.appendChild(box);
+
+    // Drag by the title. The pointer is captured so the iframe underneath
+    // cannot swallow the moves.
+    bar.addEventListener('pointerdown', (e) => {
+        const r = box.getBoundingClientRect();
+        const dx = e.clientX - r.left, dy = e.clientY - r.top;
+        bar.setPointerCapture(e.pointerId);
+        const move = (m) => {
+            box.style.left = Math.max(0, Math.min(window.innerWidth - 60, m.clientX - dx)) + 'px';
+            box.style.top = Math.max(0, Math.min(window.innerHeight - 30, m.clientY - dy)) + 'px';
+        };
+        const up = () => {
+            bar.removeEventListener('pointermove', move);
+            bar.removeEventListener('pointerup', up);
+        };
+        bar.addEventListener('pointermove', move);
+        bar.addEventListener('pointerup', up);
+    });
+    regsDock = box;
+    return frame.contentWindow;
 }
 
 // Floating means a Document Picture-in-Picture window: always on top, no
@@ -324,12 +376,7 @@ async function simRegsOpen() {
         } catch (e) { win = null; }
     }
     if (!win) win = regsPopup();
-    if (!win) {
-        if (typeof simStatus === 'function') {
-            simStatus('The register viewer was blocked - allow popups for this page', 'warn');
-        }
-        return;
-    }
+    if (!win) win = regsOpenDock();
     regsAttach(win, floating);
 }
 
@@ -340,7 +387,7 @@ async function simRegsOpen() {
 // closed, and the button in the panel takes over.
 async function regsSetFloating(on) {
     regsRememberFloat(on);
-    if (on === regsWinFloating || !simRegsIsOpen()) return;
+    if (on === regsWinFloating || !simRegsIsOpen() || regsDock) return;
     let win = null;
     if (on) {
         try { win = await window.documentPictureInPicture.requestWindow(REGS_SIZE); }
@@ -419,7 +466,10 @@ function regsBlankState() {
 function simRegsClose() {
     clearInterval(regsPoll);
     regsPoll = null;
-    if (regsWin && !regsWin.closed) {
+    if (regsDock) {
+        regsDock.remove();
+        regsDock = null;
+    } else if (regsWin && !regsWin.closed) {
         try { regsWin.close(); } catch (e) { /* already gone */ }
     }
     regsWin = null;
@@ -458,7 +508,7 @@ function regsCollectEls() {
     els.memAll = get('mem-all');
     regsEls = els;
 
-    els.floatCtl.classList.toggle('hidden', !regsCanFloat());
+    els.floatCtl.classList.toggle('hidden', !regsCanFloat() || !!regsDock);
     els.float.checked = regsWinFloating;
     els.float.addEventListener('change', () => regsSetFloating(els.float.checked));
 
@@ -923,9 +973,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
 // A viewer left open after the page that feeds it has gone would sit there
 // showing stale numbers with nothing to say they are stale.
 if (typeof window !== 'undefined') window.addEventListener('pagehide', () => {
-    if (simRegsIsOpen()) {
-        try { regsWin.close(); } catch (e) { /* already gone */ }
-    }
+    if (simRegsIsOpen()) simRegsClose();
 });
 
 // The name resolution and the alias reader are pure, so they are exported for
