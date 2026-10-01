@@ -214,157 +214,45 @@ class common {
     }
 
     /**
-     * Converts a decimal value -1.0 <= thedec < 1.0 to an int in S.31 format
-     * @param {number} thedec - Decimal value
-     * @returns {number|null} Converted value or null if out of range
+     * Strip comments from one line of source.
+     *
+     * The single place that decides what a comment is. ";" and "//" run to end
+     * of line and win over "/*" -- a "/*" inside a line comment does not open a
+     * block -- and the block state is returned so the caller can carry it to
+     * the next line. A block comment is replaced by a space, so it separates
+     * the tokens either side of it rather than gluing them together.
+     *
+     * @param {string} line - One line of source
+     * @param {boolean} inBlock - True if a block comment was open on entry
+     * @returns {{code:string, inBlock:boolean}}
      */
-    static conS31I32(thedec) {
-        if (thedec > common.maxs31) return null;
-        if (thedec < common.mins31) return null;
-        // Value lies between limits, multiply it to be MSB aligned
-        return Math.round(thedec * 2147483647);
-    }
+    static stripComments(line, inBlock) {
+        const src = String(line);
+        let out = '';
+        let i = 0;
+        let block = !!inBlock;
 
-    /**
-     * Convert immediate 16-bit value
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm16(thedec) {
-        if (thedec < -1.0) return 0x00008000;
-        if (thedec > 1.0) return 0x00007fff;
-        // Value is within limits, convert it
-        return Math.round(thedec * 32767);
-    }
-
-    /**
-     * Convert immediate 16-bit decimal value (strict)
-     * @param {number} thedec - Decimal value
-     * @returns {number|null} Converted value or null if out of range
-     */
-    static conimm16d(thedec) {
-        if (thedec < -1.0) return null;
-        if (thedec >= 1.0) return null;
-        // Value is within limits, convert it
-        return Math.round(thedec * 32767);
-    }
-
-    /**
-     * Convert immediate 16-bit from integer
-     * @param {number} theint - Integer value
-     * @returns {number} Converted value
-     */
-    static conimm16FromInt(theint) {
-        if (theint < 0) return 0; // imm16 is always a positive value < 1.0
-        if (theint > 0x7fffffff) return 0x0000ffff;
-        // Value is within limits, convert it
-        return theint >> 15;
-    }
-
-    /**
-     * Convert immediate 10-bit value
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm10(thedec) {
-        if (thedec < 0) return 0;
-        if (thedec > 1.0) return 0x000003ff;
-        // Value is within limits, convert it
-        return Math.round(thedec * 1023);
-    }
-
-    /**
-     * Convert immediate 10-bit from integer
-     * @param {number} theint - Integer value
-     * @returns {number} Converted value
-     */
-    static conimm10FromInt(theint) {
-        if (theint < 0) return 0; // imm10 is always a positive value < 1.0
-        if (theint > 0x7fffffff) return 0x000003ff;
-        // Value is within limits, convert it
-        return theint >> 21;
-    }
-
-    /**
-     * Convert immediate 10-bit decimal value (signed)
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm10d(thedec) {
-        // A S.9 format so might be negative
-        if (thedec >= 1.0) return 0x000001ff;
-        if (thedec <= -1.0) return 0x00000200;
-        // Value is within limits, convert it
-        return Math.round(thedec * 511) & 0x000003ff;
-    }
-
-    /**
-     * Convert immediate 10-bit decimal from integer
-     * @param {number} theint - Integer value
-     * @returns {number} Converted value
-     */
-    static conimm10dFromInt(theint) {
-        // A S.9 format so might be negative
-        if (theint >= 0x00000200) return 0x000001ff;
-        if (theint <= 0xfffffe00) return 0x00000200;
-        // Value is within limits, convert it
-        return theint >> 22;
-    }
-
-    /**
-     * Convert immediate 6-bit value
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm6(thedec) {
-        if (thedec < 0) return 0;
-        if (thedec > 1.0) return 0x0000003f;
-        // Value is within limits, convert it
-        return Math.round(thedec * 63);
-    }
-
-    /**
-     * Convert immediate 5-bit value
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm5(thedec) {
-        if (thedec < 0) return 0;
-        if (thedec > 1.0) return 0x0000001f;
-        // Value is within limits, convert it
-        return Math.round(thedec * 31);
-    }
-
-    /**
-     * Convert immediate 4-bit value
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm4(thedec) {
-        if (thedec < 0) return 0;
-        if (thedec > 1.0) return 0x0000000f;
-        // Value is within limits, convert it
-        return Math.round(thedec * 15);
-    }
-
-    /**
-     * Convert immediate 1-bit value from decimal
-     * @param {number} thedec - Decimal value
-     * @returns {number} Converted value
-     */
-    static conimm1(thedec) {
-        if (thedec < 1.0) return 0;
-        return 0x00000001;
-    }
-
-    /**
-     * Convert immediate 1-bit value from integer
-     * @param {number} theint - Integer value
-     * @returns {number} Converted value
-     */
-    static conimm1FromInt(theint) {
-        if (theint < 0x10000000) return 0;
-        return 0x00000001;
+        while (i < src.length) {
+            if (block) {
+                const end = src.indexOf('*/', i);
+                if (end === -1) return { code: out, inBlock: true };
+                block = false;
+                out += ' ';
+                i = end + 2;
+                continue;
+            }
+            const ch = src.charAt(i);
+            if (ch === ';') break;
+            if (ch === '/' && src.charAt(i + 1) === '/') break;
+            if (ch === '/' && src.charAt(i + 1) === '*') {
+                block = true;
+                i += 2;
+                continue;
+            }
+            out += ch;
+            i++;
+        }
+        return { code: out, inBlock: block };
     }
 }
 

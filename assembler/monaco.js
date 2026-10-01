@@ -20,6 +20,39 @@ require(['vs/editor/editor.main'], function() {
         id: 'fxcore'
     });
 
+    // Language configuration. Monaco's editor actions read this rather than
+    // the tokenizer, so without it Cmd+/ (toggle line comment) and
+    // Shift+Alt+A (toggle block comment) do nothing at all.
+    //
+    // The tokenizer accepts ';', '//' and '/* */'. ';' is what Cmd+/ inserts
+    // because it is the style this repo's own sources and examples use; '//'
+    // still highlights, so code pasted from the Experimental Noize
+    // application notes keeps its comments.
+    monaco.languages.setLanguageConfiguration('fxcore', {
+        comments: {
+            lineComment: ';',
+            blockComment: ['/*', '*/']
+        },
+        brackets: [
+            ['(', ')'],
+            ['[', ']']
+        ],
+        autoClosingPairs: [
+            { open: '(', close: ')' },
+            { open: '[', close: ']' },
+            { open: '"', close: '"', notIn: ['string', 'comment'] }
+        ],
+        surroundingPairs: [
+            { open: '(', close: ')' },
+            { open: '[', close: ']' },
+            { open: '"', close: '"' }
+        ],
+        // Register and symbol names are C identifiers per the 2025 assembler,
+        // but .equ/.mem/.rn directives and the '#' / '!' memory suffixes need
+        // to count as part of a word for double-click and Cmd+/ selection.
+        wordPattern: /(-?\d*\.\d\w*)|([^\`\~\@\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+    });
+
     monaco.languages.setMonarchTokensProvider('fxcore', {
         ignoreCase: true,
         tokenizer: {
@@ -43,10 +76,13 @@ require(['vs/editor/editor.main'], function() {
                 // Declarations
                 [/\.(mem|equ|rn)\b/, 'keyword.declaration'],
 
+                // Library calls, inlined by the preprocessor before assembly
+                [/@[\w\-]+\.[\w\-]+/, 'keyword.declaration'],
+
                 // Constants
                 [/\b(LFO[0-3]|SIN|COS|POS|NEG|RMP[0-1]|L512|L1024|L2048|L4096|XF[0-3]|USER[0-1])\b/, 'constant'],
                 [/\b(OUT[0-3]OFLO|IN[0-3]OFLO)\b/, 'constant'],
-                [/\b(TB2NTB1|TAPSTKY|NEWTT|TAPRE|TAPPE|TAPLVL)\b/, 'constant'],
+                [/\b(TB2NTB1|TAPSTKY|NEWTT|TAPRE|TAPPE|TAPDB|TAPLVL)\b/, 'constant'],
                 [/\b(SW[0-4](DB|RE|PE)?)\b/, 'constant'],
                 [/\b(ENABLEDB?|PLLRANGE[01]|MNS|I2CA[0-6]|TAP)\b/, 'constant'],
                 [/\bPR(1[0-5]|[0-9])\b/, 'constant'],
@@ -230,6 +266,128 @@ require(['vs/editor/editor.main'], function() {
         }
     });
 
+    // -----------------------------------------------------------------------
+    // Library call suggestions
+    //
+    // Which subroutines exist depends on the folder the user picked, so the
+    // set is read when a suggestion is asked for rather than registered once
+    // with the language: point the assembler at a different folder and the
+    // next "@" offers the new subroutines with no reload.
+    //
+    // Monaco's own word pattern stops at "@" and ".", so the fragment being
+    // completed is taken from the raw line instead of from getWordUntilPosition().
+    // -----------------------------------------------------------------------
+    const LIBRARY_CALL_RE = /@([A-Za-z0-9_\-]*)(?:\.([A-Za-z0-9_\-]*))?$/;
+
+    function loadedLibraries() {
+        if (typeof FXCoreAssembler === 'undefined' || !FXCoreAssembler.getLibraries) {
+            return null;
+        }
+        const libs = FXCoreAssembler.getLibraries();
+        return (libs && libs.size) ? libs : null;
+    }
+
+    // The hover card and the suggestion detail both want the same paragraph:
+    // what the subroutine does, then what each argument has to be.
+    function libraryCallDocs(lib, sub) {
+        const lines = [];
+        if (sub.desc) lines.push(sub.desc, '');
+        for (const p of sub.params) {
+            lines.push(`- \`${p.name}\` *${p.type}*` +
+                (p.side ? ` *(${p.side})*` : '') +
+                (p.desc ? ` &mdash; ${p.desc}` : ''));
+        }
+        if (!sub.params.length) lines.push('*takes no arguments*');
+        lines.push('', lib.file ? `From \`${lib.file}\`` :
+            `From library \`${lib.name}\``);
+        return { value: lines.join('\n') };
+    }
+
+    function librarySuggestion(lib, sub, range, qualified) {
+        return {
+            label: qualified ? `@${lib.name}.${sub.name}` : sub.name,
+            kind: monaco.languages.CompletionItemKind.Function,
+            detail: fxlCallSignature(lib, sub),
+            documentation: libraryCallDocs(lib, sub),
+            insertText: fxlCallSnippet(lib, sub),
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            filterText: `@${lib.name}.${sub.name}`,
+            sortText: `${lib.name}.${sub.name}`,
+            range: range
+        };
+    }
+
+    monaco.languages.registerCompletionItemProvider('fxcore', {
+        triggerCharacters: ['@', '.'],
+        provideCompletionItems: function(model, position) {
+            const libs = loadedLibraries();
+            if (!libs) return { suggestions: [] };
+
+            const line = model.getValueInRange({
+                startLineNumber: position.lineNumber, startColumn: 1,
+                endLineNumber: position.lineNumber, endColumn: position.column
+            });
+            const m = LIBRARY_CALL_RE.exec(line);
+            if (!m) return { suggestions: [] };
+
+            // The whole "@lib.sub" fragment is replaced, "@" included, because
+            // the suggestion writes the call out in full.
+            const range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: position.column - m[0].length,
+                endColumn: position.column
+            };
+
+            const suggestions = [];
+            if (m[2] === undefined) {
+                // Still on the library part: offer every subroutine there is,
+                // so a half remembered name finds its library.
+                for (const lib of libs.all()) {
+                    for (const sub of lib.subList()) {
+                        suggestions.push(librarySuggestion(lib, sub, range, true));
+                    }
+                }
+            } else {
+                const lib = libs.get(m[1]);
+                if (!lib) return { suggestions: [] };
+                for (const sub of lib.subList()) {
+                    suggestions.push(librarySuggestion(lib, sub, range, false));
+                }
+            }
+            return { suggestions: suggestions };
+        }
+    });
+
+    // A call that is already written says nothing about its arguments, so read
+    // them back out of the .fxl on hover.
+    monaco.languages.registerHoverProvider('fxcore', {
+        provideHover: function(model, position) {
+            const libs = loadedLibraries();
+            if (!libs) return null;
+            const line = model.getLineContent(position.lineNumber);
+            const call = /@([A-Za-z0-9_\-]+)\.([A-Za-z0-9_\-]+)/g;
+            let m;
+            while ((m = call.exec(line)) !== null) {
+                const start = m.index + 1;                 // 1 based columns
+                const end = start + m[0].length;
+                if (position.column < start || position.column > end) continue;
+                const lib = libs.get(m[1]);
+                const sub = lib ? lib.sub(m[2]) : null;
+                if (!sub) return null;
+                return {
+                    range: new monaco.Range(position.lineNumber, start,
+                        position.lineNumber, end),
+                    contents: [
+                        { value: '**' + fxlCallSignature(lib, sub) + '**' },
+                        libraryCallDocs(lib, sub)
+                    ]
+                };
+            }
+            return null;
+        }
+    });
+
     // Change tracking functions
     function updateChangeState() {
         const currentContent = editor.getValue();
@@ -277,7 +435,8 @@ require(['vs/editor/editor.main'], function() {
             selectOnLineNumbers: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            wordWrap: 'on'
+            wordWrap: 'on',
+            glyphMargin: true    // breakpoints are set by clicking here
         });
 
         // Initialize change tracking

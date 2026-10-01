@@ -59,7 +59,8 @@ class ReservedWords {
         this.reserved.set('NEWTT', 0x0008);
         this.reserved.set('TAPRE', 0x0004);
         this.reserved.set('TAPPE', 0x0002);
-        this.reserved.set('TAPLVL', 0x0001);
+        this.reserved.set('TAPDB', 0x0001);
+        this.reserved.set('TAPLVL', 0x0001);  // deprecated alias for TAPDB
         
         // Switch constants
         this.reserved.set('SW0', 0x0001);
@@ -165,7 +166,7 @@ class ReservedWords {
             transform: ['XF0', 'XF1', 'XF2', 'XF3'],
             user: ['USER0', 'USER1'],
             overflow: ['OUT3OFLO', 'OUT2OFLO', 'OUT1OFLO', 'OUT0OFLO', 'IN3OFLO', 'IN2OFLO', 'IN1OFLO', 'IN0OFLO'],
-            tapTempo: ['TB2NTB1', 'TAPSTKY', 'NEWTT', 'TAPRE', 'TAPPE', 'TAPLVL'],
+            tapTempo: ['TB2NTB1', 'TAPSTKY', 'NEWTT', 'TAPRE', 'TAPPE', 'TAPDB', 'TAPLVL'],
             switches: ['SW0', 'SW1', 'SW2', 'SW3', 'SW4'],
             switchDebounce: ['SW0DB', 'SW1DB', 'SW2DB', 'SW3DB', 'SW4DB'],
             switchRisingEdge: ['SW0RE', 'SW1RE', 'SW2RE', 'SW3RE', 'SW4RE'],

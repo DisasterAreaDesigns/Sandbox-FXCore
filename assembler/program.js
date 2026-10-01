@@ -42,9 +42,59 @@ class Program {
         return new Date();
     }
 
+    /**
+     * Expand "@library.subroutine(...)" calls before assembly.
+     * Returns the source to assemble, or null if expansion failed. The
+     * expanded text is kept on FXCoreAssembler.expandedSource so the user can
+     * read or save the .fxo the assembler actually saw.
+     */
+    static Preprocess(sourceCode) {
+        FXCoreAssembler.expandedSource = null;
+        FXCoreAssembler.expandedLineMap = null;
+
+        if (typeof Preprocessor === 'undefined') return sourceCode;
+
+        const pre = new Preprocessor(FXCoreAssembler.getLibraries());
+        let result;
+        try {
+            result = pre.process(sourceCode);
+        } catch (error) {
+            debugLog(`Preprocessor failed: ${error.message}`, 'errors');
+            return null;
+        }
+
+        result.warnings.forEach(w => {
+            debugLog(`Line ${w.line}: ${w.message}`, 'warnings');
+        });
+
+        if (!result.ok) {
+            result.errors.forEach(e => {
+                common.code_error(e.message, e.line, (e.text || '').trim());
+                debugLog(`Line ${e.line}: ${e.message}`, 'errors');
+            });
+            return null;
+        }
+
+        if (result.expansions > 0) {
+            FXCoreAssembler.expandedSource = result.text;
+            FXCoreAssembler.expandedLineMap = result.lineMap;
+            debugLog(`Preprocessor expanded ${result.expansions} library call(s) from ` +
+                `${result.used.join(', ')}`, 'success');
+            debugLog('Line numbers below refer to the expanded source', 'info');
+        }
+
+        return result.text;
+    }
+
     static Asm_it() {
         debugLog('Starting Asm_it() method', 'info');
         debugLog(`Source code available: ${FXCoreAssembler.sourceCode ? 'YES' : 'NO'}`, 'info');
+
+        // Inline any library calls first. This is the same step the command
+        // line toolchain does with its separate preprocessor: the assembler
+        // only ever sees plain FXCore assembly.
+        const source = Program.Preprocess(FXCoreAssembler.sourceCode);
+        if (source === null) return false;
 
         const myfxcore = new FXCoreIC(); // declare the IC and its properties
         const data = new Array(4098).fill(0);
@@ -55,7 +105,7 @@ class Program {
         debugLog('SymbolTable created', 'info');
         debugLog(`mytable.checkreg exists: ${mytable.checkreg ? 'YES' : 'NO'}`, 'info');
 
-        if (!mytable.loadTable(FXCoreAssembler.sourceCode)) {
+        if (!mytable.loadTable(source)) {
             // if we got a false there was an error in loading/creating the symbol table
             common.gen_error("Error creating symbol table", Program.filename);
             return false;
@@ -67,11 +117,19 @@ class Program {
         const myasm = new Assembler(Program.filename, mytable);
         debugLog('Calling assembler.assemble()', 'info');
 
-        if (!myasm.assemble(FXCoreAssembler.sourceCode)) {
+        if (!myasm.assemble(source)) {
             // if we got a false there was an error in assembly
             common.gen_error("Error assembling code", Program.filename);
             return false;
         }
+
+        // Keep the assembler and symbol table around. The simulator needs the
+        // decoded program plus the CREG/MREG/SFR presets, and reconstructing
+        // those from the Intel HEX means undoing a packing built for the I2C
+        // protocol and throws away the symbol table the debugger wants.
+        FXCoreAssembler.lastAsm = myasm;
+        FXCoreAssembler.lastTable = mytable;
+        FXCoreAssembler.lastLineMap = FXCoreAssembler.expandedLineMap;
 
         // write HEX file
         debugLog('Writing HEX file', 'info');
@@ -231,6 +289,21 @@ class FXCoreAssembler {
     static selectedFile = null;
     static assembledHex = null;
     static sourceCode = null;
+    static expandedSource = null; // Source after library calls were inlined, null if none
+    static expandedLineMap = null; // Expanded line -> source line, null if none were inlined
+    static lastLineMap = null;  // The same, kept with lastAsm so a build and its map never part
+    static libraries = null;      // FXLibrarySet built from the user's library folder
+    static lastAsm = null;      // Assembler instance from the last good build
+    static lastTable = null;    // SymbolTable from the last good build
+
+    // The set of .fxl libraries available to the preprocessor. Created on
+    // first use so load order between the assembler scripts does not matter.
+    static getLibraries() {
+        if (!FXCoreAssembler.libraries && typeof FXLibrarySet !== 'undefined') {
+            FXCoreAssembler.libraries = new FXLibrarySet();
+        }
+        return FXCoreAssembler.libraries;
+    }
 
     static init() {
         const uploadArea = document.getElementById('uploadArea');
@@ -320,6 +393,75 @@ class FXCoreAssembler {
         } finally {
             document.getElementById('processBtn').disabled = false;
         }
+    }
+
+    // Build the object the simulator core consumes: decoded instruction words
+    // plus every preset the program header would load on a program change.
+    // Returns null if nothing has been assembled successfully.
+    static buildSimImage() {
+        const asm = FXCoreAssembler.lastAsm;
+        const table = FXCoreAssembler.lastTable;
+        if (!asm || !table || !asm.program || !asm.program.length) return null;
+
+        const regs = table.checkreg;
+        const program = new Int32Array(asm.program.length);
+        // The line of the editor's source each instruction came from, for a
+        // debugger. The assembler counts lines in the text it was given,
+        // which a library call has expanded, so they are mapped back to the
+        // lines the person typed; every instruction a call expanded to
+        // reports the call's own line.
+        const lines = new Int32Array(asm.program.length);
+        const lineMap = FXCoreAssembler.lastLineMap;
+        for (let i = 0; i < asm.program.length; i++) {
+            program[i] = asm.program[i].machine | 0;
+            const n = asm.program[i].linenum | 0;
+            lines[i] = (lineMap && lineMap[n - 1]) ? lineMap[n - 1] : n;
+        }
+
+        // CREG: R0-R15 are presettable, ACC32 and FLAGS are not.
+        const creg = new Int32Array(18);
+        for (let n = 0; n < 16; n++) {
+            const info = regs.valreg(n, regtypes.creg);
+            if (info) creg[n] = info.resolvedvalue | 0;
+        }
+
+        const mreg = new Int32Array(128);
+        for (let n = 0; n < 128; n++) {
+            const info = regs.valreg(n, regtypes.mreg);
+            if (info) mreg[n] = info.resolvedvalue | 0;
+        }
+
+        // SFR presets, indexed by the SFR address in the instruction set doc.
+        // Only the settable ones carry a meaningful value; the rest stay 0.
+        const sfr = new Int32Array(49);
+        for (let n = 0; n < 49; n++) {
+            const info = regs.valreg(n, regtypes.sreg);
+            if (info && info.setable) sfr[n] = info.resolvedvalue | 0;
+        }
+
+        // Header-only registers. registers.js parks these at 117-121 and
+        // 998/999 because they have no SFR address on the part.
+        const cfgOf = (num, dflt) => {
+            const info = regs.valreg(num, regtypes.sreg);
+            return info ? (info.resolvedvalue | 0) : dflt;
+        };
+
+        return {
+            program: program,
+            lines: lines,
+            creg: creg,
+            mreg: mreg,
+            sfr: sfr,
+            usr: [cfgOf(998, 0) & 1, cfgOf(999, 0) & 1],
+            cfg: {
+                tapStkRld: cfgOf(117, 0x8CA0),
+                tapDbRld: cfgOf(118, 0x01E0),
+                swDbRld: cfgOf(119, 0x01E0),
+                prgDbRld: cfgOf(120, 0x0960),
+                oflRld: cfgOf(121, 0x03C0)
+            },
+            instructionCount: asm.program.length
+        };
     }
 
     static readFileContent(file) {

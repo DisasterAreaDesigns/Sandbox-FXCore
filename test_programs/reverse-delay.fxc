@@ -1,0 +1,189 @@
+; reverse-delay.fxc - forward and reverse delay on one buffer, switched by a
+; footswitch the way US 9,899,013 (Stillman and Mecca, EarthQuaker Devices /
+; Pittsburgh Digital) describes, with the memory spent on the runs instead.
+;
+; POT0_SMTH  time: runs of H = 256 to 16124 samples, forward delay 512 + 2H
+; POT1_SMTH  repeats
+; POT2_SMTH  mix, dry to wet
+; SW0        held down is forward delay, released is reverse (the default)
+;
+; One ring, written once a sample with the input and the repeats.  Reverse
+; is two readers running backward through it, a run apart: a reader starts
+; a lag of 512 samples behind the write head and its delay grows two
+; samples a tick, so H ticks later it is 512 + 2H behind, where the forward
+; tap is, and the other reader, then at the lag, takes over.  The last 256
+; ticks of a run fade to it, which is what the lag is for: the incoming
+; reader has to have something to read.  Every input sample comes out once,
+; backward in runs of H, and the whole thing needs one phase counter p in
+; 0..H-1: the heard reader is 512 + 2p back, the incoming one 2H less.
+;
+; The patent hears the second half of each reader's pass rather than the
+; first, so its reverse output trails the input by a further Td/2 and a run
+; of H costs 4H of memory.  On 32K samples that is 128 ms of run at most;
+; hearing the first half doubles it.
+;
+; The mode switch is asymmetric.  Forward to reverse fades the forward tap
+; out at once, the readers having been running all along.  Reverse to
+; forward waits for the end of a run: the fade is timed so that it finishes
+; as the heard reader reaches the forward tap, so the two signals it is
+; fading between have converged.  A press that lands inside the last fade's
+; worth of the phase waits for the next cycle.  The fade is 2048 ticks
+; (64 ms at 32 kHz), or the largest power of two that fits in H when the
+; runs are short.
+
+.rn   dry   r0
+.rn   h     r1        ; the run, and the phase length
+.rn   p     r2        ; phase, 0..h-1
+.rn   fwd   r3        ; forward tap's gain, S.31
+.rn   mode  r4        ; 0 reverse, 1 forward
+.rn   armed r5        ; reverse mode, a switch to forward due at the wrap
+.rn   g     r7        ; heard reader's gain within the reverse pair
+.rn   inc   r8        ; incoming reader, 512 + 2(p - h) back
+.rn   hrd   r9        ; heard reader, 512 + 2p back
+.rn   ftap  r10       ; forward tap, 512 + 2h back
+.rn   wet   r11
+.rn   ks    r12       ; the mode fade: 31 - log2 of its length in ticks
+.rn   t     r13
+.rn   u     r14
+
+.mem  ring  32767     ; all of it: a block takes its length plus one
+
+; ---- input
+cpy_cs   dry, in0
+
+; ---- time: h = 256 + pot * 15868 in 16.16, and the forward tap at 512 + 2h
+cpy_cs   t, pot0_smth
+multri   t, 0.484375         ; 15872/32768: pot * 15872, S.31, is 16.16 already
+addsi    acc32, 0.0078125    ; + 256 << 16
+cpy_cc   t, acc32
+sra      t, 16
+cpy_cc   h, acc32
+sl       t, 1
+addsi    acc32, 0.015625     ; + 512 << 16
+cpy_cc   t, acc32
+interp   t, ring
+cpy_cc   ftap, acc32
+
+; ---- the reverse readers
+sl       p, 17               ; 2p, 16.16
+addsi    acc32, 0.015625     ; + 512 << 16
+cpy_cc   t, acc32
+interp   t, ring
+cpy_cc   hrd, acc32
+sub      p, h
+sl       acc32, 17           ; 2(p - h): behind the head only near the wrap,
+addsi    acc32, 0.015625     ; and read with next to no gain until then
+cpy_cc   t, acc32
+interp   t, ring
+cpy_cc   inc, acc32
+
+; ---- the hand-off: heard fades to incoming over the last ticks of the phase
+sub      h, p                ; h - p, 1..h
+sls      acc32, 23           ; / hand, saturating at 1
+cpy_cc   g, acc32
+
+; ---- the mode fade: 2048 ticks, or the largest power of two within h
+xor      acc32, acc32
+addi     acc32, 20
+cpy_cc   ks, acc32           ; 31 - log2 of the fade length
+addi     h, -2048
+jgez     acc32, ks_done
+addi     ks, 1
+cpy_cc   ks, acc32
+addi     h, -1024
+jgez     acc32, ks_done
+addi     ks, 1
+cpy_cc   ks, acc32
+addi     h, -512
+jgez     acc32, ks_done
+addi     ks, 1
+cpy_cc   ks, acc32
+ks_done:
+
+; ---- the switch
+cpy_cs   t, switch
+andi     t, 1
+cpy_cc   u, acc32            ; SW0 level, 0 while pressed
+jnz      mode, in_forward
+
+; reverse: on a press, arm once a whole fade is left before the wrap; armed,
+; fwd climbs so as to reach 1 as p wraps, and the hand-off is held off
+sub      h, p
+slsr     acc32, ks           ; (h - p) / fade, saturating at 1
+cpy_cc   t, acc32
+jnz      armed, climb
+jnz      u, rev_idle
+addi     t, 1                ; saturated, so a whole fade is left?
+jgez     acc32, rev_idle
+xor      acc32, acc32
+addi     acc32, 1
+cpy_cc   armed, acc32
+climb:
+wrdld    g, 0x7FFF
+ori      g, 0xFFFF
+cpy_cc   g, acc32
+subs     g, t                ; 1 - (h - p) / fade
+cpy_cc   fwd, acc32
+jmp      mode_done
+rev_idle:
+xor      acc32, acc32
+cpy_cc   fwd, acc32
+jmp      mode_done
+
+; forward: fwd follows the switch a fade-step a tick; at zero, reverse
+in_forward:
+xor      acc32, acc32
+addi     acc32, 1
+slr      acc32, ks           ; 1 / fade, S.31
+cpy_cc   t, acc32
+jnz      u, fwd_release
+adds     fwd, t
+cpy_cc   fwd, acc32
+jmp      mode_done
+fwd_release:
+sub      fwd, t
+jgez     acc32, fading
+xor      acc32, acc32
+cpy_cc   mode, acc32
+fading:
+cpy_cc   fwd, acc32
+mode_done:
+
+; ---- reverse pair, then the forward tap over it
+subs     hrd, inc
+multrr   acc32, g
+adds     acc32, inc
+cpy_cc   wet, acc32
+subs     ftap, wet
+multrr   acc32, fwd
+adds     acc32, wet
+cpy_cc   wet, acc32
+
+; ---- the phase; at the wrap an armed switch becomes forward mode
+addi     p, 1
+cpy_cc   p, acc32
+sub      p, h
+jneg     acc32, no_wrap
+xor      acc32, acc32
+cpy_cc   p, acc32
+jz       armed, no_wrap
+cpy_cc   mode, armed
+cpy_cc   armed, acc32
+wrdld    fwd, 0x7FFF
+ori      fwd, 0xFFFF
+cpy_cc   fwd, acc32
+no_wrap:
+
+; ---- the ring, written once for every reader: input plus the repeats
+cpy_cs   t, pot1_smth
+multrr   wet, t
+adds     acc32, dry
+wrdel    ring, acc32
+
+; ---- mix
+cpy_cs   u, pot2_smth
+subs     wet, dry
+multrr   acc32, u
+adds     acc32, dry
+cpy_sc   out0, acc32
+cpy_sc   out1, acc32

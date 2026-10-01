@@ -135,22 +135,6 @@ class FXCoreIC {
     }
 
     /**
-     * dl_prg(int num_inst)
-     * num_inst : number of instructions - 1 that will be sent
-     * returns a small byte array of the command
-     */
-    dl_prg(num_inst) {
-        const the_cmd = new Array(this.FXCORE_SEND_PRG_B);
-        num_inst = num_inst & 0x03FF;  // mask to 10 bits
-        the_cmd[0] = this.FXCORE_SEND_PRG[0] | ((num_inst & 0x30) >> 8);
-        the_cmd[1] = this.FXCORE_SEND_PRG[0] | (num_inst & 0xFF);
-        
-        debug.verbose(`Generated SEND_PRG command for ${num_inst + 1} instructions`, 'FXCORE');
-        
-        return the_cmd;
-    }
-
-    /**
      * wr_prg(short prg_slot)
      * prg_slot : which program slot to write programin RAM to
      * returns a small byte array of the command

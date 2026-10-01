@@ -27,7 +27,7 @@
                         <text x="32" y="40" text-anchor="middle" fill="white" font-family="League Spartan" font-size="20" font-weight="bold">FXC</text>
                     </svg>
                 </a>
-                <span class="build">build 18a</span>
+                <span class="build">build 22</span>
             </div>
         </div>
         <h2>Source Input</h2>
@@ -55,6 +55,7 @@
             <button onclick="assembleFXCore()">Assemble</button>
             <button onclick="downloadPlainHex()" id="downloadPlainHexBtn" disabled>Download HEX</button>
             <button onclick="downloadCHeader()" id="downloadCHeaderBtn" disabled>Download C Headers</button>
+            <button onclick="saveExpandedSource()" id="saveExpandedBtn" disabled>Save Expanded Source</button>
             <button onclick="saveSource()">Save Source...</button>
             <div style="float: right;">
                 <button onclick="clearEditor()">Clear Editor</button>
@@ -160,12 +161,20 @@
         <script src="symbol_table.js"></script>
         <script src="fxcore_ic.js"></script>
         <script src="assembler.js"></script>
+        <script src="fxl_library.js"></script>
+        <script src="preprocessor.js"></script>
         <script src="program.js"></script>
         <script src="FT260_wrap.js"></script>
         <script src="FXCoreProgrammer.js"></script>
         <script src="FXCoreTargets.js"></script>
         <script src="FXCoreFunctions.js"></script>
         <script src="user-preferences.js"></script>
+        <script src="fxcore-emu.js"></script>
+        <script src="fxcore-sim.js"></script>
+        <script src="fxcore-regs.js"></script>
+        <script src="fxcore-debug.js"></script>
+        <script src="fxcore-trace.js"></script>
+        <script src="fxcore-midi.js"></script>
 
         <script>
             // Global variables and functions to integrate FXCore with Monaco editor
@@ -369,6 +378,14 @@
                                 }
                                 handled = true;
                                 break;
+                            case 'p':
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (typeof simShortcutTogglePlay === 'function') {
+                                    simShortcutTogglePlay();
+                                }
+                                handled = true;
+                                break;
                         }
                     }
                 } else {
@@ -395,6 +412,14 @@
                                 event.stopPropagation();
                                 if (typeof assembleFXCore === 'function') {
                                     assembleFXCore();
+                                }
+                                handled = true;
+                                break;
+                            case 'p':
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (typeof simShortcutTogglePlay === 'function') {
+                                    simShortcutTogglePlay();
                                 }
                                 handled = true;
                                 break;
@@ -478,6 +503,7 @@
         </script>
     </div>
 
+    <div class="sim-toggle" onclick="toggleFlyout('sim')">TEST DRIVE</div>
     <div class="options-toggle" onclick="toggleFlyout('options')">OPTIONS</div>
     <div class="info-toggle" onclick="toggleFlyout('info')">INFO</div>
     <div class="instructions-toggle" onclick="toggleFlyout('instructions')">HELP</div>
@@ -496,6 +522,18 @@
                             Select Project Folder
                         </button>
                         <span id="projectFolderLabel" class="project-folder-label">No directory selected</span>
+                    </div>
+
+                    <div class="project-folder-section">
+                        <button id="libraryFolderBtn" class="project-folder-button" onclick="selectLibraryDirectory()">
+                            Select Library Folder
+                        </button>
+                        <button id="libraryClearBtn" class="project-folder-button" onclick="clearLibraryDirectory()">
+                            Clear
+                        </button>
+                        <span id="libraryFolderLabel" class="project-folder-label">No folder selected</span>
+                        <!-- Fallback for browsers without showDirectoryPicker -->
+                        <input type="file" id="libraryFolderInput" webkitdirectory multiple style="display: none;" onchange="handleLibraryFolderInput(this)">
                     </div>
 
                     <label>
@@ -521,6 +559,16 @@
                             <option value="dark">Dark</option>
                         </select>
                     </label>
+                </div>
+            </div>
+
+            <div id="librarySubSection" class="flyout-section" style="display:none;">
+                <h4>Library Subroutines</h4>
+                <div class="options">
+                    <input type="text" id="librarySubFilter" placeholder="Filter subroutines"
+                           oninput="renderLibrarySubList()">
+                    <div id="librarySubList" class="library-sub-list"></div>
+                    <span class="project-folder-label">Click one to paste its call at the cursor</span>
                 </div>
             </div>
 
@@ -628,6 +676,10 @@
                             <span class="key"><strong>Alt+D</strong></span>
                             <span class="desc">Download Hex / Run from RAM</span>
                         </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>Alt+P</strong></span>
+                            <span class="desc">Play / Stop the simulator</span>
+                        </span>
                     </label>
 
                     <label class="mac-only">
@@ -659,9 +711,372 @@
                             <span class="key"><strong>⌃+D</strong></span>
                             <span class="desc">Download Hex / Run from RAM</span>
                         </span>
+                        <span class="shortcut">
+                            <span class="key"><strong>⌃+P</strong></span>
+                            <span class="desc">Play / Stop the simulator</span>
+                        </span>
                     </label>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Simulator flyout panel -->
+    <div id="simPanel" class="info-panel">
+        <div class="flyout-header">
+            <h3>FXCore Simulator</h3>
+        </div>
+        <div class="flyout-content">
+
+            <div class="flyout-section">
+                <div class="sim-transport">
+                    <button id="simPlayBtn" class="sim-play-btn" onclick="simTogglePlay()">Play</button>
+                    <button class="sim-panic-btn" onclick="simPanic()">Reset</button>
+                </div>
+                <div id="simStatus" class="sim-status">Idle</div>
+                <div class="sim-row">
+                    <label>Program</label>
+                    <span id="simProgramState" class="sim-program-state">Not loaded</span>
+                </div>
+                <div class="sim-row sim-row-check">
+                    <label for="simAutoReload">Reset on assemble</label>
+                    <input type="checkbox" id="simAutoReload" checked>
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Outputs</h4>
+                <div class="sim-meters">
+                    <div class="sim-meter-row"><span>OUT0</span><div class="sim-meter"><div id="simMeter0" class="sim-meter-bar"></div></div></div>
+                    <div class="sim-meter-row"><span>OUT1</span><div class="sim-meter"><div id="simMeter1" class="sim-meter-bar"></div></div></div>
+                    <div class="sim-meter-row"><span>OUT2</span><div class="sim-meter"><div id="simMeter2" class="sim-meter-bar"></div></div></div>
+                    <div class="sim-meter-row"><span>OUT3</span><div class="sim-meter"><div id="simMeter3" class="sim-meter-bar"></div></div></div>
+                </div>
+                <div class="sim-row">
+                    <label for="simOutL">Monitor L / R</label>
+                    <select id="simOutL" onchange="simSendRoute()">
+                        <option value="0" selected>OUT0</option><option value="1">OUT1</option>
+                        <option value="2">OUT2</option><option value="3">OUT3</option>
+                    </select>
+                    <select id="simOutR" onchange="simSendRoute()">
+                        <option value="0">OUT0</option><option value="1" selected>OUT1</option>
+                        <option value="2">OUT2</option><option value="3">OUT3</option>
+                    </select>
+                </div>
+                <div class="sim-row sim-row-check">
+                    <label for="simMirrorIn">Mirror IN0/1 to IN2/3</label>
+                    <input type="checkbox" id="simMirrorIn" onchange="simSendRoute()">
+                </div>
+                <div class="sim-row sim-row-check"
+                     title="On: brightness follows the measured duty cycle, as a real LED does with a software PWM. Off: the lamp shows the pin state at each refresh, which blinks crisply for programs that do not dim.">
+                    <label for="simLedPwm">LED PWM brightness</label>
+                    <input type="checkbox" id="simLedPwm" checked>
+                </div>
+                <div class="sim-leds">
+                    <span class="sim-led-item"><span id="simUser0Label" class="sim-led-label">USER0</span><span id="simUser0" class="sim-led"></span><span id="simUser0Duty" class="sim-led-duty">0%</span></span>
+                    <span class="sim-led-item"><span id="simUser1Label" class="sim-led-label">USER1</span><span id="simUser1" class="sim-led"></span><span id="simUser1Duty" class="sim-led-duty">0%</span></span>
+                </div>
+                <div id="simFlags" class="sim-value">Tap -</div>
+            </div>
+
+            <!-- The register viewer, the debugger and the breakpoints are
+                 folded away by default: most sessions only want to hear the
+                 program, and the three sections together are longer than the
+                 rest of the panel. A halt unfolds them, since that is when
+                 they are wanted. -->
+            <div class="flyout-section sim-fold" id="simDebugToolsSection">
+                <h4 class="sim-fold-head" onclick="simDebugToolsToggle()"
+                    title="Show or hide the register viewer, the debugger and the breakpoints">
+                    <span id="simDebugToolsArrow" class="sim-fold-arrow">&#9654;</span> Debug Tools</h4>
+                <div id="simDebugTools" class="sim-fold-body" hidden>
+
+            <div class="flyout-section">
+                <h4>Registers</h4>
+                <div class="sim-transport">
+                    <button class="sim-regs-btn" onclick="simRegsOpen()"
+                            title="Watch ACC, the register files, the pots and the LFOs in a separate window">Open register viewer</button>
+                </div>
+                <div class="sim-note" id="simRegsNote">
+                    A floating window showing the accumulators, the audio,
+                    the pots, the LFOs, <code>R0</code>-<code>R15</code> and the
+                    memory registers as the program runs, named after the
+                    editor's <code>.rn</code> lines. Click a register there to
+                    plot it over time.
+                </div>
+                <div class="sim-row sim-row-check">
+                    <label for="simTrace">Result of each line in editor</label>
+                    <input type="checkbox" id="simTrace">
+                </div>
+                <div id="simTraceNote" class="sim-note"></div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Debug</h4>
+                <div class="sim-transport">
+                    <button id="simHaltBtn" class="sim-dbg-btn" onclick="simDebugHalt()"
+                            title="Freeze the core at the end of the current sample">Halt</button>
+                    <button id="simStepBtn" class="sim-dbg-btn" onclick="simDebugStep()" disabled
+                            title="One instruction">Step</button>
+                    <button id="simStepSampleBtn" class="sim-dbg-btn" onclick="simDebugStepSample()" disabled
+                            title="The rest of this sample, stopping at the top of the next">Sample</button>
+                </div>
+                <div class="sim-row">
+                    <label for="simRunToLine">Run to line</label>
+                    <span class="sim-inline">
+                        <input type="number" id="simRunToLine" min="1" class="sim-num">
+                        <button id="simRunToBtn" onclick="simDebugRunToLine()" disabled>Go</button>
+                    </span>
+                </div>
+                <div id="simDebugStatus" class="sim-status">Running freely</div>
+                <div class="sim-note">
+                    Halt freezes the core where it stands so you can step it,
+                    with the editor following. The output is silent while halted.
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Breakpoints</h4>
+                <div id="simBpList" class="sim-bp-list"></div>
+                <div class="sim-bp-add">
+                    <select id="simBpKind" onchange="simDebugBpKindChange()" title="What to halt on">
+                        <option value="line">Line</option>
+                        <option value="clip">Clip</option>
+                        <option value="jump">Jump</option>
+                        <option value="reg">Register</option>
+                    </select>
+                    <input type="number" id="simBpLine" class="sim-num" placeholder="line" min="1">
+                    <select id="simBpWhen" title="When a line breakpoint fires">
+                        <option value="always">every sample</option>
+                        <option value="first">first run</option>
+                        <option value="sample">on sample #</option>
+                    </select>
+                    <input type="number" id="simBpSample" class="sim-num" placeholder="sample" min="0">
+                    <select id="simBpTaken">
+                        <option value="1">taken</option>
+                        <option value="0">not taken</option>
+                    </select>
+                    <select id="simBpReg"></select>
+                    <select id="simBpOp">
+                        <option>&gt;</option><option>&lt;</option>
+                        <option>&gt;=</option><option>&lt;=</option>
+                        <option>==</option><option>!=</option>
+                    </select>
+                    <input type="text" id="simBpValue" class="sim-num sim-bp-value" placeholder="0.5, 0x400, 5i"
+                           title="A fraction from -1 to 1, a hex word such as 0x400, or an integer with an i such as 5i">
+                    <button onclick="simDebugAddFromForm()">Add</button>
+                </div>
+                <div class="sim-note">
+                    Click left of a line number to set a line breakpoint. A
+                    line on its own halts at once, so give it a condition to
+                    halt on something specific.
+                </div>
+            </div>
+
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Clock</h4>
+                <div class="sim-row">
+                    <label for="simRate">Sample rate</label>
+                    <select id="simRate" onchange="simOnRateChange()">
+                        <option value="12000">12 kHz (PLL 0,0)</option>
+                        <option value="24000">24 kHz (PLL 0,1)</option>
+                        <option value="32000">32 kHz (PLL 1,0)</option>
+                        <option value="48000" selected>48 kHz (PLL 1,1)</option>
+                    </select>
+                </div>
+                <div id="simRateInfo" class="sim-value">Max delay 0.683 s, Nyquist 24.0 kHz</div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Source</h4>
+                <div class="sim-row">
+                    <label for="simSource">Input</label>
+                    <select id="simSource" onchange="simOnSourceChange()">
+                        <option value="tone">Sine</option>
+                        <option value="saw">Sawtooth</option>
+                        <option value="square">Square</option>
+                        <option value="pluck">Pluck</option>
+                        <option value="noise">Noise</option>
+                        <option value="click">Clicks (1 s)</option>
+                        <option value="file">Audio file</option>
+                        <option value="input">Live input</option>
+                    </select>
+                </div>
+                <div id="simToneRow" class="sim-slider-row">
+                    <label for="simToneFreq">Freq</label>
+                    <input type="range" id="simToneFreq" min="20" max="5000" value="440"
+                           oninput="simOnToneFreqChange()">
+                    <span id="simToneFreqValue" class="sim-value">440 Hz</span>
+                </div>
+                <div id="simFileRow" class="sim-row" style="display:none;">
+                    <label for="simFile">File</label>
+                    <input type="file" id="simFile" accept="audio/*" onchange="simLoadAudioFile(this)">
+                    <span id="simFileLabel" class="sim-value"></span>
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Pots</h4>
+                <div class="sim-slider-row" title="POT0"><label for="simPot0"><span id="simPot0Label">POT0</span></label><input type="range" id="simPot0" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot0Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT1"><label for="simPot1"><span id="simPot1Label">POT1</span></label><input type="range" id="simPot1" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot1Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT2"><label for="simPot2"><span id="simPot2Label">POT2</span></label><input type="range" id="simPot2" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot2Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT3"><label for="simPot3"><span id="simPot3Label">POT3</span></label><input type="range" id="simPot3" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot3Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT4"><label for="simPot4"><span id="simPot4Label">POT4</span></label><input type="range" id="simPot4" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot4Value" class="sim-value">50%</span></div>
+                <div class="sim-slider-row" title="POT5"><label for="simPot5"><span id="simPot5Label">POT5</span></label><input type="range" id="simPot5" min="0" max="100" value="50" oninput="simSendPots()"><span id="simPot5Value" class="sim-value">50%</span></div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Switches</h4>
+                <div class="sim-switch-list">
+                    <div class="sim-switch-row" title="SW0">
+                        <span class="sim-sw-name" id="simSw0Label">SW0</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw0"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw0')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simSw0Push"
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw0')" onmouseup="simSwRelease('simSw0')"
+                                onmouseleave="simSwRelease('simSw0')"
+                                ontouchstart="simSwPress('simSw0'); return false;"
+                                ontouchend="simSwRelease('simSw0')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW1">
+                        <span class="sim-sw-name" id="simSw1Label">SW1</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw1"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw1')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simSw1Push"
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw1')" onmouseup="simSwRelease('simSw1')"
+                                onmouseleave="simSwRelease('simSw1')"
+                                ontouchstart="simSwPress('simSw1'); return false;"
+                                ontouchend="simSwRelease('simSw1')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW2">
+                        <span class="sim-sw-name" id="simSw2Label">SW2</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw2"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw2')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simSw2Push"
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw2')" onmouseup="simSwRelease('simSw2')"
+                                onmouseleave="simSwRelease('simSw2')"
+                                ontouchstart="simSwPress('simSw2'); return false;"
+                                ontouchend="simSwRelease('simSw2')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW3">
+                        <span class="sim-sw-name" id="simSw3Label">SW3</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw3"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw3')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simSw3Push"
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw3')" onmouseup="simSwRelease('simSw3')"
+                                onmouseleave="simSwRelease('simSw3')"
+                                ontouchstart="simSwPress('simSw3'); return false;"
+                                ontouchend="simSwRelease('simSw3')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="SW4">
+                        <span class="sim-sw-name" id="simSw4Label">SW4</span>
+                        <button type="button" class="sim-sw-toggle" id="simSw4"
+                                aria-pressed="false"
+                                title="Latching - click to hold the switch down"
+                                onclick="simSwToggle('simSw4')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simSw4Push"
+                                title="Momentary - hold to flip the switch, release to put it back"
+                                onmousedown="simSwPress('simSw4')" onmouseup="simSwRelease('simSw4')"
+                                onmouseleave="simSwRelease('simSw4')"
+                                ontouchstart="simSwPress('simSw4'); return false;"
+                                ontouchend="simSwRelease('simSw4')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row" title="TAP">
+                        <span class="sim-sw-name" id="simTapLabel">TAP</span>
+                        <button type="button" class="sim-sw-toggle" id="simTap"
+                                aria-pressed="false"
+                                title="Latching - click to hold the tap switch down"
+                                onclick="simSwToggle('simTap')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simTapPush"
+                                title="Momentary - tap in a tempo"
+                                onmousedown="simSwPress('simTap')" onmouseup="simSwRelease('simTap')"
+                                onmouseleave="simSwRelease('simTap')"
+                                ontouchstart="simSwPress('simTap'); return false;"
+                                ontouchend="simSwRelease('simTap')">PUSH</button>
+                    </div>
+                    <div class="sim-switch-row sim-switch-row--enable"
+                         title="ENABLE pin. Off drops the pin low and bypasses the simulator to the dry signal, the way the pedal's bypass does.">
+                        <span class="sim-sw-name">ENABLE</span>
+                        <button type="button" class="sim-sw-toggle sim-lit" id="simEnable"
+                                aria-pressed="true"
+                                title="Latching - lit is enabled, dark is bypassed"
+                                onclick="simSwToggle('simEnable')">TOGGLE</button>
+                        <button type="button" class="sim-sw-push" id="simEnablePush"
+                                title="Momentary - hold to flip the bypass, for an A/B against the dry signal"
+                                onmousedown="simSwPress('simEnable')" onmouseup="simSwRelease('simEnable')"
+                                onmouseleave="simSwRelease('simEnable')"
+                                ontouchstart="simSwPress('simEnable'); return false;"
+                                ontouchend="simSwRelease('simEnable')">PUSH</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flyout-section">
+                <h4>Levels</h4>
+                <div class="sim-slider-row">
+                    <label for="simInputLevel">In</label>
+                    <input type="range" id="simInputLevel" min="-40" max="12" value="-6" oninput="simApplyLevels()">
+                    <span id="simInputLevelValue" class="sim-value">-6 dB</span>
+                </div>
+                <div class="sim-slider-row">
+                    <label for="simOutputLevel">Out</label>
+                    <input type="range" id="simOutputLevel" min="-40" max="12" value="0" oninput="simApplyLevels()">
+                    <span id="simOutputLevelValue" class="sim-value">0 dB</span>
+                </div>
+            </div>
+
+            <div class="flyout-section" id="midiSection">
+                <h4>MIDI Control</h4>
+                <div class="sim-row">
+                    <label for="midiDevice">Input</label>
+                    <select id="midiDevice" onchange="midiOnDeviceChange()" disabled>
+                        <option value="all">All inputs</option>
+                    </select>
+                </div>
+                <div class="sim-row">
+                    <label for="midiChannel">Channel</label>
+                    <select id="midiChannel" onchange="midiOnChannelChange()">
+                        <option value="0" selected>Omni (all channels)</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                        <option value="11">11</option>
+                        <option value="12">12</option>
+                        <option value="13">13</option>
+                        <option value="14">14</option>
+                        <option value="15">15</option>
+                        <option value="16">16</option>
+                    </select>
+                </div>
+                <div class="midi-log-row">
+                    <span id="midiActivity" class="midi-activity" title="MIDI activity"></span>
+                    <span id="midiLine" class="sim-status">Not connected</span>
+                    <button id="midiConnectBtn" class="midi-rescan"
+                            onclick="midiConnect()">Enable MIDI</button>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -706,10 +1121,75 @@
                     <li>Assembly errors - <i>check syntax and register usage</i></li>
                     <li>Connection issues - <i>verify USB cable and HID device selection</i></li>
                 </ul>
+                <h4>Test Drive (the simulator)</h4>
+                <p>The <b>TEST DRIVE</b> panel runs your assembled program in the browser, so you can hear it without a pedal attached. Press <b>Assemble</b>, then <b>Play</b>.</p>
+                <ul>
+                    <li><b>Source</b> - what the program is fed: a tone (sine, saw or square), noise, a click train, a plucked string, an audio file, or this computer's audio input. <b>Clicks</b> puts one sample high every second, which shows a delay's taps and a reverb's early reflections as plainly as anything can. <b>Pluck</b> is a plucked string, retuned by the <b>Freq</b> box and struck every two seconds, so a delay or reverb tail is heard on its own between notes rather than buried under a steady tone.</li>
+                    <li><b>Naming controls</b> - put a tag in a comment and the pot, switch, tap and LED labels follow it as you type: <code>; #POT0 Reverb time</code>, <code>; #SW1 Freeze</code>, <code>; #TAP Tempo</code>, <code>; #LED0 Bypass</code> (or <code>#USER0</code>). Tags are read from the comment part of a line, so they never collide with code. Hover a renamed control to see which one it is.</li>
+                    <li><b>ENABLE</b> - drives the part's ENABLE/nBypass pin. Off routes the inputs straight to the outputs, the way the pedal's bypass does, while the program keeps running so its delay tails survive.</li>
+                    <li><b>What is modelled</b> - the FXCore core, delay RAM, pots, LFOs, ramps, switches and tap tempo. CHR and PITCH are modelled on the equivalent FV-1 structures, since neither is described internally by any published document: they sound right but are not yet confirmed against hardware, and the PITCH crossfade shapes XF0-XF3 are all treated as linear. Programs that drive external hardware over the second I2S bus will not behave as they do on a real board.</li>
+                </ul>
+                <h4>Watching the Program Run</h4>
+                <p>The simulator can be watched as well as heard. Everything here lives under <b>Debug Tools</b> in the <b>TEST DRIVE</b> tab; click the heading to unfold it.</p>
+                <ul>
+                    <li><b>Open register viewer</b> - opens a second window showing <b>ACC32</b>, <b>ACC64</b> and <b>FLAGS</b>, the audio in and out, the pots, the LFOs and ramps, the switches, tap tempo and USER pins, <b>R0</b>-<b>R15</b> and the memory registers, each as the value it holds and the 32-bit word behind it. Registers are named after the <b>.rn</b> lines in your source, so <b>R5</b> reads as <b>R5 feedback</b>. It is a real window: drag it to a second display and leave it there while you edit. In Chrome and Edge it floats above the editor with no address bar; <b>Always on top</b> in its header turns that off for an ordinary window. Where the browser allows neither - some embedded browsers, or popups blocked - it opens as a panel over the page instead, which you can drag by its title and resize from the corner.</li>
+                    <li><b>Show as</b> - in the viewer's header. <b>fraction</b> reads a register as a fraction of full scale, which is right for audio; <b>integer</b> reads it as a plain signed number, which is right for counters and masks. The word in hex is always shown beside it, and the editor's trace follows the same setting.</li>
+                    <li>Only the memory registers that hold something, or that you have named, are listed, since most programs use a handful of the 128. <b>list all 128</b> shows the rest.</li>
+                    <li>Click a register name in the viewer to plot it over time. The <b>Window</b> menu sets how much time the plot covers, from 64 ms to 16 s. An audio-rate signal shows as its envelope and an LFO as its shape, so a sweep that is too fast, a filter state that never settles, or a feedback path ringing up are all visible at a glance.</li>
+                    <li><b>Result of each line in editor</b> - writes what each instruction produced at the end of its line, live, while the program plays: <b>R3 +0.25</b>, <b>MR1 -0.01</b>, <b>OUT0 +0.5</b>, <b>ACC64 ...</b>. A <b>jump</b> line says <b>jumped</b> or <b>not taken</b>, the lines it went over say <b>skipped</b>, and a line whose result had to be clamped shows <b>clip</b> with the share of recent samples on which that happened - a line pinned at 100% is saturating, one at 2% is catching peaks. When a library call has expanded to several instructions, its line shows the last of them.</li>
+                    <li>The trace belongs to the build the simulator is running. Edit the source and it disappears until you assemble again, rather than drifting onto the wrong lines.</li>
+                </ul>
+
+                <h4>Halting and Stepping</h4>
+                <p>The <b>Debug</b> section under <b>Debug Tools</b> stops the simulator where it stands and lets you step it one instruction at a time. Breakpoints only fire while the simulator is running, so assemble and press <b>Play</b> first.</p>
+                <ul>
+                    <li><b>Halt</b> freezes the core at the end of the current sample. The panel shows where it stopped, a <b>&#9654;</b> in the editor's margin marks the next instruction, and every line above it shows what it just produced; lines below show <b>&hellip;</b> because they have not run yet this sample. If the register viewer is open it shows the halted state too.</li>
+                    <li><b>Step</b> runs one instruction. <b>Sample</b> runs the rest of this pass and stops at the top of the next one. <b>Run to line</b> carries on until that line is next, across samples if it has to - but a line a jump goes over may never come round, so it gives up after a few thousand samples and says so. Stepping off the last instruction lands on <b>end of sample</b>; one more step starts the next.</li>
+                    <li><b>Resume</b> (the Halt button, renamed) carries on from wherever the stepping got to. While halted the output is silent and the input is held at the sample it halted on, so stepping through a delay tail shows what the program does with that one input value rather than continuing the tone. The pots and switches stay live: move one and the next step uses it.</li>
+                    <li><b>Reset</b>, or re-assembling with <b>Reset on assemble</b> ticked, clears a halt: the core that was being stepped no longer exists. <b>Stop</b> lets it go too.</li>
+                    <li>An instruction a library call expanded to is on the line of the call, so stepping through one shows the same line for as many presses as the subroutine has instructions.</li>
+                </ul>
+                <p>Breakpoints are conditions rather than places. Every instruction that is not jumped over runs every sample, so a breakpoint on a line by itself halts on the very next sample - a fraction of a millisecond after you set it. That is fine when the point is to step through the program from there; for anything else, give it a condition. Two ways to set one:</p>
+                <ul>
+                    <li><b>Click the margin</b> just left of a line number. A red dot appears and the line halts on the next sample. Click again to remove it.</li>
+                    <li><b>Use the form</b> under Breakpoints for something more specific. Pick a kind, fill in the fields, press <b>Add</b>:</li>
+                </ul>
+                <ul>
+                    <li><b>Line</b> with <b>first run</b> halts only on sample 0 - the way to inspect initialisation code. With <b>on sample #</b> it halts on exactly that sample: <b>48000</b> is one second in at 48 kHz. A line a jump skips never halts.</li>
+                    <li><b>Clip</b> halts the first time an instruction saturates. Leave the line blank for any line.</li>
+                    <li><b>Jump</b> halts when a jump on that line goes the way you name, <b>taken</b> or <b>not taken</b>. A line that is not a jump never matches.</li>
+                    <li><b>Register</b> halts when a value crosses a threshold - <b>ACC32 &gt; 0.9</b>, <b>R5 &lt; -0.5</b>, <b>FLAGS == 0x8</b>. Any register will do: ACC32, FLAGS, <b>R0</b>-<b>R15</b>, <b>MR0</b>-<b>MR127</b> or an SFR, listed with their <b>.rn</b> names. Write the value as a fraction from -1 to 1 (<b>0.5</b>), a hex word (<b>0x400</b>) or an integer with an <b>i</b> (<b>5i</b>). They fire when the condition becomes true, not while it stays true, so a register sitting above its threshold does not halt again on the instruction after every resume.</li>
+                </ul>
+                <p>Each breakpoint in the list has a checkbox to leave it set but quiet, and <b>&#10005;</b> to remove it. Click one to jump to its line. A breakpoint on a line with no instruction - a comment, a blank line, a <b>.rn</b> - is shown greyed until a build gives that line one. Breakpoints follow their lines as you edit above them, and are matched to the build again on every assemble.</p>
+                <h4>MIDI Control</h4>
+                <p>A MIDI controller plugged into this computer can move the simulator's pots and its bypass, which is a good deal closer to playing the pedal than dragging sliders with a mouse.</p>
+                <p>The map is fixed. Every switch has all three of the things a foot does to one - <i>hold</i> it down while the pedal is down, <i>toggle</i> it and leave it there, or <i>tap</i> it - so each function gets its own run of controllers:</p>
+                <ul>
+                    <li><b>CC50-CC55</b> - <b>POT0-POT5</b>.</li>
+                    <li><b>CC93</b> - <b>tap tempo</b>: one tap of the TAP pin.</li>
+                    <li><b>CC102</b> - <b>ENABLE</b>: 0-63 bypassed, 64-127 engaged.</li>
+                    <li><b>CC103-CC108</b> - <b>hold</b> SW0, SW1, SW2, SW3, SW4, TAP: 64-127 presses and holds, 0-63 releases.</li>
+                    <li><b>CC109-CC114</b> - <b>toggle</b> the same seven, in the same order: 64-127 flips the switch and leaves it, 0-63 is ignored so a footswitch's release does not flip it back.</li>
+                    <li><b>CC115-CC119</b> - <b>tap</b> SW0-SW4: a press and release the program reads as one push edge. TAP's own tap is CC93.</li>
+                    <li>The switch CCs sit in 102-119, which the MIDI spec leaves undefined, so nothing else can claim them.</li>
+                    <li>Press <b>Enable MIDI</b> once and allow the browser's MIDI prompt. The chosen input and channel are remembered, and the button becomes <b>Rescan Devices</b> for a controller plugged in later.</li>
+                    <li><b>Channel</b> defaults to Omni. Set it when more than one thing is talking on the same port.</li>
+                    <li>Web MIDI needs Chrome, Edge or Firefox. Safari has none, so the section is shown but inert there.</li>
+                    <li>The levels are not mapped, and the <b>SandboxFX</b> pedal itself has no MIDI input - this drives the simulator only.</li>
+                </ul>
+                <h4>Using Libraries</h4>
+                <p>Point the assembler at a folder of <code>.fxl</code> libraries with <b>Editor Options - Select Library Folder</b>, and any subroutine in them can be called from your source as <code>@library.subroutine(arg, arg)</code>. There are three ways to write that call without having to remember its arguments:</p>
+                <ul>
+                    <li><b>The Library Subroutines list</b> - once a folder is loaded, this Options panel grows a list of every subroutine found, grouped by library, with a filter box above it. Click one and its call is pasted at the cursor with the argument names in place as editable placeholders; press <b>Tab</b> to step from one to the next.</li>
+                    <li><b>Editor completions</b> - type <code>@</code> in the editor to be offered every subroutine, or <code>@library.</code> to narrow it to one library. The call arrives with the same placeholders.</li>
+                    <li><b>Hover</b> - point at an existing <code>@library.subroutine</code> call to see what it does and what each argument expects.</li>
+                    <li>The folder is rescanned whenever this window regains focus, so a <code>.fxl</code> edited in another program is picked up without re-selecting it. The browser cannot remember the folder between sessions, so it has to be chosen again each time.</li>
+                </ul>
                 <h4>What do these Options do?</h4>
                 <p>These are some settings that change various editor and hardware settings</p>
                 <ul>
                     <h3>Editor Options</h3>
+                    <li>Select Library Folder: <i>Load a folder of <code>.fxl</code> libraries, and list their subroutines - see <b>Using Libraries</b> above</i></li>
                     <li>Large editor window: <i>Expands editor text area to show more instructions</i></li>
                     <li>Show editor mini-map: <i>Show a small navigation map in editor</i></li>
                     <li>Show full build results: <i>Show complete debug information in <b>Build Results</b> window</i></li>
@@ -1227,7 +1707,7 @@
             const isOpen = panel.classList.contains('open');
 
             // Close all other panels
-            ['options', 'info', 'instructions'].forEach(t => {
+            ['sim', 'options', 'info', 'instructions'].forEach(t => {
                 if (t !== type) {
                     const p = document.getElementById(`${t}Panel`);
                     const tog = document.querySelector(`.${t}-toggle`);
@@ -1277,23 +1757,20 @@
         };
 
         // Update the positions of the toggles to slide with panels
+        // An open panel takes its own handle with it, so the handle stays on the
+        // panel's edge like a tab. The other handles stay pinned to the window
+        // edge: every panel keeps an empty strip that wide down its right side,
+        // so they cover no control and all four stay reachable.
         window.updatePanelPositions = function() {
-            const optionsPanel = document.getElementById('optionsPanel');
-            const infoPanel = document.getElementById('infoPanel');
-            const instructionsPanel = document.getElementById('instructionsPanel');
-
-            const optionsToggle = document.querySelector('.options-toggle');
-            const infoToggle = document.querySelector('.info-toggle');
-            const instructionsToggle = document.querySelector('.instructions-toggle');
-
-            if (optionsPanel && optionsToggle)
-                optionsToggle.style.right = optionsPanel.classList.contains('open') ? '330px' : '0px';
-
-            if (infoPanel && infoToggle)
-                infoToggle.style.right = infoPanel.classList.contains('open') ? '330px' : '0px';
-
-            if (instructionsPanel && instructionsToggle)
-                instructionsToggle.style.right = instructionsPanel.classList.contains('open') ? '630px' : '0px';
+            ['sim', 'options', 'info', 'instructions'].forEach(type => {
+                const panel = document.getElementById(`${type}Panel`);
+                const toggle = document.querySelector(`.${type}-toggle`);
+                if (!panel || !toggle) return;
+                // Measured, not assumed: the instructions panel is capped at 80%
+                // of the window, so its width is not always its CSS width.
+                const open = panel.classList.contains('open');
+                toggle.style.right = open ? `${panel.offsetWidth}px` : '0px';
+            });
         };
 
         // Close all panels with Escape key

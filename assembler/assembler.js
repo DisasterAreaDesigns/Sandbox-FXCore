@@ -56,44 +56,15 @@ class Assembler {
         
         if (line.length === 0) continue;
 
-        // Handle block comments at the line level BEFORE tokenizing
-        if (inBlockComment) {
-            // We're inside a block comment - look for the end
-            const commentEnd = line.indexOf('*/');
-            if (commentEnd !== -1) {
-                // Found the end of the block comment
-                inBlockComment = false;
-                // Process the rest of the line after the comment end
-                line = line.substring(commentEnd + 2).trim();
-                if (line.length === 0) continue;
-            } else {
-                // Still in block comment, skip entire line
-                continue;
-            }
-        }
-
-        // Check if this line starts a block comment
-        const blockCommentStart = line.indexOf('/*');
-        if (blockCommentStart !== -1) {
-            // Found start of block comment
-            const beforeComment = line.substring(0, blockCommentStart).trim();
-            const afterCommentStart = line.substring(blockCommentStart + 2);
-            
-            // Check if the comment also ends on this line
-            const commentEnd = afterCommentStart.indexOf('*/');
-            if (commentEnd !== -1) {
-                // Complete block comment on one line
-                const afterComment = afterCommentStart.substring(commentEnd + 2).trim();
-                // Reconstruct line without the comment
-                line = (beforeComment + ' ' + afterComment).trim();
-                if (line.length === 0) continue;
-            } else {
-                // Block comment continues to next line
-                inBlockComment = true;
-                line = beforeComment.trim();
-                if (line.length === 0) continue;
-            }
-        }
+        // Strip comments before tokenizing. common.stripComments is the one
+        // place that decides what a comment is, so a "/*" sitting inside a ";"
+        // or "//" comment no longer opens a block and swallow the rest of the
+        // program, and the block state carries across lines the same way it
+        // does in the symbol table and the preprocessor.
+        const stripped = common.stripComments(line, inBlockComment);
+        inBlockComment = stripped.inBlock;
+        line = stripped.code.replace(/\s+/g, ' ').trim();
+        if (line.length === 0) continue;
 
         const tokens = this.tokenizeLine(line);
         if (tokens.length === 0) continue;
@@ -586,6 +557,16 @@ class Assembler {
                     paramValue = paramValue.substring(0, paramValue.length - 2);
                     debug.parameters(`  Split value detected, base parameter: "${paramValue}"`, 'ASSEMBLER');
                 }
+
+                // And the deprecated ".I". This pass used to strip only ".L"
+                // and ".U", so "coeff.I" was looked up with the suffix still
+                // attached and reported as an unknown symbol.
+                let forcei = false;
+                if (paramValue.toUpperCase().endsWith('.I')) {
+                    forcei = true;
+                    paramValue = paramValue.substring(0, paramValue.length - 2);
+                    debug.parameters(`  Integer force detected, base parameter: "${paramValue}"`, 'ASSEMBLER');
+                }
                 
                 // Address offset (jump labels)
                 if (instInfo.theparams[i] === 'addroffset') {
@@ -738,6 +719,12 @@ class Assembler {
                         debug.error(`  ERROR: Error resolving mathematical expression "${paramValue}": ${error.message}`, 'ASSEMBLER');
                         return false;
                     }
+                }
+
+                // ".I" truncates, whichever way the value was resolved.
+                if (forcei && instruction.resolved[i]) {
+                    instruction.paramvals[i] = Math.trunc(instruction.paramvals[i]);
+                    debug.parameters(`  Applied .I suffix: ${instruction.paramvals[i]}`, 'ASSEMBLER');
                 }
             }
             
@@ -955,6 +942,8 @@ class Assembler {
                     forcei = true;
                     paramValue = paramValue.substring(0, paramValue.length - 2);
                     debug.verbose(`    Integer force suffix detected, base: "${paramValue}"`, 'ASSEMBLER');
+                    debug.warn(`".I" is deprecated and will be removed in a future release, use `
+                        + `floor(), ceiling(), round() or truncate() instead, at line ${linenum}`, 'ASSEMBLER');
                 }
                 
                 // Try to resolve simple values immediately
@@ -976,7 +965,8 @@ class Assembler {
                     }
                     
                     if (forcei) {
-                        instruction.paramvals[i] = Math.floor(instruction.paramvals[i]);
+                        // ".I" is defined as truncation, so -2.7 is -2, not -3.
+                        instruction.paramvals[i] = Math.trunc(instruction.paramvals[i]);
                         debug.verbose(`    Applied .I suffix: ${instruction.paramvals[i]}`, 'ASSEMBLER');
                     }
                 } else {
@@ -1001,6 +991,47 @@ class Assembler {
         }
 
         return instruction;
+    }
+
+    /**
+     * Was a fixed point immediate written as the field's word rather than as a
+     * fraction?
+     *
+     * imm8d and imm16d parameters are fractions -- S.7 and S.15 -- but hex and
+     * binary are how you write the encoded word itself, so "addsi acc32, 0.5"
+     * and "addsi acc32, 0x4000" are the same instruction. The choice used to be
+     * made by asking whether the parameter's text started with "0x", which is
+     * not the same question, and got it wrong both ways:
+     *
+     *   - a hex word behind a symbol, a parenthesis or anything else -- "COEFF"
+     *     for ".equ coeff 0x4000", or "(0x4000)" -- took the fraction path and
+     *     was rejected as out of range
+     *   - "0x2/4" took the word path and floored a perfectly good 0.5 to zero
+     *
+     * So ask about the value and how its parts were written instead. Anything
+     * that is not a whole number is a fraction whatever base it was written in,
+     * and a number written with a decimal point stays a fraction even when it
+     * lands on a whole one, so "-1.0" is still -1.0 and not the word 0xFFFF.
+     * Everything else is a fraction unless hex or binary appears in it, which
+     * leaves a plain "addsi acc32, 1" the out of range error it always was.
+     *
+     * @param {string} text - The parameter as written, suffix and all
+     * @param {number} value - What it resolved to
+     * @returns {boolean} True if value is the field's word, not a fraction
+     */
+    immediateIsFieldWord(text, value) {
+        if (!Number.isInteger(value)) return false;
+        const written = String(text).replace(/\.[LUI]$/i, '');
+        if (/(?:^|[^0-9A-Za-z_.])\d*\.\d/.test(written)) return false;
+        if (/(?:^|[^0-9A-Za-z_.])0[xX][0-9a-fA-F]|(?:^|[^0-9A-Za-z_.])0[bB][01_]/.test(written)) {
+            return true;
+        }
+        // A symbol carries the base it was defined in.
+        for (const name of written.match(/[A-Za-z_][0-9A-Za-z_]*/g) || []) {
+            const symbol = this.thetable.symbolVal(name);
+            if (symbol && (symbol.subtype === 'HEX' || symbol.subtype === 'BINARY')) return true;
+        }
+        return false;
     }
 
     /**
@@ -1062,37 +1093,50 @@ class Assembler {
                 }
                 break;
                 
+            // The two fixed point immediates. imm8d is an S.7 coefficient and
+            // imm16d an S.15 one; they differ only in the width of the field.
             case 'imm8d':
-                if (value < -1.0 || value >= 1.0) {
-                    debug.error(`Parameter ${paramName} out of range for imm8d at line ${instruction.linenum}`, 'ASSEMBLER');
+            case 'imm16d': {
+                const mask = paramType === 'imm8d' ? 0xFF : 0xFFFF;
+                const top = paramType === 'imm8d' ? 127 : 32767;
+                const bottom = -top - 1;
+
+                if (this.immediateIsFieldWord(paramName, value)) {
+                    // The field's word as written. The whole 16 bits are
+                    // available: the range used to stop at 0x7FFF, which put
+                    // every negative coefficient -- 0xC000 for -0.5 -- out of
+                    // reach of the hex spelling.
+                    if (value < bottom || value > mask) {
+                        debug.error(`Parameter ${paramName} out of range for ${paramType} at line ${instruction.linenum}, a ${mask === 0xFF ? 8 : 16}-bit word runs from ${bottom} to ${mask}`, 'ASSEMBLER');
+                        return false;
+                    }
+                    instruction.paramint[paramIndex] = value & mask;
+                    break;
+                }
+
+                // ".L" and ".U" take the halves of a whole 32-bit word, as in
+                // the document's "wrdld r0, x.U" / "ori r0, x.L" pair. A
+                // fraction has no halves to take, and the mask applied to reach
+                // here has already left nothing but zero, which is what this
+                // used to assemble in silence.
+                if (/\.[LU]$/i.test(paramName)) {
+                    debug.error(`Parameter ${paramName} at line ${instruction.linenum}: ".L" and ".U" take the halves of a whole 32-bit word and cannot be applied to a fixed point fraction`, 'ASSEMBLER');
                     return false;
                 }
-                const val8d = Math.floor(value * 0x7FFFFFFF);
-                instruction.paramint[paramIndex] = (val8d >> 24) & 0xFF;
-                break;
-                
-            case 'imm16d':
-                if (paramName.toUpperCase().startsWith('0X')) {
-                    // Hex value
-                    if (value < -32768 || value > 32767) {
-                        debug.error(`Parameter ${paramName} out of range for imm16d at line ${instruction.linenum}`, 'ASSEMBLER');
-                        return false;
-                    }
-                    instruction.paramint[paramIndex] = Math.floor(value) & 0xFFFF;
-                } else {
-                    // Decimal value
-                    if (value < -1.0 || value >= 1.0) {
-                        debug.error(`Parameter ${paramName} out of range for imm16d at line ${instruction.linenum}`, 'ASSEMBLER');
-                        return false;
-                    }
-                    const val16d = Math.floor(value * 0x7FFFFFFF);
-                    if (paramName.toUpperCase().endsWith('.L')) {
-                        instruction.paramint[paramIndex] = val16d & 0xFFFF;
-                    } else {
-                        instruction.paramint[paramIndex] = (val16d >> 16) & 0xFFFF;
-                    }
+
+                // A fraction: value = word / 2^n. Round at the field's own
+                // width rather than truncating a wider intermediate -- scaling
+                // by 0x7FFFFFFF and flooring cost a whole LSB on every positive
+                // value, so 0.5 assembled as 16383 rather than 16384 and every
+                // coefficient in a program came out a step small.
+                if (value < -1.0 || value >= 1.0) {
+                    debug.error(`Parameter ${paramName} out of range for ${paramType} at line ${instruction.linenum}, a fixed point immediate runs from -1.0 to just under 1.0`, 'ASSEMBLER');
+                    return false;
                 }
+                instruction.paramint[paramIndex] =
+                    Math.max(bottom, Math.min(top, Math.round(value * (top + 1)))) & mask;
                 break;
+            }
                 
             case 'addroffset':
                 if (value < 0 || value > 1023) { // common.maxoffset

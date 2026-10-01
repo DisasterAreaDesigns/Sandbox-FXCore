@@ -197,6 +197,17 @@ h2 + div {
     margin-bottom: 0;
 }
 
+/* The help text quotes source tags such as `; #POT0 Reverb time`, which read
+   as code rather than prose. */
+.instructions-text code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: rgba(127, 127, 127, 0.16);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
 .options {
     padding: 15px; /* Override for slightly more padding */
 }
@@ -836,7 +847,7 @@ body.dark-mode .header-bar::after {
 #instructionsPanel {
     position: fixed;
     top: 0;
-    right: -330px; /* Hidden by default */
+    right: -380px; /* Hidden by default */
     width: 300px;  /* Standard width for options/info */
     height: 100vh;
     background: var(--flyout-bg, #f8f9fa);
@@ -845,13 +856,18 @@ body.dark-mode .header-bar::after {
     transition: right 0.3s ease;
     z-index: 1000;
     overflow-y: auto;
-    padding: 20px;
+    /* An open panel takes its own handle out to its edge, but the other three
+       stay pinned to the window edge and sit on top of it. Widen every panel
+       by a handle's width and leave that strip empty: anything at the right
+       end of a row -- a value readout, a PUSH button, a meter -- would
+       otherwise be covered. */
+    padding: 20px 54px 20px 20px;
 }
 
 #instructionsPanel {
     width: 600px;
     max-width: 80%;
-    right: -630px; /* hidden by default */
+    right: -680px; /* hidden by default */
 }
 
 .options-panel {
@@ -861,12 +877,14 @@ body.dark-mode .header-bar::after {
 /* Open state for all panels */
 .options-panel.open,
 .info-panel.open,
+#simPanel.open,
 #instructionsPanel.open {
     right: 0;
 }
 /* =========================
    Flyout Toggles
    ========================= */
+.sim-toggle,
 .options-toggle,
 .info-toggle,
 .instructions-toggle {
@@ -894,6 +912,10 @@ body.dark-mode .header-bar::after {
 }
 
 /* Toggle vertical positions */
+.sim-toggle {
+    top: calc(65% - 140px);
+}
+
 .options-toggle { 
     top: 65%; 
 }
@@ -907,6 +929,7 @@ body.dark-mode .header-bar::after {
 }
 
 /* Hover effect */
+.sim-toggle:hover,
 .options-toggle:hover,
 .info-toggle:hover,
 .instructions-toggle:hover {
@@ -1059,6 +1082,72 @@ body.dark-mode .header-bar::after {
     display: block;
 }
 
+/* Library subroutine picker */
+.library-sub-list {
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 8px;
+    border: 1px solid var(--flyout-border, #dee2e6);
+    border-radius: 5px;
+    background: var(--flyout-input-bg, #ffffff);
+}
+
+.library-sub-lib {
+    padding: 4px 10px;
+    font-size: 0.8em;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--flyout-text-muted, #666);
+    background: var(--flyout-key-bg, #f8f9fa);
+    border-bottom: 1px solid var(--flyout-border-light, #f0f0f0);
+    position: sticky;
+    top: 0;
+}
+
+/* Tighter than the panel's usual buttons -- there is one per subroutine and a
+   framework library has dozens -- but still at reading size, and wrapping
+   rather than scrolling sideways, since a call is wider than the panel. */
+.flyout-content .library-sub-item {
+    display: block;
+    /* The panel's buttons are content-box, so a full width row plus its own
+       padding would overhang the list and put a second scrollbar under it. */
+    box-sizing: border-box;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95em;
+    line-height: 1.35;
+    white-space: normal;
+    /* break-word rather than anywhere: only a name too long for the panel is
+       split, so ordinary ones stay whole and the arguments wrap instead. */
+    overflow-wrap: break-word;
+}
+
+.library-sub-name {
+    font-weight: bold;
+}
+
+.library-sub-args {
+    color: var(--flyout-text-muted, #666);
+}
+
+.flyout-content .library-sub-item:hover {
+    background: var(--flyout-button-hover, #dee2e6);
+}
+
+.library-sub-empty {
+    padding: 8px 10px;
+    font-size: 0.85em;
+    font-style: italic;
+    color: var(--flyout-text-muted, #666);
+}
+
 /* FXCore address input */
 .fxcore-address-input {
     padding: 6px 10px;
@@ -1157,6 +1246,7 @@ body.dark-mode #instructionsPanel {
     --flyout-key-bg: #333;
 }
 
+body.dark-mode .sim-toggle,
 body.dark-mode .options-toggle,
 body.dark-mode .info-toggle,
 body.dark-mode .instructions-toggle {
@@ -1196,6 +1286,22 @@ body.dark-mode .shortcut:first-child {
 }
 
 body.dark-mode .shortcut .desc {
+    color: var(--flyout-text-muted, #999);
+}
+
+body.dark-mode .library-sub-list {
+    border-color: var(--flyout-border, #444);
+    background: var(--flyout-input-bg, #1e1e1e);
+}
+
+body.dark-mode .library-sub-lib {
+    color: var(--flyout-text-muted, #999);
+    background: var(--flyout-key-bg, #2a2a2a);
+    border-bottom-color: var(--flyout-border-light, #333);
+}
+
+body.dark-mode .library-sub-empty,
+body.dark-mode .library-sub-args {
     color: var(--flyout-text-muted, #999);
 }
 
@@ -1387,3 +1493,488 @@ body.dark-mode .opcode-description {
     color: #b0b0b0; 
     border-top-color: #444; 
 }
+
+/* =========================
+   Simulator panel
+   ========================= */
+.sim-transport {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sim-play-btn,
+.sim-panic-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--toggle-bg, #4CAF50);
+    color: #fff;
+}
+
+/* `body.dark-mode button` is (0,1,2) and beats a bare class, so these are
+   scoped under .flyout-content to keep the panel's own colour coding. */
+.flyout-content .sim-play-btn.sim-playing { background: #c0392b; }
+.flyout-content .sim-panic-btn { background: #7f8c8d; }
+
+.sim-status {
+    font-size: 12px;
+    padding: 5px 7px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    background: rgba(127, 127, 127, 0.12);
+}
+.sim-status-ok    { color: #2e7d32; }
+.sim-status-warn  { color: #b26a00; }
+.sim-status-error { color: #c0392b; }
+
+.sim-row,
+.sim-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0;
+    font-size: 12px;
+}
+
+.sim-row label,
+.sim-slider-row label {
+    flex: 0 0 88px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sim-note code {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10.5px;
+    background: rgba(127, 127, 127, 0.16);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.sim-slider-row input[type="range"] { flex: 1; min-width: 0; }
+
+/* The readout is the widest it ever gets ("-40 dB", "5000 Hz", "100%"), so the
+   slider keeps one length instead of growing and shrinking under the thumb as
+   the number changes. */
+.sim-slider-row .sim-value { flex: 0 0 4.8em; text-align: right; }
+
+/* Two selects share one row with an 88px label, and the shared
+   .flyout-content select padding leaves so little room that "OUT0" is clipped
+   behind the dropdown arrow. Tighten them to fit the panel. */
+.sim-row select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 2px 6px 7px;
+    font-size: 11px;
+}
+
+.sim-value {
+    flex: 0 0 auto;
+    font-size: 11px;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+}
+
+.sim-program-state { font-size: 11px; opacity: 0.8; }
+.sim-program-state.loaded { color: #2e7d32; opacity: 1; }
+.sim-program-state.error  { color: #c0392b; opacity: 1; }
+
+.sim-meters { margin-bottom: 6px; }
+
+.sim-meter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 3px 0;
+    font-size: 10px;
+}
+.sim-meter-row span { flex: 0 0 34px; opacity: 0.75; }
+
+.sim-meter {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(127, 127, 127, 0.2);
+    overflow: hidden;
+}
+
+.sim-meter-bar {
+    height: 100%;
+    width: 0;
+    background: #4CAF50;
+    transition: width 0.05s linear;
+}
+.sim-meter-bar.sim-meter-clip { background: #c0392b; }
+
+.sim-leds {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 4px;
+    font-size: 11px;
+}
+/* Each lamp keeps its label, dot and duty readout together, so a program that
+   renames one to something long wraps the pair onto its own line instead of
+   pushing the other lamp out of the panel. */
+.sim-led-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.sim-led-label {
+    opacity: 0.75;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sim-led {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(127, 127, 127, 0.25);
+    border: 1px solid rgba(127, 127, 127, 0.4);
+    margin-right: 5px;
+    flex: 0 0 auto;
+}
+/* Brightness is set inline from the measured duty cycle -- see
+   simUpdateLEDs(). The transition smooths the ~23 Hz display updates without
+   hiding a genuine blink. */
+.sim-led {
+    transition: background 0.06s linear, box-shadow 0.06s linear;
+}
+
+/* Raw mode is meant to look like a switch, not a lamp fading up. */
+.sim-led.sim-led-crisp {
+    transition: none;
+}
+
+.sim-led-duty {
+    font-size: 10px;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+    min-width: 2.6em;
+    margin-right: 10px;
+}
+
+.sim-switch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sim-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.sim-sw-name {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A renamed control can be any length, so let it truncate rather than push the
+   buttons off the row. */
+.sim-sw-name,
+.sim-slider-row label span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Latch and momentary are the same kind of control, so they are the same kind
+   of button -- fixed widths keep the two columns lined up down the list. The
+   whole look is scoped to .flyout-content because the panel's own
+   `.flyout-content button` rule (width:100%, 10px/14px padding, 0.9em type)
+   is more specific than a bare class and would swallow the row. */
+.flyout-content .sim-sw-toggle,
+.flyout-content .sim-sw-push {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    padding: 4px 0;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--flyout-border, #444);
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    user-select: none;
+}
+
+.flyout-content .sim-sw-toggle { width: 76px; }
+.flyout-content .sim-sw-push   { width: 58px; }
+.flyout-content .sim-sw-toggle:hover,
+.flyout-content .sim-sw-push:hover {
+    background: rgba(127, 127, 127, 0.18);
+    border-color: var(--flyout-border-hover, #bbb);
+}
+
+/* Lit means the pin reads pressed right now, latch and momentary combined, so
+   holding PUSH visibly flips the lamp and flips it back on release. */
+.flyout-content .sim-sw-toggle.sim-lit,
+.flyout-content .sim-sw-toggle.sim-lit:hover {
+    background: #14a1a6;
+    border-color: #0f8387;
+    color: #fff;
+    box-shadow: 0 0 6px rgba(20, 161, 166, 0.5);
+}
+
+.flyout-content .sim-sw-push.sim-pushing,
+.flyout-content .sim-sw-push.sim-pushing:hover {
+    background: #c0392b;
+    border-color: #c0392b;
+    color: #fff;
+}
+
+/* ENABLE is a mode rather than one of the program's switches, so it sits a
+   little apart from them at the foot of the list. */
+.sim-switch-row--enable { margin-top: 5px; }
+
+/* A control the program has named reads as its own word, not a register. */
+.sim-renamed { font-weight: 600; }
+
+.sim-note {
+    font-size: 11px;
+    line-height: 1.45;
+    opacity: 0.72;
+}
+
+
+/* The panel is taller than any window, so it is always read scrolled. Its own
+   20px of padding is the last thing above the window edge, which leaves the
+   final row looking cut off; give the end of the scroll some room. */
+#simPanel .flyout-content {
+    padding-bottom: 28px;
+}
+
+/* Tighten the vertical rhythm: the panel is long enough that the default
+   section spacing pushes the switches and levels below the fold. */
+#simPanel .flyout-section {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+}
+
+#simPanel .flyout-section h4 {
+    margin-bottom: 6px;
+    font-size: 0.92em;
+    padding-bottom: 3px;
+}
+
+#simPanel .sim-slider-row,
+#simPanel .sim-row {
+    margin: 2px 0;
+}
+
+#simPanel .sim-transport { margin-bottom: 6px; }
+#simPanel .sim-play-btn,
+#simPanel .sim-panic-btn { padding: 6px 12px; }
+#simPanel .sim-status { margin-bottom: 4px; }
+#simPanel .sim-meters { margin-bottom: 4px; }
+
+/* MIDI control ---------------------------------------------------------- */
+
+/* Activity dot, the message it belongs to, and the rescan button on one line.
+   The log takes the slack so the button stays put as messages change width. */
+#simPanel .midi-log-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0;
+}
+
+.midi-log-row #midiLine {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0;
+    font-size: 11px;
+}
+
+/* Messages are data, so they get the monospace treatment; connection state is
+   prose and stays in the panel's own face. */
+.midi-log-row #midiLine.sim-status-log {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* Panel buttons are full-width by default, which is wrong for one that sits
+   at the end of a line. */
+.flyout-content .midi-log-row .midi-rescan {
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0;
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+/* A blink on every accepted message, so it is obvious whether a controller is
+   reaching the page at all before anyone starts doubting the mapping. */
+.midi-activity {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    /* Neutral grey rather than the panel's button colour: dark mode leaves
+       that one light, and an idle dot as bright as a lit one has nothing to
+       say. */
+    background: rgba(127, 127, 127, 0.3);
+    border: 1px solid rgba(127, 127, 127, 0.5);
+    transition: background 0.12s linear;
+}
+
+.midi-activity.midi-activity-on {
+    background: var(--toggle-bg, #4CAF50);
+    border-color: var(--toggle-bg, #4CAF50);
+}
+
+/* Browsers without Web MIDI keep the section, so the feature is documented
+   rather than mysteriously absent, but it is visibly inert. */
+.sim-unavailable .sim-row,
+.sim-unavailable .midi-log-row { opacity: 0.55; }
+
+
+/* A checkbox row's label carries the meaning and the control itself is tiny,
+   so the label takes the width instead of the fixed 88px column the slider
+   rows use -- otherwise "Mirror IN0/1 to IN2/3" is clipped mid-word. */
+.sim-row-check label {
+    flex: 1 1 auto;
+    overflow: visible;
+    white-space: normal;
+}
+
+.sim-row-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+
+/* Debug Tools -------------------------------------------------------------
+   The register viewer, the debugger and the breakpoints, folded away under
+   one header in the simulator panel. */
+
+.sim-fold-head {
+    cursor: pointer;
+    user-select: none;
+}
+.sim-fold-head:hover {
+    color: #007acc;
+}
+.sim-fold-arrow {
+    display: inline-block;
+    width: 12px;
+    font-size: 0.75em;
+    transition: transform 0.2s ease;
+}
+.sim-fold.open .sim-fold-arrow {
+    transform: rotate(90deg);
+}
+.sim-fold-body {
+    padding-top: 10px;
+}
+#simPanel .sim-fold-body .flyout-section h4 {
+    font-size: 0.85em;
+    font-weight: 600;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 4px;
+    color: var(--flyout-text-muted, #666);
+}
+#simPanel .sim-fold-body .flyout-section:last-child {
+    margin-bottom: 0;
+}
+
+/* The result of each line, injected after it by fxcore-trace.js. Muted so the
+   source stays the thing being read; the clip mark is the one exception. */
+.monaco-editor .fxc-trace {
+    color: #8a8f98 !important;
+    font-style: italic;
+    opacity: 0.85;
+}
+.monaco-editor .fxc-trace-skip { opacity: 0.45; }
+.monaco-editor .fxc-trace-taken { color: #3b7dd8 !important; }
+.monaco-editor .fxc-trace-clip { color: #d33 !important; font-style: normal; font-weight: 600; }
+body.dark-mode .monaco-editor .fxc-trace-clip { color: #ff6b6b !important; }
+
+/* Debugger: the halted line, the breakpoint glyphs, and the panel controls. */
+.monaco-editor .fxc-debug-line { background: rgba(59, 125, 216, 0.18); }
+.monaco-editor .fxc-debug-arrow::before {
+    content: '\25B6';
+    color: #3b7dd8;
+    font-size: 10px;
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.monaco-editor .fxc-bp-glyph::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #d33;
+    transform: translateY(-50%);
+}
+.monaco-editor .fxc-bp-glyph-cond::before { background: #e08a1e; border-radius: 2px; }
+.monaco-editor .margin-view-overlays .cgmr { cursor: pointer; }
+
+.flyout-content .sim-dbg-btn,
+.flyout-content .sim-regs-btn {
+    flex: 1;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    background: #3b7dd8;
+    color: #fff;
+}
+.flyout-content .sim-regs-btn { padding: 8px 12px; font-size: 0.9em; }
+.flyout-content .sim-dbg-btn:disabled { opacity: 0.45; cursor: default; }
+.flyout-content .sim-dbg-btn.sim-dbg-halted { background: #e08a1e; }
+.sim-status-halted { color: #e08a1e; }
+.sim-inline { display: inline-flex; gap: 6px; align-items: center; }
+.flyout-content input.sim-num { width: 5.5em; padding: 3px 4px; font-size: 0.85em;
+    border: 1px solid var(--flyout-border, #dee2e6); border-radius: 3px;
+    background: var(--flyout-input-bg, #fff); color: var(--flyout-text, #333); }
+.flyout-content input.sim-bp-value { width: 8.5em; }
+/* The panel's buttons and selects are full-width by default, which is right
+   for a row of one control and wrong for these: a list row is a checkbox, a
+   label and a small remove button, and the add form is several small
+   controls that wrap. */
+.sim-bp-list { margin: 4px 0 6px; font-size: 0.85em; }
+.sim-bp-empty { color: var(--flyout-text-muted, #666); font-style: italic; }
+.sim-bp-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.sim-bp-row input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+.sim-bp-row .sim-bp-label { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-bp-row .sim-bp-link { cursor: pointer; }
+.sim-bp-row .sim-bp-link:hover { text-decoration: underline; }
+.sim-bp-unresolved .sim-bp-label { color: var(--flyout-text-muted, #666); font-style: italic; }
+.sim-bp-off .sim-bp-label { opacity: 0.5; }
+.flyout-content .sim-bp-row .sim-bp-remove { flex: 0 0 auto; width: auto; padding: 1px 7px;
+    font-size: 0.8em; line-height: 1.5; border-radius: 3px; }
+.sim-bp-add { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.flyout-content .sim-bp-add select { width: auto; flex: 0 1 auto; max-width: 100%;
+    font-size: 0.85em; padding: 3px 4px; border-radius: 3px; }
+.flyout-content .sim-bp-add #simBpReg { flex: 1 1 8em; }
+.flyout-content .sim-bp-add button { width: auto; padding: 4px 12px; font-size: 0.85em; border-radius: 3px; }
+.flyout-content .sim-inline button { width: auto; padding: 4px 12px; font-size: 0.85em; border-radius: 3px; }

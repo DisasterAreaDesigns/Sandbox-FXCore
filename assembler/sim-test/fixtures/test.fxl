@@ -1,0 +1,68 @@
+<library>
+	<name>tst</name>
+	<desc>Fixture library for the preprocessor tests</desc>
+	<sub>
+		<name>gain</name>
+		<desc>scale the input by a constant and park it in an MREG</desc>
+		<param>
+			<name>dest_sub</name>
+			<type>MREG</type>
+			<desc>where the result goes</desc>
+		</param>
+		<param>
+			<name>level</name>
+			<type>DEC</type>
+			<desc>gain coefficient</desc>
+		</param>
+		<param>
+			<name>temp_sub</name>
+			<type>CREG</type>
+			<desc>working register</desc>
+		</param>
+		<code>
+			cpy_cs	acc32, in0	; grab the left input
+			multri	acc32, level	; apply the gain
+			cpy_cc	temp_sub, acc32
+			cpy_mc	dest_sub, acc32
+		</code>
+	</sub>
+	<sub>
+		<name>blink</name>
+		<desc>toggle a USER pin, has a label so repeat calls must not collide</desc>
+		<param>
+			<name>user_out</name>
+			<type>INT</type>
+			<desc>USER0 or USER1</desc>
+		</param>
+		<param>
+			<name>temp_sub</name>
+			<type>CREG</type>
+			<desc>working register</desc>
+		</param>
+		<code>
+			cpy_cs	temp_sub, samplecnt
+			andi	temp_sub, 0x2000	; acc32 = the 8192 sample blink bit
+			jz	acc32, dark
+			set	user_out|13, acc32
+			jmp	done
+			dark:
+			xor	acc32, acc32
+			set	user_out|13, acc32
+			done:
+			ori	acc32, 0x0000
+		</code>
+	</sub>
+	<sub>
+		<name>bothleds</name>
+		<desc>calls another subroutine, so nesting gets exercised</desc>
+		<param>
+			<name>temp_sub</name>
+			<type>CREG</type>
+			<desc>working register</desc>
+		</param>
+		<code>
+			@tst.blink(user0, temp_sub)
+			@tst.blink(user1, temp_sub)
+		</code>
+	</sub>
+</library>
