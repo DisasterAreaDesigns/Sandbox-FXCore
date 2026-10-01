@@ -532,6 +532,8 @@
                             Clear
                         </button>
                         <span id="libraryFolderLabel" class="project-folder-label">No folder selected</span>
+                        <!-- Fallback for browsers without showDirectoryPicker -->
+                        <input type="file" id="libraryFolderInput" webkitdirectory multiple style="display: none;" onchange="handleLibraryFolderInput(this)">
                     </div>
 
                     <label>

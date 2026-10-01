@@ -45,8 +45,17 @@ async function selectProjectDirectory() {
 const LIBRARY_SCAN_MAX_DEPTH = 4;
 
 async function selectLibraryDirectory() {
+    // Firefox and Safari have no showDirectoryPicker. A hidden folder input
+    // gives them the same set of files, read once rather than through a live
+    // handle, so the folder has to be picked again to see edits.
     if (!('showDirectoryPicker' in window)) {
-        debugLog('Folder selection is not supported in this browser', 'errors');
+        const input = document.getElementById('libraryFolderInput');
+        if (!input) {
+            debugLog('Folder selection is not supported in this browser', 'errors');
+            return;
+        }
+        input.value = '';
+        input.click();
         return;
     }
     try {
@@ -60,8 +69,35 @@ async function selectLibraryDirectory() {
     }
 }
 
+// onchange for the fallback folder input. A webkitdirectory input hands over
+// every file under the folder, so apply the same .fxl / depth / dot-folder
+// rules the handle scan uses before loading anything.
+async function handleLibraryFolderInput(input) {
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+
+    // webkitRelativePath is "folder/sub/file.fxl"; the first segment is the
+    // folder the user picked.
+    const folderName = files[0].webkitRelativePath.split('/')[0] || 'folder';
+    const entries = [];
+    for (const file of files) {
+        const parts = file.webkitRelativePath.split('/').slice(1);
+        if (parts.length - 1 > LIBRARY_SCAN_MAX_DEPTH) continue;
+        if (parts.slice(0, -1).some(dir => dir.startsWith('.'))) continue;
+        if (!file.name.toLowerCase().endsWith('.fxl')) continue;
+        entries.push({ path: parts.join('/'), read: () => file.text() });
+    }
+
+    libraryDirectoryHandle = null;
+    await loadLibraryEntries(entries, folderName, false);
+    // Release the File objects now that they have been read.
+    input.value = '';
+}
+
 function clearLibraryDirectory() {
     libraryDirectoryHandle = null;
+    const input = document.getElementById('libraryFolderInput');
+    if (input) input.value = '';
     const libs = typeof FXCoreAssembler !== 'undefined' ? FXCoreAssembler.getLibraries() : null;
     if (libs) libs.clear();
     updateLibraryFolderLabel('No folder selected', false);
@@ -74,10 +110,6 @@ function clearLibraryDirectory() {
 // the build log every time the window regains focus.
 async function scanLibraryDirectory(quiet) {
     if (!libraryDirectoryHandle) return false;
-    if (typeof FXCoreAssembler === 'undefined' || !FXCoreAssembler.getLibraries()) {
-        debugLog('Library support is not loaded', 'errors');
-        return false;
-    }
 
     const files = [];
     try {
@@ -87,14 +119,31 @@ async function scanLibraryDirectory(quiet) {
         return false;
     }
 
+    const entries = files.map(f => ({
+        path: f.path,
+        read: async () => (await f.handle.getFile()).text()
+    }));
+    return loadLibraryEntries(entries, libraryDirectoryHandle.name, quiet);
+}
+
+// Replace the loaded libraries with the given .fxl files. Each entry is
+// { path, read } where read() resolves to the file text, so the handle scan
+// and the folder-input fallback share everything past the point of finding
+// the files. folderName is only used for the label and log messages.
+async function loadLibraryEntries(entries, folderName, quiet) {
+    if (typeof FXCoreAssembler === 'undefined' || !FXCoreAssembler.getLibraries()) {
+        debugLog('Library support is not loaded', 'errors');
+        return false;
+    }
+
     const libs = FXCoreAssembler.getLibraries();
     libs.clear();
 
     let loaded = 0;
-    for (const entry of files) {
+    for (const entry of entries) {
         let text;
         try {
-            text = await (await entry.handle.getFile()).text();
+            text = await entry.read();
         } catch (err) {
             if (!quiet) debugLog(`Could not read ${entry.path}: ${err.message}`, 'errors');
             continue;
@@ -112,17 +161,17 @@ async function scanLibraryDirectory(quiet) {
         }
     }
 
-    const label = libraryDirectoryHandle.name +
+    const label = folderName +
         ` (${loaded} librar${loaded === 1 ? 'y' : 'ies'}, ${libs.subCount()} subroutines)`;
     updateLibraryFolderLabel(label, loaded > 0);
     renderLibrarySubList();
 
     if (!quiet) {
         if (loaded === 0) {
-            debugLog(`No .fxl libraries found in ${libraryDirectoryHandle.name}`, 'warnings');
+            debugLog(`No .fxl libraries found in ${folderName}`, 'warnings');
         } else {
             debugLog(`Loaded ${loaded} librar${loaded === 1 ? 'y' : 'ies'} ` +
-                `(${libs.subCount()} subroutines) from ${libraryDirectoryHandle.name}`, 'success');
+                `(${libs.subCount()} subroutines) from ${folderName}`, 'success');
         }
     }
     return loaded > 0;
