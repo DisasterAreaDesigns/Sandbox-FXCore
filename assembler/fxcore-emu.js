@@ -150,6 +150,26 @@ class FXCoreCore {
         // published spec -- see the PROVISIONAL note at the head of this file.
         this.provisional = Object.create(null);
 
+        // ---- debugging. All of it is off unless a debugger asks, and the
+        // plain sample loop does not look at any of it.
+        //
+        // Trace capture: after each instruction, the word it produced and
+        // where it went (see traceRecord), whether it ran at all -- a jump
+        // leaves instructions behind -- and whether a jump was taken. Clips
+        // are counted per instruction across samples, so a line that
+        // saturates now and then can be told from one that is pinned. Sized
+        // for the longest image; progLen says how much is in use.
+        this.traceOn = false;
+        this.traceVal = new Int32Array(this.PROG_MAX);
+        this.traceDst = new Int16Array(this.PROG_MAX);
+        this.traceRan = new Uint8Array(this.PROG_MAX);
+        this.traceJump = new Uint8Array(this.PROG_MAX);
+        this.clipCount = new Uint32Array(this.PROG_MAX);
+        this.clipped = false;      // set by whatever had to saturate
+        this.onInstruction = null; // (cur, next) => true to stop the pass there
+        this.onSample = null;      // called at the end of every sample period
+        this.haltedPc = -1;        // where an open sample stopped, or -1
+
         this.reset();
     }
 
@@ -194,6 +214,7 @@ class FXCoreCore {
         if (a === this.INT_MIN && b === this.INT_MIN) {
             // 2^63 does not fit in S.63
             this.mulHi = this.INT_MAX; this.mulLo = 4294967295;
+            this.clipped = true;
             return;
         }
         this.mul64s(a, b);
@@ -203,7 +224,7 @@ class FXCoreCore {
 
     // Signed fractional 32x32 keeping the top 32 bits: S.31 x S.31 -> S.31.
     mulS31(a, b) {
-        if (a === this.INT_MIN && b === this.INT_MIN) return this.INT_MAX;
+        if (a === this.INT_MIN && b === this.INT_MIN) { this.clipped = true; return this.INT_MAX; }
         this.mul64s(a, b);
         return ((this.mulHi << 1) | (this.mulLo >>> 31)) | 0;
     }
@@ -219,8 +240,10 @@ class FXCoreCore {
         // half, so this one test covers it.
         if (hsum > this.INT_MAX) {
             this.acc64hi = this.INT_MAX; this.acc64lo = 4294967295;
+            this.clipped = true;
         } else if (hsum < this.INT_MIN) {
             this.acc64hi = this.INT_MIN; this.acc64lo = 0;
+            this.clipped = true;
         } else {
             this.acc64hi = hsum | 0;
             this.acc64lo = carry ? sum - 4294967296 : sum;
@@ -232,8 +255,8 @@ class FXCoreCore {
     // ================================================================
 
     sat32(v) {
-        if (v > this.INT_MAX) return this.INT_MAX;
-        if (v < this.INT_MIN) return this.INT_MIN;
+        if (v > this.INT_MAX) { this.clipped = true; return this.INT_MAX; }
+        if (v < this.INT_MIN) { this.clipped = true; return this.INT_MIN; }
         return v | 0;
     }
 
@@ -378,6 +401,10 @@ class FXCoreCore {
 
         this.lastPC = 0;
         this.halted = false;
+        this.haltedPc = -1;
+        this.clipCount.fill(0);
+        this.traceRan.fill(0);
+        this.traceJump.fill(0);
         this.provisional = Object.create(null);
     }
 
@@ -599,13 +626,29 @@ class FXCoreCore {
     // The sample loop
     // ================================================================
 
-    // inputs: four floats in [-1, 1] for IN0..IN3
+    // One sample period: begin, the whole program, end. inputs: four floats
+    // in [-1, 1] for IN0..IN3.
+    //
+    // It is three pieces so a debugger can take a pass apart: the peripherals
+    // and the inputs, the instructions, and the end-of-sample bookkeeping. A
+    // run is all three, unless the instruction hook stops it partway -- then
+    // the sample is left open at haltedPc, for whoever asked to finish it
+    // (finishSample), and nothing after the instruction that stopped has run.
     run(inputs) {
         if (!this.hasProgram) return;
+        this.beginSample(inputs);
+        const pc = this.execute(0);
+        if (this.halted) {
+            this.haltedPc = pc;
+            return;
+        }
+        this.endSample();
+    }
 
-        // Start of sample period: the AGU counter decrements, peripherals
-        // refresh, then the program runs against values that hold for the
-        // whole pass.
+    // Start of sample period: the AGU counter decrements, peripherals
+    // refresh, then the program runs against values that hold for the
+    // whole pass.
+    beginSample(inputs) {
         this.addrCounter = (this.addrCounter - 1) & this.DELAY_MASK;
 
         for (let i = 0; i < 4; i++) {
@@ -622,18 +665,126 @@ class FXCoreCore {
         this.sfr[this.SFR_SAMPLECNT] = this.sampleCount | 0;
         this.creg[this.FLAGS] = (this.overflowBits | this.tapFlags) & 0xFFFF;
 
-        let pc = 0;
+        this.haltedPc = -1;
+        if (this.traceOn) {
+            this.traceRan.fill(0, 0, this.progLen);
+            this.traceJump.fill(0, 0, this.progLen);
+        }
+    }
+
+    // Instructions from pc to the end of the program; returns the pc it
+    // stopped at. That is progLen, or past it, when the pass is complete --
+    // or earlier when the instruction hook asked to stop, which it does by
+    // returning true after an instruction. The hook is told the address just
+    // executed and the one coming next, and `halted` says it was the hook
+    // that ended the pass. The hook and the trace share one loop; the plain
+    // loop below is what runs when neither is wanted.
+    execute(pc) {
+        const len = this.progLen;
         let guard = 0;
-        while (pc < this.progLen && guard++ <= this.PROG_MAX) {
-            pc = this.step(pc);
+        this.halted = false;
+        if (this.traceOn || this.onInstruction) {
+            while (pc < len && guard++ <= this.PROG_MAX) {
+                const cur = pc;
+                this.clipped = false;
+                pc = this.step(cur);
+                if (this.traceOn) this.traceRecord(cur, pc);
+                if (this.onInstruction && this.onInstruction(cur, pc)) {
+                    this.halted = true;
+                    return pc;
+                }
+            }
+        } else {
+            while (pc < len && guard++ <= this.PROG_MAX) {
+                pc = this.step(pc);
+            }
         }
         this.lastPC = pc;
+        return pc;
+    }
 
+    // End of sample period: the overflow flags, the USER pin duty and the
+    // sample count move on, and anyone watching is told.
+    endSample() {
+        this.haltedPc = -1;
         this.updateOverflow();
         this.userAccum[0] += this.user[0];
         this.userAccum[1] += this.user[1];
         this.userAccumN++;
         this.sampleCount = (this.sampleCount + 1) >>> 0;
+        // The scopes in the simulator read registers here, at the core's own
+        // rate. Null unless something is listening.
+        if (this.onSample) this.onSample();
+    }
+
+    // Complete a sample that was stopped partway: the rest of its
+    // instructions without the hook, then the end-of-sample bookkeeping.
+    // Nothing happens if no sample is open.
+    finishSample() {
+        if (this.haltedPc < 0) return;
+        const pc = this.haltedPc;
+        const hook = this.onInstruction;
+        this.onInstruction = null;
+        this.execute(pc);
+        this.onInstruction = hook;
+        this.endSample();
+    }
+
+    // What one instruction just did, for the trace: the value it produced
+    // and where that went. The destination is a code the page turns back
+    // into a name -- 0-17 a core register (16 is ACC32), 128+n MRn, 256+n an
+    // SFR, 300 ACC64 (the upper word is the value), 400+n a USER pin, and
+    // -1 for an instruction that leaves nothing to show (a delay write, a
+    // jump, a MAC that is only added to ACC64 -- shown as ACC64).
+    traceRecord(cur, next) {
+        const word = this.prog[cur];
+        const op = (word >>> 24) & 0xFF;
+        const r = (word >>> 16) & 0xFF;
+        const m = word & 0xFFFF;
+        let dst = this.ACC32;
+        let val = 0;
+        switch (op) {
+            case this.OP_CPY_CC: case this.OP_CPY_CM: case this.OP_CPY_CS:
+            case this.OP_CPY_CMX:
+            case this.OP_RDACC64U: case this.OP_RDACC64L:
+            case this.OP_RDDEL: case this.OP_RDDELX: case this.OP_RDDIRX:
+            case this.OP_SAT64: case this.OP_WRDLD:
+                dst = r & 0x1F;
+                break;
+            case this.OP_CPY_MC:
+                dst = 128 + (m & 0x7F);
+                break;
+            case this.OP_CPY_SC:
+                dst = 256 + (m & 0x3F);
+                break;
+            case this.OP_APMB:
+                // writes the memory register, but ACC32 is what it leaves
+                break;
+            case this.OP_MACRR: case this.OP_MACRI: case this.OP_MACRD:
+            case this.OP_MACID: case this.OP_MACHRR: case this.OP_MACHRI:
+            case this.OP_MACHRD: case this.OP_MACHID:
+            case this.OP_LDACC64U: case this.OP_LDACC64L: case this.OP_CLRACC64:
+                dst = 300;
+                break;
+            case this.OP_SET:
+                dst = 400 + ((m >> 5) & 1);
+                break;
+            case this.OP_WRDEL: case this.OP_WRDELX: case this.OP_WRDIRX:
+            case this.OP_JGEZ: case this.OP_JNEG: case this.OP_JNZ:
+            case this.OP_JZ: case this.OP_JZC: case this.OP_JMP:
+                dst = -1;
+                break;
+        }
+        if (dst >= 400) val = this.user[dst - 400];
+        else if (dst === 300) val = this.acc64hi;
+        else if (dst >= 256) val = this.sfr[dst - 256];
+        else if (dst >= 128) val = this.mreg[dst - 128];
+        else if (dst >= 0) val = this.creg[dst];
+        this.traceVal[cur] = val;
+        this.traceDst[cur] = dst;
+        this.traceRan[cur] = 1;
+        if (next !== cur + 1) this.traceJump[cur] = 1;
+        if (this.clipped) this.clipCount[cur]++;
     }
 
     // Outputs as floats in [-1, 1]
@@ -679,6 +830,7 @@ class FXCoreCore {
                 // |0x80000000| does not fit. Saturating to max positive
                 // matches NEG, which is documented to saturate, and is the
                 // agreed behaviour for this emulator.
+                if (rv === this.INT_MIN) this.clipped = true;
                 creg[this.ACC32] = rv === this.INT_MIN ? this.INT_MAX : Math.abs(rv) | 0;
                 break;
 
@@ -803,6 +955,7 @@ class FXCoreCore {
                 break;
 
             case this.OP_NEG:
+                if (rv === this.INT_MIN) this.clipped = true;
                 creg[this.ACC32] = rv === this.INT_MIN ? this.INT_MAX : (-rv) | 0;
                 break;
 
@@ -1102,6 +1255,7 @@ class FXCoreCore {
         // Saturate if any bit shifted out differs from the resulting sign.
         const shifted = (v << n) | 0;
         if ((v >> (31 - n)) !== (shifted >> 31)) {
+            this.clipped = true;
             return v < 0 ? this.INT_MIN : this.INT_MAX;
         }
         return shifted;
@@ -1113,7 +1267,10 @@ class FXCoreCore {
 
     // 2's complement of a coefficient, saturating. APRA/APRRA/APMA multiply
     // by the negated coefficient.
-    negSat(v) { return v === this.INT_MIN ? this.INT_MAX : (-v) | 0; }
+    negSat(v) {
+        if (v === this.INT_MIN) { this.clipped = true; return this.INT_MAX; }
+        return (-v) | 0;
+    }
 
     // A unit fraction 0..1 as an S.31 coefficient. 1.0 is not representable,
     // so it clamps to the largest positive value.
@@ -1130,6 +1287,71 @@ class FXCoreCore {
         const s1 = this.readDelay((addr + 1) & this.DELAY_MASK);
         const diff = this.sat32(s1 - s0);
         return this.sat32(this.mulS31(diff, this.toS31(frac)) + s0);
+    }
+
+    // ---- state transfer ---------------------------------------------
+    //
+    // Everything a sample depends on, so a core can be frozen in one thread
+    // and continued in another: the simulator halts in the audio worklet,
+    // steps a second core on the page, and hands the result back. The program
+    // and the presets are not included -- the caller already has them, and
+    // setPresets and setProgram are the way to load them. The delay RAM is
+    // copied rather than shared, at 64 KB.
+
+    exportState() {
+        return {
+            creg: Int32Array.from(this.creg),
+            mreg: Int32Array.from(this.mreg),
+            sfr: Int32Array.from(this.sfr),
+            delay: Int16Array.from(this.delay),
+            acc64hi: this.acc64hi, acc64lo: this.acc64lo,
+            addrCounter: this.addrCounter, sampleCount: this.sampleCount,
+            user: this.user.slice(),
+            userAccum: this.userAccum.slice(), userAccumN: this.userAccumN,
+            potRaw: this.potRaw.slice(), potTarget: this.potTarget.slice(),
+            potSmooth: this.potSmooth.slice(), potPhase: this.potPhase,
+            lfoPhase: this.lfoPhase.slice(), rampAcc: this.rampAcc.slice(),
+            pinRaw: this.pinRaw, swDebounced: this.swDebounced,
+            swCounter: this.swCounter.slice(), swEdges: this.swEdges,
+            tapLevel: this.tapLevel, tapDebounced: this.tapDebounced,
+            tapCounter: this.tapCounter, tapHeld: this.tapHeld,
+            tapState: this.tapState, tapElapsed: this.tapElapsed,
+            tapFlags: this.tapFlags,
+            oflCounter: this.oflCounter, overflowBits: this.overflowBits,
+            inputs: this.inputs.slice(), outputs: this.outputs.slice(),
+            rngState: this.rngState,
+            clipCount: Uint32Array.from(this.clipCount),
+            traceVal: Int32Array.from(this.traceVal),
+            traceDst: Int16Array.from(this.traceDst),
+            traceRan: Uint8Array.from(this.traceRan),
+            traceJump: Uint8Array.from(this.traceJump),
+            haltedPc: this.haltedPc
+        };
+    }
+
+    importState(s) {
+        this.creg.set(s.creg); this.mreg.set(s.mreg); this.sfr.set(s.sfr);
+        this.delay.set(s.delay);
+        this.acc64hi = s.acc64hi; this.acc64lo = s.acc64lo;
+        this.addrCounter = s.addrCounter; this.sampleCount = s.sampleCount;
+        this.user = s.user.slice();
+        this.userAccum = s.userAccum.slice(); this.userAccumN = s.userAccumN;
+        this.potRaw = s.potRaw.slice(); this.potTarget = s.potTarget.slice();
+        this.potSmooth = s.potSmooth.slice(); this.potPhase = s.potPhase;
+        this.lfoPhase = s.lfoPhase.slice(); this.rampAcc = s.rampAcc.slice();
+        this.pinRaw = s.pinRaw; this.swDebounced = s.swDebounced;
+        this.swCounter = s.swCounter.slice(); this.swEdges = s.swEdges;
+        this.tapLevel = s.tapLevel; this.tapDebounced = s.tapDebounced;
+        this.tapCounter = s.tapCounter; this.tapHeld = s.tapHeld;
+        this.tapState = s.tapState; this.tapElapsed = s.tapElapsed;
+        this.tapFlags = s.tapFlags;
+        this.oflCounter = s.oflCounter; this.overflowBits = s.overflowBits;
+        this.inputs = s.inputs.slice(); this.outputs = s.outputs.slice();
+        this.rngState = s.rngState;
+        this.clipCount.set(s.clipCount);
+        this.traceVal.set(s.traceVal); this.traceDst.set(s.traceDst);
+        this.traceRan.set(s.traceRan); this.traceJump.set(s.traceJump);
+        this.haltedPc = s.haltedPc;
     }
 
     // ---- introspection, for the test harness and the debugger -------

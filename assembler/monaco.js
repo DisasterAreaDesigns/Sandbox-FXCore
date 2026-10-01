@@ -427,7 +427,8 @@ require(['vs/editor/editor.main'], function() {
             selectOnLineNumbers: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            wordWrap: 'on'
+            wordWrap: 'on',
+            glyphMargin: true    // breakpoints are set by clicking here
         });
 
         // Initialize change tracking

@@ -129,12 +129,17 @@ class Preprocessor {
         // Cheap bail out so a program without libraries is byte for byte the
         // same source the assembler has always seen.
         if (text.indexOf('@') === -1) {
-            return this.result(text);
+            return this.result(text, null);
         }
 
         this.aliases = Preprocessor.scanAliases(lines);
 
         const out = [];
+        // For every line written, the line of the original source it came
+        // from: a library call writes many lines, all of them the call's.
+        // That is what lets a debugger put an instruction back on a line of
+        // the editor once the text the assembler saw has been expanded.
+        const map = [];
         let inBlock = false;
         for (let i = 0; i < lines.length; i++) {
             const raw = lines[i];
@@ -144,21 +149,28 @@ class Preprocessor {
             const call = this.matchCall(stripped.code, i + 1, raw);
             if (!call) {
                 out.push(raw);
-                continue;
+            } else {
+                this.expandCall(raw, call, i + 1, 0, out, null);
             }
-            this.expandCall(raw, call, i + 1, 0, out, null);
+            while (map.length < out.length) map.push(i + 1);
         }
 
         if (this.expansions === 0 && this.errors.length === 0) {
-            return this.result(text);
+            return this.result(text, null);
         }
-        return this.result(out.join('\n'));
+        return this.result(out.join('\n'), map);
     }
 
-    result(text) {
+    /**
+     * lineMap is null when the text is the source untouched, so line n of
+     * one is line n of the other; otherwise lineMap[n - 1] is the original
+     * line that line n of the expanded text came from.
+     */
+    result(text, lineMap) {
         return {
             ok: this.errors.length === 0,
             text: text,
+            lineMap: lineMap || null,
             expansions: this.expansions,
             errors: this.errors.slice(),
             warnings: this.warnings.slice(),

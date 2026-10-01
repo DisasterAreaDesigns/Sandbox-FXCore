@@ -50,6 +50,7 @@ class Program {
      */
     static Preprocess(sourceCode) {
         FXCoreAssembler.expandedSource = null;
+        FXCoreAssembler.expandedLineMap = null;
 
         if (typeof Preprocessor === 'undefined') return sourceCode;
 
@@ -76,6 +77,7 @@ class Program {
 
         if (result.expansions > 0) {
             FXCoreAssembler.expandedSource = result.text;
+            FXCoreAssembler.expandedLineMap = result.lineMap;
             debugLog(`Preprocessor expanded ${result.expansions} library call(s) from ` +
                 `${result.used.join(', ')}`, 'success');
             debugLog('Line numbers below refer to the expanded source', 'info');
@@ -127,6 +129,7 @@ class Program {
         // protocol and throws away the symbol table the debugger wants.
         FXCoreAssembler.lastAsm = myasm;
         FXCoreAssembler.lastTable = mytable;
+        FXCoreAssembler.lastLineMap = FXCoreAssembler.expandedLineMap;
 
         // write HEX file
         debugLog('Writing HEX file', 'info');
@@ -287,6 +290,8 @@ class FXCoreAssembler {
     static assembledHex = null;
     static sourceCode = null;
     static expandedSource = null; // Source after library calls were inlined, null if none
+    static expandedLineMap = null; // Expanded line -> source line, null if none were inlined
+    static lastLineMap = null;  // The same, kept with lastAsm so a build and its map never part
     static libraries = null;      // FXLibrarySet built from the user's library folder
     static lastAsm = null;      // Assembler instance from the last good build
     static lastTable = null;    // SymbolTable from the last good build
@@ -400,8 +405,17 @@ class FXCoreAssembler {
 
         const regs = table.checkreg;
         const program = new Int32Array(asm.program.length);
+        // The line of the editor's source each instruction came from, for a
+        // debugger. The assembler counts lines in the text it was given,
+        // which a library call has expanded, so they are mapped back to the
+        // lines the person typed; every instruction a call expanded to
+        // reports the call's own line.
+        const lines = new Int32Array(asm.program.length);
+        const lineMap = FXCoreAssembler.lastLineMap;
         for (let i = 0; i < asm.program.length; i++) {
             program[i] = asm.program[i].machine | 0;
+            const n = asm.program[i].linenum | 0;
+            lines[i] = (lineMap && lineMap[n - 1]) ? lineMap[n - 1] : n;
         }
 
         // CREG: R0-R15 are presettable, ACC32 and FLAGS are not.
@@ -434,6 +448,7 @@ class FXCoreAssembler {
 
         return {
             program: program,
+            lines: lines,
             creg: creg,
             mreg: mreg,
             sfr: sfr,

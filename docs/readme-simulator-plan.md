@@ -589,6 +589,27 @@ work:
 Schedule it after the audio path works, but shape the interpreter's API for it
 from the start: `step()` returning the next `pc`, state readable from outside.
 
+**Built** (`fxcore-regs.js`, `fxcore-debug.js`, `fxcore-trace.js`, tests in
+`sim-test/test-debug.js`), modelled on the FV-1 simulator's register viewer and
+breakpoints. What differs from the FV-1 version, and from the sketch above:
+
+- A sample is `beginSample` / `execute(pc)` / `endSample`, and `run()` is the
+  three in a row. A hook called after each instruction can stop `execute`; the
+  open sample is then finished with `finishSample()`. The plain loop is
+  untouched when no hook or trace is on (bench unchanged at ~62 M instr/s).
+- A halt moves the whole core to the page (`exportState` / `importState`), which
+  steps a second `FXCoreCore`; resume hands it back and the worklet finishes
+  the open sample.
+- `buildSimImage()` now carries `lines`, the editor line of each instruction.
+  The preprocessor returns a `lineMap`, so instructions a library call expanded
+  to report the line of the call, not a line of the expanded text.
+- Breakpoints are line (with a when), clip, jump taken / not taken, and any
+  register by key (`c3` is R3, `m5` MR5, `s16` an SFR). Jumps are forward-only
+  and skip code, so a line can go unexecuted; a "not taken" breakpoint only
+  matches a jump instruction.
+- Not built, and not buildable: the per-instruction clock count against the
+  ~3500 budget. None of the FXCore documents gives the cost of an instruction.
+
 ---
 
 ## 8. Validation

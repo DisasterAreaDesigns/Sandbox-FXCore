@@ -115,6 +115,7 @@ function assemble(source, name, opts) {
     // Copy out of the VM realm so the typed arrays are ordinary Node ones.
     return {
         program: Int32Array.from(image.program),
+        lines: Int32Array.from(image.lines),
         creg: Int32Array.from(image.creg),
         mreg: Int32Array.from(image.mreg),
         sfr: Int32Array.from(image.sfr),
