@@ -101,6 +101,9 @@ storage.enable_usb_drive()
 
 supervisor.set_usb_identification(manufacturer='Me', product='SandboxFX', vid=0x1209, pid=0x3911)
 
+# Disable auto-reload
+supervisor.runtime.autoreload = False
+
 print("FT260 HID device enabled with 6 report IDs:")
 print("  Feature Reports: 0xA1 (config), 0xC0 (status)")
 print("  Input Report: 0xC2 (I2C read data)") 
