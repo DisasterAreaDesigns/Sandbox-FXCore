@@ -591,7 +591,7 @@ class Assembler {
                     const symbol = this.thetable.symbolVal(paramValue);
                     if (symbol) {
                         instruction.resolved[i] = true;
-                        instruction.paramvals[i] = Math.floor(symbol.rvalue);
+                        instruction.paramvals[i] = Math.trunc(symbol.rvalue);
                         debug.parameters(`  Resolved symbol to: ${instruction.paramvals[i]}`, 'ASSEMBLER');
                     } else {
                         debug.error(`  ERROR: Symbol "${paramValue}" not found!`, 'ASSEMBLER');
@@ -1052,7 +1052,7 @@ class Assembler {
                     debug.error(`Parameter ${paramName} out of range for imm1 at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                instruction.paramint[paramIndex] = Math.floor(value) & 0x1;
+                instruction.paramint[paramIndex] = Math.trunc(value) & 0x1;
                 break;
                 
             case 'imm4':
@@ -1060,7 +1060,7 @@ class Assembler {
                     debug.error(`Parameter ${paramName} out of range for imm4 at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                instruction.paramint[paramIndex] = Math.floor(value) & 0xF;
+                instruction.paramint[paramIndex] = Math.trunc(value) & 0xF;
                 break;
                 
             case 'imm5':
@@ -1068,7 +1068,7 @@ class Assembler {
                     debug.error(`Parameter ${paramName} out of range for imm5 at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                instruction.paramint[paramIndex] = Math.floor(value) & 0x1F;
+                instruction.paramint[paramIndex] = Math.trunc(value) & 0x1F;
                 break;
                 
             case 'imm6':
@@ -1076,20 +1076,25 @@ class Assembler {
                     debug.error(`Parameter ${paramName} out of range for imm6 at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                instruction.paramint[paramIndex] = Math.floor(value) & 0x3F;
+                instruction.paramint[paramIndex] = Math.trunc(value) & 0x3F;
                 break;
                 
+            // Integer fields take "only the integer portion of the value" (FXCore
+            // Instruction Set document), i.e. truncate toward zero as the CLI's C#
+            // casts do. This port used Math.floor, which only differs for a negative
+            // fraction: "addi alias_wave, -0.5" assembled as 0xFFFF (-1) where the
+            // CLI, and every shipped program built with it, has 0x0000.
             case 'imm16':
                 if (paramName.toUpperCase().endsWith('.L')) {
-                    instruction.paramint[paramIndex] = Math.floor(value) & 0xFFFF;
+                    instruction.paramint[paramIndex] = Math.trunc(value) & 0xFFFF;
                 } else if (paramName.toUpperCase().endsWith('.U')) {
-                    instruction.paramint[paramIndex] = Math.floor(value) & 0xFFFF;
+                    instruction.paramint[paramIndex] = Math.trunc(value) & 0xFFFF;
                 } else {
                     if (value < -32768 || value > 65535) {
                         debug.error(`Parameter ${paramName} out of range for imm16 at line ${instruction.linenum}`, 'ASSEMBLER');
                         return false;
                     }
-                    instruction.paramint[paramIndex] = Math.floor(value) & 0xFFFF;
+                    instruction.paramint[paramIndex] = Math.trunc(value) & 0xFFFF;
                 }
                 break;
                 
@@ -1147,7 +1152,7 @@ class Assembler {
                     debug.error(`Jump past end of program at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                instruction.paramint[paramIndex] = Math.floor(value) & 0x3FF;
+                instruction.paramint[paramIndex] = Math.trunc(value) & 0x3FF;
                 break;
                 
             case 'addr':
@@ -1155,12 +1160,12 @@ class Assembler {
                     debug.error(`Memory address out of range at line ${instruction.linenum}`, 'ASSEMBLER');
                     return false;
                 }
-                instruction.paramint[paramIndex] = Math.floor(value) & 0x7FFF;
+                instruction.paramint[paramIndex] = Math.trunc(value) & 0x7FFF;
                 break;
                 
             default:
                 // Register types
-                instruction.paramint[paramIndex] = Math.floor(value);
+                instruction.paramint[paramIndex] = Math.trunc(value);
                 break;
         }
         

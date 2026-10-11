@@ -104,6 +104,34 @@ for (const bad of ['1.0', '-1.5', '2.0']) {
 }
 
 // ---------------------------------------------------------------
+console.log('--- integer fields take the integer portion (truncate toward zero) ---');
+
+// The instruction set document: an integer operand takes "only the integer
+// portion of the value". The CLI's C# casts truncate toward zero; this port
+// floored, which only differs for a negative fraction. The LEAP aliaser line
+// "addi alias_wave, -0.5" is in a CLI 2.4.2 listing as
+//     0230 : 0086 : 04080000 :   ADDI  ALIAS_WAVE(0x08) -0.5(0x0000)
+// and the port gave 0xFFFF, so the program no longer matched the shipped one.
+const intCases = [
+    ['addi r8, -0.5', 0x0000], ['addi r8, 0.5', 0x0000], ['addi r8, -1.5', 0xFFFF],
+    ['addi r8, -1', 0xFFFF], ['addi r8, 2.9', 0x0002], ['addi r8, -32768', 0x8000],
+    ['andi acc32, 3.7', 0x0003], ['ori acc32, -0.9', 0x0000],
+];
+const intImg = assemble(intCases.map((c) => c[0]).join('\n') + '\n', 'integers');
+intCases.forEach(([line, want], i) => {
+    const got = intImg.program[i] & 0xFFFF;
+    ok(line, got === want, `got 0x${got.toString(16)}, want 0x${want.toString(16)}`);
+});
+ok('addi r8, -0.5 is the whole word 0x04080000',
+    (intImg.program[0] >>> 0) === 0x04080000, `0x${(intImg.program[0] >>> 0).toString(16)}`);
+
+const viaEquInt = assemble('.equ half -0.5\naddi r8, half\n', 'equ-int');
+ok('.equ half -0.5 then addi r8, half is 0x0000', (viaEquInt.program[0] & 0xFFFF) === 0);
+
+const shiftImg = assemble('sr acc32, 3.9\n', 'shift');
+ok('sr acc32, 3.9 shifts by 3', (shiftImg.program[0] & 0x1F) === 3, `${shiftImg.program[0] & 0x1F}`);
+
+// ---------------------------------------------------------------
 console.log('');
 if (fail) { console.log('FAILURES:'); for (const f of failures) console.log('  ' + f); }
 console.log(`${pass} passed, ${fail} failed`);
