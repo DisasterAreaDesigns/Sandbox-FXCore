@@ -1330,7 +1330,7 @@ function simUpdateFlags(flags, taptempo) {
     if (flags & 0x0010) names.push('TAPSTKY');
     if (flags & 0x0F00) names.push('IN clip');
     if (flags & 0xF000) names.push('OUT clip');
-    const tt = taptempo ? (taptempo / simRate).toFixed(3) + ' s' : '-';
+    const tt = taptempo ? (taptempo / simGetRate()).toFixed(3) + ' s' : '-';
     el.textContent = 'Tap ' + tt + (names.length ? '   ' + names.join(' ') : '');
 }
 
@@ -1365,6 +1365,12 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     simSendPots();
     simOnSourceChange();
     simOnToneFreqChange();
+    // Browsers restore a <select> on reload or back/forward, so the menu can
+    // come back showing 32 kHz while simRate still holds the 48 kHz default.
+    // Take the rate from the menu so the label and the engine agree.
+    const rateSel = document.getElementById('simRate');
+    const shown = rateSel ? parseFloat(rateSel.value) : NaN;
+    if (isFinite(shown)) simRate = shown;
     simUpdateRateInfo();
     if (typeof AudioWorkletNode === 'undefined') {
         simStatus('This browser has no AudioWorklet support - simulator unavailable', 'error');
