@@ -49,8 +49,8 @@ console.log('--- a directive inside a block comment is not a directive ---');
     ok('a commented out .equ does not collide with the live one', r.img !== undefined,
         r.err ? r.err.split('\n')[1] : '');
     if (r.img) {
-        ok('the live .equ is the one that is used', (r.img.program[0] & 0xFFFF) === 0x4000,
-            `M field 0x${(r.img.program[0] & 0xFFFF).toString(16)}, want 0x4000`);
+        ok('the live .equ is the one that is used', (r.img.program[0] & 0xFFFF) === 0x3FFF,
+            `M field 0x${(r.img.program[0] & 0xFFFF).toString(16)}, want 0x3fff (0.5 as the CLI emits it)`);
     }
 }
 
@@ -60,7 +60,7 @@ console.log('--- a directive inside a block comment is not a directive ---');
     ok('a commented out .creg does not collide', r.img !== undefined,
         r.err ? r.err.split('\n')[1] : '');
     if (r.img) {
-        ok('the live .creg preset wins', (r.img.creg[0] >>> 0) === 0x40000000,
+        ok('the live .creg preset wins', (r.img.creg[0] >>> 0) === 0x3FFFFFFF,
             '0x' + (r.img.creg[0] >>> 0).toString(16));
     }
 }

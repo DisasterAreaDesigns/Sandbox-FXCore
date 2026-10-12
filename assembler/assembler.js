@@ -1129,17 +1129,27 @@ class Assembler {
                     return false;
                 }
 
-                // A fraction: value = word / 2^n. Round at the field's own
-                // width rather than truncating a wider intermediate -- scaling
-                // by 0x7FFFFFFF and flooring cost a whole LSB on every positive
-                // value, so 0.5 assembled as 16383 rather than 16384 and every
-                // coefficient in a program came out a step small.
+                // A fraction: value = word / 2^n.
+                //
+                // THE CLI IS THE GOLDEN STANDARD. Encode exactly as the FXCore CLI
+                // assembler (2.x) does: scale to 32 bits by 0x7FFFFFFF, truncate
+                // like a C# cast, then take the field's top bits. This is one LSB
+                // low on most positive values (0.5 -> 0x3FFF, 0.01 -> 0x0147), but
+                // it is what every shipped program was built with, so a source
+                // reassembles byte-identical to the CLI and to the products.
+                //
+                // NOTE: the more accurate encoding is to round at the field's own
+                // width (0.5 -> 0x4000), which this port used in builds 18-23
+                // (commit 7b01911):
+                //     Math.max(bottom, Math.min(top, Math.round(value * (top + 1)))) & mask
+                // We may want to move to that if / when the CLI app is ever updated
+                // to round. Until then, match the CLI. See cliFraction() in common.js.
                 if (value < -1.0 || value >= 1.0) {
                     debug.error(`Parameter ${paramName} out of range for ${paramType} at line ${instruction.linenum}, a fixed point immediate runs from -1.0 to just under 1.0`, 'ASSEMBLER');
                     return false;
                 }
                 instruction.paramint[paramIndex] =
-                    Math.max(bottom, Math.min(top, Math.round(value * (top + 1)))) & mask;
+                    (common.cliFraction(value) >> (paramType === 'imm8d' ? 24 : 16)) & mask;
                 break;
             }
                 

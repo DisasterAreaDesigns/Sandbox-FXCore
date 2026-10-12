@@ -12,12 +12,15 @@
 // gave 200 but `.creg r0 100*2` scaled it, wrapped, and gave -200 -- no error,
 // just a different register.
 //
-// The fraction path was itself a step low. It scaled by 0x7FFFFFFF and
-// truncated, so 0.5 preset as 0x3FFFFFFF and -1.0 as 0x80000001, and a value
-// out of S.31 range wrapped silently instead of being rejected. Rounding at the
-// field's own width is the same fix test-immediates.js covers for imm16d and
-// imm8d, and the two now agree: a preset and an immediate written as the same
-// number line up bit for bit.
+// A value out of S.31 range used to wrap silently; it is now rejected.
+//
+// The fraction itself follows THE CLI, THE GOLDEN STANDARD: scale by
+// 0x7FFFFFFF and truncate toward zero, so 0.5 presets as 0x3FFFFFFF and -1.0 as
+// 0x80000001 (a CLI 2.x listing of syntax_ring_i2s shows `.creg carrier -1.000`
+// as exactly that). Builds 18-23 rounded instead; if the CLI ever rounds, flip
+// common.cliFraction and these expectations. Presets and imm16d/imm8d
+// immediates go through the same conversion, so the same number still gives
+// the same top bits.
 
 const { assemble } = require('./assemble.js');
 
@@ -39,14 +42,14 @@ function rejects(source) {
 }
 
 // ---------------------------------------------------------------
-console.log('--- S.31 presets mean what they say ---');
+console.log('--- S.31 presets match the CLI ---');
 
 const frac = [
-    ['0.5', 0x40000000],
-    ['0.75', 0x60000000],
-    ['0.25', 0x20000000],
-    ['-0.5', 0xC0000000],
-    ['-1.0', 0x80000000],
+    ['0.5', 0x3FFFFFFF],
+    ['0.75', 0x5FFFFFFF],
+    ['0.25', 0x1FFFFFFF],
+    ['-0.5', 0xC0000001],
+    ['-1.0', 0x80000001],
     ['0', 0x00000000],
 ];
 {
@@ -57,12 +60,11 @@ const frac = [
     });
 }
 
-// 0.5 and -1.0 are the two that separate the conversions: scaling by 0x7FFFFFFF
-// and truncating misses both, by exactly one LSB.
+// 0.5 and -1.0 are the two that separate truncation from rounding.
 {
     const img = presets(['.creg r0 0.5', '.creg r1 -1.0']);
-    ok('0.5 is exactly 0x40000000, not 0x3FFFFFFF', (img.creg[0] >>> 0) === 0x40000000, hex(img.creg[0]));
-    ok('-1.0 is exactly 0x80000000, not 0x80000001', (img.creg[1] >>> 0) === 0x80000000, hex(img.creg[1]));
+    ok('0.5 is 0x3FFFFFFF, as the CLI emits', (img.creg[0] >>> 0) === 0x3FFFFFFF, hex(img.creg[0]));
+    ok('-1.0 is 0x80000001, as the CLI emits', (img.creg[1] >>> 0) === 0x80000001, hex(img.creg[1]));
 }
 
 // ---------------------------------------------------------------
@@ -84,17 +86,17 @@ console.log('--- an integer preset stays an integer, however it is written ---')
 // An expression that really is fractional still takes the fraction path.
 {
     const img = presets(['.creg r0 1.0/2', '.creg r1 0.25*3', '.creg r2 1.0/4']);
-    ok('.creg r0 1.0/2 is 0x40000000', (img.creg[0] >>> 0) === 0x40000000, hex(img.creg[0]));
-    ok('.creg r1 0.25*3 is 0x60000000', (img.creg[1] >>> 0) === 0x60000000, hex(img.creg[1]));
-    ok('.creg r2 1.0/4 is 0x20000000', (img.creg[2] >>> 0) === 0x20000000, hex(img.creg[2]));
+    ok('.creg r0 1.0/2 is 0x3FFFFFFF', (img.creg[0] >>> 0) === 0x3FFFFFFF, hex(img.creg[0]));
+    ok('.creg r1 0.25*3 is 0x5FFFFFFF', (img.creg[1] >>> 0) === 0x5FFFFFFF, hex(img.creg[1]));
+    ok('.creg r2 1.0/4 is 0x1FFFFFFF', (img.creg[2] >>> 0) === 0x1FFFFFFF, hex(img.creg[2]));
 }
 
 // ---------------------------------------------------------------
 console.log('--- presets and immediates agree ---');
 
 // A preset is an S.31 word and an imm16d an S.15 one, so the immediate is the
-// top 16 bits of the preset. They were built by different code that rounded
-// differently; now the same number gives the same bits.
+// top 16 bits of the preset. Both go through common.cliFraction, so the same
+// number gives the same bits.
 {
     const img = assemble('.creg r0 0.5\n.creg r1 0.75\n.creg r2 -0.5\n'
         + 'multri acc32, 0.5\nmultri acc32, 0.75\nmultri acc32, -0.5\n', 'agree');
@@ -118,8 +120,8 @@ for (const bad of ['5.0', '-1.5', '1.0', '2.5']) {
 // The boundaries themselves are legal: -1.0 exactly, and just under 1.0.
 {
     const img = presets(['.creg r0 -1.0', '.creg r1 0.999999999']);
-    ok('-1.0 is in range', (img.creg[0] >>> 0) === 0x80000000, hex(img.creg[0]));
-    ok('0.999999999 is in range', (img.creg[1] >>> 0) === 0x7FFFFFFE, hex(img.creg[1]));
+    ok('-1.0 is in range', (img.creg[0] >>> 0) === 0x80000001, hex(img.creg[0]));
+    ok('0.999999999 is in range', (img.creg[1] >>> 0) === 0x7FFFFFFC, hex(img.creg[1]));
 }
 
 // ---------------------------------------------------------------

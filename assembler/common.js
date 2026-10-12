@@ -157,6 +157,23 @@ class common {
 
     // Constants
     static get maxparams() { return 8; }        // Maximum number of parameters (corrected from 2)
+    /**
+     * A fixed point fraction (-1.0 to just under 1.0) as the FXCore CLI
+     * assembler encodes it: scaled to S.31 by 0x7FFFFFFF and truncated toward
+     * zero, as a C# (int) cast does. Immediates take the top 16 (S.15) or 8
+     * (S.7) bits of this word with an arithmetic shift; .creg/.mreg presets use
+     * it whole.
+     *
+     * The CLI is the golden standard: every shipped program was built with it,
+     * so matching it means a source reassembles byte-identical. Rounding at the
+     * field's width is more accurate (0.5 -> 0x4000 rather than 0x3FFF) and is
+     * what this port did in builds 18-23; we may want to move to it if / when
+     * the CLI app is ever updated to round.
+     */
+    static cliFraction(value) {
+        return Math.trunc(value * 0x7FFFFFFF) | 0;
+    }
+
     static get maxmem() { return 32768; }       // Maximum memory in the system for the user
     static get maxs31() { return 0.999999999534338; }  // Max S.31 bit value
     static get mins31() { return -1.0; }        // Min S.31 bit value

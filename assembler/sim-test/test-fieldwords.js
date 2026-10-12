@@ -82,10 +82,11 @@ for (const source of hidden) {
 }
 
 // ---------------------------------------------------------------
-console.log('--- and the same one written as a fraction agrees with it ---');
+console.log('--- and the same one written as a fraction is what the CLI makes of it ---');
 
-ok('0.5 and 0x4000 are one instruction',
-    mfield('addsi acc32, 0.5') === mfield('addsi acc32, 0x4000'));
+// The CLI (the golden standard) truncates a positive fraction one LSB below the
+// word: 0.5 is 0x3FFF. Negative fractions land on the word exactly.
+ok('0.5 is 0x3FFF, one below 0x4000', mfield('addsi acc32, 0.5') === 0x3FFF);
 ok('-0.5 and 0xC000 are one instruction',
     mfield('addsi acc32, -0.5') === mfield('addsi acc32, 0xC000'));
 ok('-1.0 and 0x8000 are one instruction',
@@ -96,10 +97,10 @@ console.log('--- a fraction is a fraction whatever base its parts were in ---');
 
 // The one that used to floor to nothing.
 const quarters = [
-    ['addsi acc32, 0x2/4', 0x4000],
-    ['addsi acc32, 0x4000/0x8000', 0x4000],
-    ['addsi acc32, 0x1/4', 0x2000],
-    ['.equ half 0x2\naddsi acc32, half/4', 0x4000]
+    ['addsi acc32, 0x2/4', 0x3FFF],
+    ['addsi acc32, 0x4000/0x8000', 0x3FFF],
+    ['addsi acc32, 0x1/4', 0x1FFF],
+    ['.equ half 0x2\naddsi acc32, half/4', 0x3FFF]
 ];
 for (const [source, want] of quarters) {
     const got = mfield(source);
@@ -146,8 +147,7 @@ for (const [source, want] of s7) {
     const got = rfield(source);
     ok(source.replace('\n', ' / '), got === want, `got ${hex(got)}, want ${hex(want)}`);
 }
-ok('apa 0.5 and apa 0x40 are one instruction',
-    rfield('apa 0.5, 100') === rfield('apa 0x40, 100'));
+ok('apa 0.5 is 0x3F, as the CLI emits', rfield('apa 0.5, 100') === 0x3F);
 ok('apa -1 is the fraction', rfield('apa -1, 100') === 0x80);
 ok('apa 0x100 is refused', /out of range/i.test(refused('apa 0x100, 100') || ''));
 

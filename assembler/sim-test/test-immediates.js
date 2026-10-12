@@ -1,19 +1,19 @@
-// Fractional immediates: does the word the assembler emits mean the number the
-// source wrote?
+// Fractional immediates: does the assembler emit the same word the CLI does?
 //
 //   node assembler/sim-test/test-immediates.js
 //
 // MULTRI, MACRI, MACHRI and ADDSI take a 16-bit S.15 fraction, and MACID,
-// MACHID, APA and APB an 8-bit S.7 one. Both used to be built by scaling to
-// 32 bits and truncating -- `Math.floor(value * 0x7FFFFFFF)` and then taking the
-// top half -- which is one LSB low on every positive value. `multri acc32, 0.5`
-// assembled as 16383, a multiply by 0.49997 rather than 0.5, and every
-// coefficient in every program came out a step small.
+// MACHID, APA and APB an 8-bit S.7 one. THE CLI IS THE GOLDEN STANDARD: it
+// scales to 32 bits with a truncating C# cast, `(int)(value * 0x7FFFFFFF)`, and
+// takes the top 16 (or 8) bits. That lands one LSB low on every positive value
+// -- `multri acc32, 0.5` is 0x3FFF, not 0x4000 -- and this port does the same
+// so its images match the shipped ones bit for bit.
 //
-// Two things went wrong there and only one of them is the scale. Rounding
-// instead of flooring fixes 0.5, but 0.75 still lands short, because taking the
-// top 16 bits of a 32-bit intermediate truncates a second time. The fix is to
-// round at the field's own width.
+// Builds 18-23 rounded at the field's width instead (0.5 -> 0x4000). If the CLI
+// is ever updated to round, flip common.cliFraction and these expectations.
+//
+// For a word w written as w/32768 the CLI result works out to w-1 when w > 0
+// and w otherwise; that closed form is what these tests check against.
 
 const { assemble } = require('./assemble.js');
 
@@ -36,62 +36,67 @@ function immediates(lines, mask, signBit, shift = 0) {
 }
 
 const s15 = (words) => immediates(words.map((w) => `multri acc32, ${w / 32768}`), 0xFFFF, 0x8000);
+const cli = (w) => (w > 0 ? w - 1 : w);
 
 // ---------------------------------------------------------------
-console.log('--- S.15 immediates mean what they say ---');
+console.log('--- S.15 immediates match the CLI ---');
 
 const plain = [16384, 24576, 8192, 32736, 9830, -16384, -8192, 0, 1, -1];
 s15(plain).forEach((got, i) => {
-    ok(`multri ${plain[i] / 32768}`, got === plain[i], `got ${got}, want ${plain[i]}`);
+    ok(`multri ${plain[i] / 32768}`, got === cli(plain[i]), `got ${got}, want ${cli(plain[i])}`);
 });
 
-// 0.5 and 0.75 are the two that separate the three plausible conversions: the
-// old one misses both, rounding a 32-bit intermediate misses 0.75 alone.
-ok('0.5 is exactly 0x4000', s15([16384])[0] === 16384);
-ok('0.75 is exactly 0x6000', s15([24576])[0] === 24576);
+ok('0.5 is 0x3FFF, as the CLI emits', s15([16384])[0] === 0x3FFF);
+ok('0.75 is 0x5FFF, as the CLI emits', s15([24576])[0] === 0x5FFF);
+
+// Words copied from CLI 2.x listings of shipped LEAP programs.
+const listed = [[0.01, 0x0147], [-0.05, 0xF999], [0.5, 0x3FFF], [-0.5, 0xC000], [-1, 0x8000]];
+const listedImg = assemble(listed.map(([v]) => `multri acc32, ${v}`).join('\n') + '\n', 'listed');
+listed.forEach(([v, want], i) => {
+    const got = listedImg.program[i] & 0xFFFF;
+    ok(`multri ${v} is 0x${want.toString(16)} as in the CLI listing`, got === want, `got 0x${got.toString(16)}`);
+});
 
 // ---------------------------------------------------------------
-console.log('--- every S.15 word survives being written as a decimal ---');
+console.log('--- every S.15 word written as a decimal matches the CLI ---');
 
 // One program rather than one per word: the assembler is not cheap to start.
 const spread = [];
 for (let w = -32768; w <= 32767; w += 66) spread.push(w);
 const back = s15(spread);
-const wrong = spread.filter((w, i) => back[i] !== w);
-ok(`${spread.length} words across the range round-trip`, wrong.length === 0,
+const wrong = spread.filter((w, i) => back[i] !== cli(w));
+ok(`${spread.length} words across the range`, wrong.length === 0,
     wrong.length ? `first bad: ${wrong.slice(0, 4).join(', ')}` : '');
 
 const edges = [-32768, -32767, -1, 0, 1, 16383, 16384, 24575, 24576, 32766, 32767];
 const edgeBack = s15(edges);
-ok('boundaries round-trip', edges.every((w, i) => edgeBack[i] === w),
-    edges.map((w, i) => `${w}->${edgeBack[i]}`).filter((s) => s.split('->')[0] !== s.split('->')[1]).join(' '));
+ok('boundaries', edges.every((w, i) => edgeBack[i] === cli(w)),
+    edges.map((w, i) => `${w}->${edgeBack[i]}`).join(' '));
 
 // ---------------------------------------------------------------
-console.log('--- hex and decimal agree ---');
+console.log('--- hex is taken literally ---');
 
-const hexPairs = [[0x4000, 0.5], [0x2666, 0.29998779296875], [0x6000, 0.75]];
-for (const [word, decimal] of hexPairs) {
-    const img = assemble(`multri acc32, 0x${word.toString(16)}\nmultri acc32, ${decimal}\n`, 'hexdec');
-    ok(`0x${word.toString(16)} == ${decimal}`,
-        (img.program[0] & 0xFFFF) === (img.program[1] & 0xFFFF),
-        `${img.program[0] & 0xFFFF} vs ${img.program[1] & 0xFFFF}`);
-}
+const hexWords = [0x4000, 0x2666, 0x6000, 0x7FFF];
+const hexImg = assemble(hexWords.map((w) => `multri acc32, 0x${w.toString(16)}`).join('\n') + '\n', 'hex');
+hexWords.forEach((w, i) => {
+    ok(`multri 0x${w.toString(16)}`, (hexImg.program[i] & 0xFFFF) === w, `${hexImg.program[i] & 0xFFFF}`);
+});
 
 // ---------------------------------------------------------------
-console.log('--- a .equ carries its value intact ---');
+console.log('--- a .equ goes through the same conversion ---');
 
 const viaEqu = assemble('.equ kmix 0.5\n.equ kfb 0.29998779296875\n'
     + 'multri acc32, kmix\nmultri acc32, kfb\n', 'equ');
-ok('.equ kmix 0.5', (viaEqu.program[0] & 0xFFFF) === 16384, `${viaEqu.program[0] & 0xFFFF}`);
-ok('.equ kfb 0.29998779296875', (viaEqu.program[1] & 0xFFFF) === 9830, `${viaEqu.program[1] & 0xFFFF}`);
+ok('.equ kmix 0.5', (viaEqu.program[0] & 0xFFFF) === 16383, `${viaEqu.program[0] & 0xFFFF}`);
+ok('.equ kfb 0.29998779296875', (viaEqu.program[1] & 0xFFFF) === 9829, `${viaEqu.program[1] & 0xFFFF}`);
 
 // ---------------------------------------------------------------
 console.log('--- S.7 immediates, the same story one field narrower ---');
 
 const s7 = [64, 96, 32, 127, -64, -128, 0];
 const s7back = immediates(s7.map((w) => `apa ${w / 128}, 100`), 0xFF, 0x80, 16);
-s7.forEach((want, i) => {
-    ok(`apa ${want / 128}`, s7back[i] === want, `got ${s7back[i]}, want ${want}`);
+s7.forEach((w, i) => {
+    ok(`apa ${w / 128}`, s7back[i] === cli(w), `got ${s7back[i]}, want ${cli(w)}`);
 });
 
 // ---------------------------------------------------------------

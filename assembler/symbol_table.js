@@ -831,23 +831,25 @@ processRegisterDirectives() {
                     value = Math.trunc(symbol.rvalue);
                     debug.registers(`Forced integer: ${symbol.name} = ${value}`, 'SYMBOLS');
                 } else if (symbol.subtype === 'DEC') {
-                    // An S.31 fraction: value = word / 2^31. Round at the
-                    // field's own width, the same way imm8d and imm16d do.
-                    // Scaling by 0x7FFFFFFF and truncating was a whole LSB low
-                    // on every value -- 0.5 preset as 0x3FFFFFFF and -1.0 as
-                    // 0x80000001 -- so a .creg preset and the same number
-                    // written as an immediate disagreed.
+                    // An S.31 fraction: value = word / 2^31, encoded exactly as
+                    // the CLI does (scale by 0x7FFFFFFF, truncate): 0.5 presets
+                    // as 0x3FFFFFFF, -1.0 as 0x80000001. The CLI is the golden
+                    // standard; see the note at imm16d in assembler.js and
+                    // cliFraction() in common.js. Rounding (0.5 -> 0x40000000),
+                    // used here in builds 18-23, is the candidate if the CLI is
+                    // ever updated:
+                    //     Math.max(-0x80000000, Math.min(0x7FFFFFFF, Math.round(v * 0x80000000))) | 0
                     if (symbol.rvalue < -1.0 || symbol.rvalue >= 1.0) {
                         debug.error(`Register preset ${symbol.name} = ${symbol.rvalue} out of range for S.31 (-1.0 to just under 1.0) at line ${symbol.linenum}`, 'SYMBOLS');
                         return false;
                     }
                     debug.registers(`Converting ${symbol.name}: decimal=${symbol.rvalue} to S.31 format`, 'SYMBOLS');
-                    value = Math.max(-0x80000000,
-                        Math.min(0x7FFFFFFF, Math.round(symbol.rvalue * 0x80000000))) | 0;
+                    value = common.cliFraction(symbol.rvalue);
                     debug.registers(`Final S.31 value: ${value} (0x${(value >>> 0).toString(16).toUpperCase()})`, 'SYMBOLS');
                 } else {
-                    // An integer: a raw register word, used as written.
-                    value = Math.round(symbol.rvalue);
+                    // An integer: a raw register word, used as written (integer
+                    // portion, as the CLI's C# cast does).
+                    value = Math.trunc(symbol.rvalue);
                 }
 
                 this.checkreg.setpreset(symbol.regnum, regType, value);

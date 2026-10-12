@@ -109,7 +109,7 @@ console.log('--- ".I" says it is deprecated ---');
     const r = build('.equ n 0.5\n.creg r0 n\ncpy_cc acc32, r0\n');
     ok('no .I means no warning', r.img !== undefined && warningsIn(r.img).length === 0,
         r.img ? warningsIn(r.img).join(' | ') : '');
-    ok('and the preset is untouched', r.img !== undefined && (r.img.creg[0] >>> 0) === 0x40000000,
+    ok('and the preset is untouched', r.img !== undefined && (r.img.creg[0] >>> 0) === 0x3FFFFFFF,
         r.img ? '0x' + (r.img.creg[0] >>> 0).toString(16) : '');
 }
 
