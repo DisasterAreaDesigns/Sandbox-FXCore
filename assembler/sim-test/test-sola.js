@@ -12,6 +12,8 @@
 //            a period stops finding aligned splices.
 //   latency  an impulse in; the first non-zero sample out lands where the
 //            constants say, N + E/2.
+//   snap     with SW0 off the pot, cut in 25 equal slices, picks a semitone;
+//            with it on the pot sets the pitch freely.
 //
 // Every run also reports zero missed answers: the search is H ticks long and
 // the splice is H ticks after the request, so a miss is a fencepost.
@@ -25,7 +27,7 @@ const { assembleFile, loadInto } = require('./assemble.js');
 const FS = 32000;
 const AMP = 12000 / 32768;
 const SHIFTS = [-12, -7, -5, 0, 5, 7, 12];
-const MR = { splices: 103, missed: 104, searches: 105 };
+const MR = { splices: 3, missed: 4, searches: 5 };
 const LATENCY = 436 + 1024 / 2;          // N + E/2, from gen-sola.js
 
 let pass = 0, fail = 0; const failures = [];
@@ -174,6 +176,40 @@ console.log('--- mix: pot1 at zero is the dry signal, delayed by nothing ---');
     let err = 0;
     for (let i = 1000; i < 2000; i++) err = Math.max(err, Math.abs(y[i] - x[i]));
     check(err < 1 / 8192, 'mix dry', `max error ${err.toExponential(2)}`);
+}
+
+// ---- snapping
+console.log('--- snap: SW0 off picks a semitone, SW0 on leaves the pot free ---');
+{
+    // The pot at the middle of the +7 slice, 19.5/25 of the way up: snapped,
+    // the tone lands on +7 exactly; free, the pot's own pitch there is
+    // 24 * 0.78 - 12 = +6.72.  SW0 is pulled up, so off is the default and
+    // on is the pin held low.
+    const x = tone([500], hi);
+    for (const free of [false, true]) {
+        const c = core(6.72, 1);
+        if (free) { c.setPins(0x7E); c.swDebounced = 0x3E; }
+        const want = 500 * 2 ** ((free ? 6.72 : 7) / 12);
+        const y = run(c, x).subarray(lo, hi);
+        const [, f] = peak(y, want);
+        const st = 12 * Math.log2(f / 500);
+        check(Math.abs(12 * Math.log2(f / want)) <= 0.05 && c.user[0] === (free ? 0 : 1),
+            free ? 'free mid +7' : 'snap mid +7', `${f.toFixed(1)} Hz, ${st.toFixed(2)} st, USER0 ${c.user[0]}`);
+    }
+    // Every table entry: anywhere across its slice, 1/25 of the pot, the
+    // pot picks that semitone's ratio.
+    let bad = [];
+    for (let k = -12; k <= 12; k++) {
+        for (const at of [0.05, 0.5, 0.95]) {
+            const p = (k + 12 + at) / 25;
+            const c = core(24 * p - 12, 1);
+            settle(c);
+            c.run([0, 0, 0, 0]);
+            const want = Math.round(65536 * 2 ** (k / 12));
+            if (c.creg[1] !== want) bad.push(`${k} at ${at}: ${c.creg[1]}`);
+        }
+    }
+    check(bad.length === 0, 'snap table', bad.length ? bad.join(', ') : 'all 25 semitones, across each slice');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
