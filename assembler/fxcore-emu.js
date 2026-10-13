@@ -140,6 +140,7 @@ class FXCoreCore {
         this.usrPreset = [0, 0];
 
         this.sampleRate = 48000;
+        this.i2cAddress = 0x30;      // I2CA6..0 straps, read into BOOTSTAT
         this.rngState = 0x2545F491;
 
         // Instructions the documents do not specify at all. Executing one sets
@@ -391,6 +392,7 @@ class FXCoreCore {
         this.tapHeld = 0;
         this.tapState = 0;                       // 0 = idle, 1 = seen first tap
         this.tapElapsed = 0;
+        this.tapSecond = 0;                      // TB2nTB1
         this.tapFlags = 0;
 
         this.oflCounter = 0;
@@ -514,11 +516,12 @@ class FXCoreCore {
                     this.tapHeld = 0;
                     if (this.tapState === 0) {
                         this.tapState = 1;
+                        this.tapSecond = 0;
                         this.tapElapsed = 0;
                     } else {
                         this.sfr[this.SFR_TAPTEMPO] = this.tapElapsed | 0;
                         flags |= 0x0008;            // NEWTT
-                        flags |= 0x0020;            // TB2nTB1: second tap
+                        this.tapSecond = 1;
                         this.tapState = 0;
                         this.tapElapsed = 0;
                     }
@@ -549,6 +552,12 @@ class FXCoreCore {
                 this.tapElapsed = 0;
             }
         }
+        // TB2nTB1 says which tap the push, release and sticky events belong
+        // to: 0 the first, 1 the second (Instruction Set, Tap Tempo
+        // Operation). It is a level, set at the push and held until the next
+        // one, so a hold on the second tap reads TAPSTKY with TB2nTB1 = 1 --
+        // the case the document gives for adjusting a value after tapping.
+        if (this.tapSecond) flags |= 0x0020;
         if (this.tapDebounced) flags |= 0x0001;     // TAPDB: 1 when not pressed
         this.tapFlags = flags;
     }
@@ -573,6 +582,24 @@ class FXCoreCore {
         x ^= x << 13; x |= 0; x ^= x >>> 17; x ^= x << 5; x |= 0;
         this.rngState = x;
         return x;
+    }
+
+    // BOOTSTAT, latched by the chip at boot (Datasheet, block 7):
+    //   [1:0]   PLLRANGE1:0 -- 00 = 12 kHz, 01 = 24, 10 = 32, 11 = 48
+    //           (Experimental Noize forum, Feb 2024). The chip's rate follows
+    //           the straps; here the clock comes first, so the straps are
+    //           whichever rate is nearest it.
+    //   [2]     MNS, 1 in master mode. The Sandbox is the clock master -- in
+    //           slave mode the PLL straps would not set the rate at all.
+    //   [9:3]   I2CA6:0, the I2C address straps: 0x30 on every Sandbox pedal;
+    //           the dev board sets any address on DIP switches.
+    //   [15:10] always 0.
+    //   [31:16] PR15:0, which flash slots hold a program. The sim has no
+    //           flash, so these read 0.
+    bootStat() {
+        const fs = this.sampleRate;
+        const pll = fs < 18000 ? 0 : fs < 28000 ? 1 : fs < 40000 ? 2 : 3;
+        return pll | 0x0004 | ((this.i2cAddress & 0x7F) << 3);
     }
 
     // ================================================================
@@ -663,6 +690,7 @@ class FXCoreCore {
         this.updateTapTempo();
         this.sfr[this.SFR_NOISE] = this.nextNoise();
         this.sfr[this.SFR_SAMPLECNT] = this.sampleCount | 0;
+        this.sfr[this.SFR_BOOTSTAT] = this.bootStat();
         this.creg[this.FLAGS] = (this.overflowBits | this.tapFlags) & 0xFFFF;
 
         this.haltedPc = -1;
@@ -1315,7 +1343,7 @@ class FXCoreCore {
             swCounter: this.swCounter.slice(), swEdges: this.swEdges,
             tapLevel: this.tapLevel, tapDebounced: this.tapDebounced,
             tapCounter: this.tapCounter, tapHeld: this.tapHeld,
-            tapState: this.tapState, tapElapsed: this.tapElapsed,
+            tapState: this.tapState, tapElapsed: this.tapElapsed, tapSecond: this.tapSecond,
             tapFlags: this.tapFlags,
             oflCounter: this.oflCounter, overflowBits: this.overflowBits,
             inputs: this.inputs.slice(), outputs: this.outputs.slice(),
@@ -1343,7 +1371,7 @@ class FXCoreCore {
         this.swCounter = s.swCounter.slice(); this.swEdges = s.swEdges;
         this.tapLevel = s.tapLevel; this.tapDebounced = s.tapDebounced;
         this.tapCounter = s.tapCounter; this.tapHeld = s.tapHeld;
-        this.tapState = s.tapState; this.tapElapsed = s.tapElapsed;
+        this.tapState = s.tapState; this.tapElapsed = s.tapElapsed; this.tapSecond = s.tapSecond | 0;
         this.tapFlags = s.tapFlags;
         this.oflCounter = s.oflCounter; this.overflowBits = s.overflowBits;
         this.inputs = s.inputs.slice(); this.outputs = s.outputs.slice();

@@ -374,6 +374,46 @@ console.log('--- tap tempo ---');
         run(c, 1000, UP);
         ok('TAPSTKY clears on release', (c.creg[17] & 0x0010) === 0);
     }
+
+    // TB2nTB1 says which tap the events belong to and holds between pushes,
+    // so a hold on the second tap reads sticky with TB2nTB1 set.
+    {
+        const c = mk();
+        c.cfgTapStkRld = 5000;
+        const tb2 = () => (c.creg[17] & 0x0020) !== 0;
+        run(c, 2000, UP);
+        ok('TB2nTB1 is 0 before any tap', !tb2());
+        run(c, 700, DOWN);
+        ok('TB2nTB1 is 0 through the first tap', !tb2());
+        run(c, 4000, UP);
+        ok('TB2nTB1 stays 0 between the taps', !tb2());
+        run(c, 8000, DOWN);
+        ok('a hold on the second tap reads TAPSTKY with TB2nTB1 = 1',
+            tb2() && (c.creg[17] & 0x0010) !== 0, (c.creg[17] & 0xFF).toString(16));
+        run(c, 1000, UP);
+        ok('TB2nTB1 holds after the second tap is released', tb2());
+        run(c, 700, DOWN);
+        ok('the next push is a first tap again', !tb2());
+    }
+}
+
+// =====================================================================
+// BOOTSTAT: PLL range from the clock, master mode, I2C address 0x30, and
+// no flash, so no program slots.
+console.log('--- BOOTSTAT ---');
+for (const [rate, pll] of [[12000, 0], [24000, 1], [32000, 2], [48000, 3]]) {
+    const c = new FXCoreCore();
+    c.sampleRate = rate;
+    c.setProgram(Int32Array.from([0xB8000000]));
+    c.run([0, 0, 0, 0]);
+    eq(`${rate}: BOOTSTAT`, c.sfr[c.SFR_BOOTSTAT], pll | 0x0004 | (0x30 << 3));
+}
+{
+    const c = new FXCoreCore();
+    c.i2cAddress = 0x7F;
+    c.setProgram(Int32Array.from([0xB8000000]));
+    c.run([0, 0, 0, 0]);
+    eq('the I2C straps follow the address', (c.sfr[c.SFR_BOOTSTAT] >> 3) & 0x7F, 0x7F);
 }
 
 // =====================================================================

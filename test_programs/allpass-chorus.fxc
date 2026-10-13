@@ -2,8 +2,8 @@
 ; INTERP instruction (linear interpolation) or with Dattorro's all-pass
 ; interpolator, switchable while it runs, for A/B listening.
 ;
-; POT0_SMTH  rate, 0.1 to 5 Hz (coefficients assume Fs = 48 kHz)
-; POT1_SMTH  depth, 0 to 256 samples of sweep on top of a 480 sample base
+; POT0_SMTH  rate, 0.1 to 5 Hz
+; POT1_SMTH  depth, 0 to 5.3 ms of sweep on top of a 10 ms base
 ; POT2_SMTH  mix, dry to wet
 ; SW0        press toggles INTERP / all-pass; USER0 lit = all-pass
 ; SW1        press toggles warped / plain all-pass coefficient;
@@ -26,12 +26,19 @@
 ; coefficient is taken from 255/256 rather than 1 -- the paper's 1/256
 ; sample offset -- so the pole never sits on z = -1 and rings at Nyquist.
 ;
+; The sample rate comes from the PLL RANGE straps in BOOTSTAT[1:0]: 00 =
+; 12 kHz, 01 = 24, 10 = 32, 11 = 48.  The LFO coefficients are written for
+; 12 kHz and scaled by 12000/fs, and the base delay and depth are written
+; for 48 kHz and scaled by fs/48000, so rate, times and pitch deviation are
+; the same at every rate -- both factors at most 1, so each is one multrr
+; against a four-entry MREG table indexed by the straps.
+;
 ; v[n-1] lives in an MREG: a straight 32-bit copy each way, so the state
 ; that recirculates is never cut to the delay RAM's 16 bits.  Both
 ; all-passes run all the time whichever mode is heard, so a switch to
 ; all-pass meets a warm state and does not click.
 
-.equ    fs          48000
+.equ    fs          12000           ; LFO coefficients' rate; scaled below
 .equ    flow        0.1
 .equ    fhigh       5
 .equ    pi          3.14159
@@ -39,7 +46,8 @@
 .equ    chigh       (2^31 - 1) * (2*pi*fhigh)/fs
 .equ    cdiff       chigh - clow
 
-.equ    base        480             ; least delay, samples (10 ms)
+.equ    base        480             ; least delay at 48 kHz, samples (10 ms)
+.equ    sweep       256             ; most sweep at 48 kHz, samples
 
 .mem    delay       1024
 
@@ -59,8 +67,18 @@
 .rn     t       r13
 .rn     ptr2    r14     ; voice 2's pointer, saved across voice 1
 
-.rn     ap1     mr0     ; all-pass state v[n-1], voice 1
-.rn     ap2     mr1     ; all-pass state v[n-1], voice 2
+; sample-rate tables, indexed by the PLL RANGE straps
+.mreg   mr0     0.9999999       ; LFO scale 12000/fs: 12 kHz
+.mreg   mr1     0.5             ;                     24 kHz
+.mreg   mr2     0.375           ;                     32 kHz
+.mreg   mr3     0.25            ;                     48 kHz
+.mreg   mr4     0.25            ; time scale fs/48000: 12 kHz
+.mreg   mr5     0.5             ;                      24 kHz
+.mreg   mr6     0.6666667       ;                      32 kHz
+.mreg   mr7     0.9999999       ;                      48 kHz
+
+.rn     ap1     mr8     ; all-pass state v[n-1], voice 1
+.rn     ap2     mr9     ; all-pass state v[n-1], voice 2
 .rn     modem   mr126   ; mode, kept across samples
 .rn     plainm  mr127   ; plain flag, kept across samples
 
@@ -83,6 +101,15 @@ no_sw1:
 set      user0|0, mode
 set      user1|0, plain
 
+; ---- sample rate: f = LFO scale, a = time scale
+cpy_cs   t, bootstat
+andi     t, pllrange0|pllrange1
+cpy_cc   t, acc32
+cpy_cmx  f, t
+addi     t, 4
+cpy_cc   t, acc32
+cpy_cmx  a, t
+
 ; ---- rate
 cpy_cs   t, pot0_smth
 wrdld    acc32, (cdiff >> 16) & 0xFFFF
@@ -92,36 +119,43 @@ cpy_cc   t, acc32
 wrdld    acc32, (clow >> 16) & 0xFFFF
 ori      acc32, clow & 0xFFFF
 adds     acc32, t
+multrr   acc32, f
 cpy_sc   lfo0_f, acc32
 
-; ---- depth: up to 256 samples, 256/32768 in pointer units
+; ---- depth and base in pointer units (samples/32768), scaled to the rate
 cpy_cs   t, pot1_smth
-multri   t, 0.0078125
+multri   t, sweep/32768
+multrr   acc32, a
 cpy_cc   depth, acc32
+multri   a, base/32768
+cpy_cc   a, acc32
 
 ; ---- write the input
 cpy_cs   dry, in0
 wrdel    delay, dry
 
-; ---- pointers: (lfo + 1)/2 * depth, so depth 0 is no sweep and no offset
+; ---- pointers: base + (lfo + 1)/2 * depth, so depth 0 is no sweep and
+; no offset
 cpy_cs   t, lfo0_c
 sra      t, 1
 addsi    acc32, 0.5
 multrr   acc32, depth
+adds     acc32, a
 cpy_cc   ptr2, acc32
 
 cpy_cs   t, lfo0_s
 sra      t, 1
 addsi    acc32, 0.5
 multrr   acc32, depth
+adds     acc32, a
 cpy_cc   ptr, acc32
 
 ; ================================================================ voice 1
-interp   ptr, delay+base
+interp   ptr, delay
 cpy_cc   v1, acc32
 
 sr       ptr, 16
-addi     acc32, delay+base
+addi     acc32, delay
 cpy_cc   a, acc32
 rddelx   xa, a
 addi     a, 1
@@ -161,11 +195,11 @@ done1:
 
 ; ================================================================ voice 2
 cpy_cc   ptr, ptr2
-interp   ptr, delay+base
+interp   ptr, delay
 cpy_cc   v2, acc32
 
 sr       ptr, 16
-addi     acc32, delay+base
+addi     acc32, delay
 cpy_cc   a, acc32
 rddelx   xa, a
 addi     a, 1
