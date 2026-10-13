@@ -1,0 +1,216 @@
+; allpass-chorus.fxc - two-voice chorus that reads its taps either with the
+; INTERP instruction (linear interpolation) or with Dattorro's all-pass
+; interpolator, switchable while it runs, for A/B listening.
+;
+; POT0_SMTH  rate, 0.1 to 5 Hz (coefficients assume Fs = 48 kHz)
+; POT1_SMTH  depth, 0 to 256 samples of sweep on top of a 480 sample base
+; POT2_SMTH  mix, dry to wet
+; SW0        press toggles INTERP / all-pass; USER0 lit = all-pass
+; SW1        press toggles warped / plain all-pass coefficient;
+;            USER1 lit = plain
+;
+; OUT0 carries voice 1 (LFO0 sine), OUT1 voice 2 (LFO0 cosine).
+;
+; Dattorro, "Effect Design Part 2", J. Audio Eng. Soc. 45(10), 1997, sec. 5.
+; A tap at i + frac samples back, x[i] newer and x[i+1] older, is
+;
+;     linear    v = x[i] + frac * (x[i+1] - x[i])          (INTERP)
+;     all-pass  v = x[i+1] + eta * (x[i] - v[n-1])         (Fig. 29)
+;
+; The all-pass is flat in magnitude, so the treble does not pump with the
+; LFO the way linear interpolation's moving Nyquist zero makes it.  Its
+; delay at dc is (1 - eta)/(1 + eta), so the plain coefficient eta = 1 - frac
+; gives frac/(2 - frac); the warped one, eta = (1 - frac)/(1 + frac), gives
+; frac exactly.  There is no divide, so the warp is Dattorro's five-term
+; Taylor series about frac = 1/2 (p. 774), in Horner form.  The plain
+; coefficient is taken from 255/256 rather than 1 -- the paper's 1/256
+; sample offset -- so the pole never sits on z = -1 and rings at Nyquist.
+;
+; v[n-1] lives in an MREG: a straight 32-bit copy each way, so the state
+; that recirculates is never cut to the delay RAM's 16 bits.  Both
+; all-passes run all the time whichever mode is heard, so a switch to
+; all-pass meets a warm state and does not click.
+
+.equ    fs          48000
+.equ    flow        0.1
+.equ    fhigh       5
+.equ    pi          3.14159
+.equ    clow        (2^31 - 1) * (2*pi*flow)/fs
+.equ    chigh       (2^31 - 1) * (2*pi*fhigh)/fs
+.equ    cdiff       chigh - clow
+
+.equ    base        480             ; least delay, samples (10 ms)
+
+.mem    delay       1024
+
+.rn     dry     r0
+.rn     depth   r1      ; sweep width, S.31 in INTERP pointer units
+.rn     ptr     r2      ; this voice's pointer: offset [30:16], frac [15:0]
+.rn     v1      r3      ; voice outputs
+.rn     v2      r4
+.rn     a       r5      ; delay address for rddelx
+.rn     xa      r6      ; x[i]
+.rn     xb      r7      ; x[i+1]
+.rn     f       r8      ; frac, S.31
+.rn     u       r9      ; frac - 1/2
+.rn     eta     r10
+.rn     mode    r11     ; 0 INTERP, 1 all-pass
+.rn     plain   r12     ; 0 warped, 1 plain
+.rn     t       r13
+.rn     ptr2    r14     ; voice 2's pointer, saved across voice 1
+
+.rn     ap1     mr0     ; all-pass state v[n-1], voice 1
+.rn     ap2     mr1     ; all-pass state v[n-1], voice 2
+.rn     modem   mr126   ; mode, kept across samples
+.rn     plainm  mr127   ; plain flag, kept across samples
+
+; ---- switches: a push edge toggles the flag
+cpy_cm   mode, modem
+cpy_cm   plain, plainm
+cpy_cs   t, switch
+andi     t, sw0pe
+jz       acc32, no_sw0
+xori     mode, 1
+cpy_cc   mode, acc32
+cpy_mc   modem, acc32
+no_sw0:
+andi     t, sw1pe
+jz       acc32, no_sw1
+xori     plain, 1
+cpy_cc   plain, acc32
+cpy_mc   plainm, acc32
+no_sw1:
+set      user0|0, mode
+set      user1|0, plain
+
+; ---- rate
+cpy_cs   t, pot0_smth
+wrdld    acc32, (cdiff >> 16) & 0xFFFF
+ori      acc32, cdiff & 0xFFFF
+multrr   t, acc32
+cpy_cc   t, acc32
+wrdld    acc32, (clow >> 16) & 0xFFFF
+ori      acc32, clow & 0xFFFF
+adds     acc32, t
+cpy_sc   lfo0_f, acc32
+
+; ---- depth: up to 256 samples, 256/32768 in pointer units
+cpy_cs   t, pot1_smth
+multri   t, 0.0078125
+cpy_cc   depth, acc32
+
+; ---- write the input
+cpy_cs   dry, in0
+wrdel    delay, dry
+
+; ---- pointers: (lfo + 1)/2 * depth, so depth 0 is no sweep and no offset
+cpy_cs   t, lfo0_c
+sra      t, 1
+addsi    acc32, 0.5
+multrr   acc32, depth
+cpy_cc   ptr2, acc32
+
+cpy_cs   t, lfo0_s
+sra      t, 1
+addsi    acc32, 0.5
+multrr   acc32, depth
+cpy_cc   ptr, acc32
+
+; ================================================================ voice 1
+interp   ptr, delay+base
+cpy_cc   v1, acc32
+
+sr       ptr, 16
+addi     acc32, delay+base
+cpy_cc   a, acc32
+rddelx   xa, a
+addi     a, 1
+cpy_cc   a, acc32
+rddelx   xb, a
+
+andi     ptr, 0xFFFF
+sl       acc32, 15
+cpy_cc   f, acc32
+
+jnz      plain, plain1
+addsi    f, -0.5
+cpy_cc   u, acc32
+multri   u, 64/243
+addsi    acc32, -32/81
+multrr   acc32, u
+addsi    acc32, 16/27
+multrr   acc32, u
+addsi    acc32, -8/9
+multrr   acc32, u
+addsi    acc32, 1/3
+jmp      eta1
+plain1:
+neg      f
+addsi    acc32, 255/256
+eta1:
+cpy_cc   eta, acc32
+
+cpy_cm   t, ap1
+subs     xa, t
+multrr   acc32, eta
+adds     acc32, xb
+cpy_mc   ap1, acc32
+jz       mode, done1
+cpy_cc   v1, acc32
+done1:
+
+; ================================================================ voice 2
+cpy_cc   ptr, ptr2
+interp   ptr, delay+base
+cpy_cc   v2, acc32
+
+sr       ptr, 16
+addi     acc32, delay+base
+cpy_cc   a, acc32
+rddelx   xa, a
+addi     a, 1
+cpy_cc   a, acc32
+rddelx   xb, a
+
+andi     ptr, 0xFFFF
+sl       acc32, 15
+cpy_cc   f, acc32
+
+jnz      plain, plain2
+addsi    f, -0.5
+cpy_cc   u, acc32
+multri   u, 64/243
+addsi    acc32, -32/81
+multrr   acc32, u
+addsi    acc32, 16/27
+multrr   acc32, u
+addsi    acc32, -8/9
+multrr   acc32, u
+addsi    acc32, 1/3
+jmp      eta2
+plain2:
+neg      f
+addsi    acc32, 255/256
+eta2:
+cpy_cc   eta, acc32
+
+cpy_cm   t, ap2
+subs     xa, t
+multrr   acc32, eta
+adds     acc32, xb
+cpy_mc   ap2, acc32
+jz       mode, done2
+cpy_cc   v2, acc32
+done2:
+
+; ---- mix: dry + mix * (wet - dry)
+cpy_cs   t, pot2_smth
+subs     v1, dry
+multrr   acc32, t
+adds     acc32, dry
+cpy_sc   out0, acc32
+
+subs     v2, dry
+multrr   acc32, t
+adds     acc32, dry
+cpy_sc   out1, acc32
