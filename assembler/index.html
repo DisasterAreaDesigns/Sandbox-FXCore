@@ -905,6 +905,15 @@
                         <option value="input">Live input</option>
                     </select>
                 </div>
+                <div id="simSourceLevelRow" class="sim-slider-row"
+                     title="Level of the test signal. Every source peaks at 0 dB (an audio file is normalised to it); a clean guitar sits around -16 to -12 dB.">
+                    <label for="simSourceLevel">Level</label>
+                    <input type="range" id="simSourceLevel" min="-40" max="0" value="-12"
+                           oninput="simApplySourceLevel()" ondblclick="simResetSourceLevel()">
+                    <span id="simSourceLevelValue" class="sim-value">-12 dB</span>
+                    <button type="button" class="sim-reset" onclick="simResetSourceLevel()"
+                            title="Reset to -12 dB, a clean guitar's level">&#8634;</button>
+                </div>
                 <div id="simToneRow" class="sim-slider-row">
                     <label for="simToneFreq">Freq</label>
                     <input type="range" id="simToneFreq" min="20" max="5000" value="440"
@@ -1125,7 +1134,7 @@
                 <h4>Test Drive (the simulator)</h4>
                 <p>The <b>TEST DRIVE</b> panel runs your assembled program in the browser, so you can hear it without a pedal attached. Press <b>Assemble</b>, then <b>Play</b>.</p>
                 <ul>
-                    <li><b>Source</b> - what the program is fed: a tone (sine, saw or square), noise, a click train, a plucked string, an audio file, or this computer's audio input. <b>Clicks</b> puts one sample high every second, which shows a delay's taps and a reverb's early reflections as plainly as anything can. <b>Pluck</b> is a plucked string, retuned by the <b>Freq</b> box and struck every two seconds, so a delay or reverb tail is heard on its own between notes rather than buried under a steady tone.</li>
+                    <li><b>Source</b> - what the program is fed: a tone (sine, saw or square), noise, a click train, a plucked string, an audio file, or this computer's audio input. <b>Clicks</b> puts one sample high every second, which shows a delay's taps and a reverb's early reflections as plainly as anything can. <b>Pluck</b> is a plucked string, retuned by the <b>Freq</b> box and struck every two seconds, so a delay or reverb tail is heard on its own between notes rather than buried under a steady tone. Every source but the audio input is made at full scale, and an audio file is normalised to it (the trim it took is shown after its length); <b>Level</b> then pads it down, from -12 dB to start with, which is where a clean guitar sits (about -16 to -12 dB). The &#8634; button, or a double-click on the slider, puts it back there.</li>
                     <li><b>Naming controls</b> - put a tag in a comment and the pot, switch, tap and LED labels follow it as you type: <code>; #POT0 Reverb time</code>, <code>; #SW1 Freeze</code>, <code>; #TAP Tempo</code>, <code>; #LED0 Bypass</code> (or <code>#USER0</code>). Tags are read from the comment part of a line, so they never collide with code. Hover a renamed control to see which one it is.</li>
                     <li><b>ENABLE</b> - drives the part's ENABLE/nBypass pin. Off routes the inputs straight to the outputs, the way the pedal's bypass does, while the program keeps running so its delay tails survive.</li>
                     <li><b>What is modelled</b> - the FXCore core, delay RAM, pots, LFOs, ramps, switches and tap tempo. CHR and PITCH are modelled on the equivalent FV-1 structures, since neither is described internally by any published document: they sound right but are not yet confirmed against hardware, and the PITCH crossfade shapes XF0-XF3 are all treated as linear. Programs that drive external hardware over the second I2S bus will not behave as they do on a real board.</li>

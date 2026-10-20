@@ -17,6 +17,7 @@
 let simCtx = null;
 let simNode = null;
 let simSource = null;
+let simSourceGain = null;
 let simInputGain = null;
 let simOutputGain = null;
 let simStream = null;
@@ -414,17 +415,21 @@ async function simInitEngine() {
         }
     };
 
+    const sourceGain = ctx.createGain();
     const inputGain = ctx.createGain();
     const outputGain = ctx.createGain();
 
+    sourceGain.connect(inputGain);
     inputGain.connect(node);
     node.connect(outputGain);
     outputGain.connect(ctx.destination);
 
     simCtx = ctx;
     simNode = node;
+    simSourceGain = sourceGain;
     simInputGain = inputGain;
     simOutputGain = outputGain;
+    simApplySourceLevel();
     simApplyLevels();
     simSendRoute();
     simSendPots();
@@ -444,6 +449,7 @@ function simTeardownEngine() {
     }
     simCtx = null;
     simNode = null;
+    simSourceGain = null;
     simInputGain = null;
     simOutputGain = null;
 }
@@ -697,6 +703,9 @@ function simMakePluckSource() {
     const buf = simCtx.createBuffer(1, len, simCtx.sampleRate);
     simPluckSignal(buf.getChannelData(0), simCtx.sampleRate,
         simNumber('simToneFreq', 440));
+    // Brought up to full scale like every other source, so the level control
+    // reads the same for all of them.
+    simNormaliseBuffer(buf);
     const node = simCtx.createBufferSource();
     node.buffer = buf;
     node.loop = true;
@@ -772,7 +781,9 @@ async function simConnectSource() {
         }
     }
 
-    if (simSource) simSource.connect(simInputGain);
+    // Live input arrives at whatever level the interface gives it; everything
+    // else is made at full scale and goes through the source level first.
+    if (simSource) simSource.connect(type === 'input' ? simInputGain : simSourceGain);
 }
 
 function simDisconnectSource() {
@@ -795,10 +806,40 @@ async function simDecodeFile(bytes) {
     return decodeCtx.decodeAudioData(bytes.slice(0));
 }
 
+// Scale a decoded file so its loudest sample sits at full scale, the same
+// level the built-in sources are made at, and return the gain that took in dB.
+// The source level then pads every source down alike.
+function simNormaliseBuffer(buf) {
+    let peak = 0;
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < d.length; i++) {
+            const a = Math.abs(d[i]);
+            if (a > peak) peak = a;
+        }
+    }
+    if (peak < 1e-6) return 0;    // silence: nothing to scale up to
+    const g = 1 / peak;
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < d.length; i++) d[i] *= g;
+    }
+    return 20 * Math.log10(g);
+}
+
+function simShowFileInfo(trimDb) {
+    const label = document.getElementById('simFileLabel');
+    if (!label || !simFileBuffer) return;
+    label.textContent = simFileBuffer.duration.toFixed(1) + ' s  \u00b7  trim ' +
+        (trimDb >= 0 ? '+' : '') + trimDb.toFixed(1) + ' dB';
+    label.title = 'Normalised to a 0 dB peak; the trim is how far that moved it';
+}
+
 async function simRedecodeFile() {
     if (!simFileBytes) return;
     try {
         simFileBuffer = await simDecodeFile(simFileBytes);
+        simNormaliseBuffer(simFileBuffer);
     } catch (err) {
         simStatus('Could not re-decode ' + (simFileName || 'the audio file') +
             ' at the new rate: ' + err.message, 'error');
@@ -815,11 +856,12 @@ async function simLoadAudioFile(fileInput) {
         // to start from the original file rather than resample twice.
         simFileBytes = bytes;
         simFileBuffer = await simDecodeFile(bytes);
+        const trimDb = simNormaliseBuffer(simFileBuffer);
         simFileName = file.name;
         // The file input already shows the name, so this only adds what it
-        // cannot: how long the file turned out to be once decoded.
-        const label = document.getElementById('simFileLabel');
-        if (label) label.textContent = simFileBuffer.duration.toFixed(1) + ' s';
+        // cannot: how long the file turned out to be once decoded, and how far
+        // normalising moved it.
+        simShowFileInfo(trimDb);
         const sel = document.getElementById('simSource');
         if (sel) sel.value = 'file';
         simOnSourceChange();
@@ -837,6 +879,8 @@ async function simOnSourceChange() {
         (type === 'tone' || type === 'saw' || type === 'square' ||
          type === 'pluck') ? '' : 'none';
     if (fileRow) fileRow.style.display = (type === 'file') ? '' : 'none';
+    const levelRow = document.getElementById('simSourceLevelRow');
+    if (levelRow) levelRow.style.display = (type === 'input') ? 'none' : '';
     if (simRunning) await simConnectSource();
 }
 
@@ -1197,6 +1241,24 @@ function simApplyLevels() {
     // Both trims sit outside the part, so they apply bypassed as well.
     if (simInputGain) simInputGain.gain.value = Math.pow(10, inDb / 20);
     if (simOutputGain) simOutputGain.gain.value = Math.pow(10, outDb / 20);
+}
+
+// Every built-in source, and a file once normalised, peaks at full scale --
+// far hotter than a guitar. The source level pads them down to where a clean
+// guitar sits, around -16 to -12 dB.
+const SIM_SOURCE_LEVEL_DEFAULT = -12;
+
+function simApplySourceLevel() {
+    const db = simNumber('simSourceLevel', SIM_SOURCE_LEVEL_DEFAULT);
+    const label = document.getElementById('simSourceLevelValue');
+    if (label) label.textContent = db.toFixed(0) + ' dB';
+    if (simSourceGain) simSourceGain.gain.value = Math.pow(10, db / 20);
+}
+
+function simResetSourceLevel() {
+    const el = document.getElementById('simSourceLevel');
+    if (el) el.value = SIM_SOURCE_LEVEL_DEFAULT;
+    simApplySourceLevel();
 }
 
 function simEnabled() { return simSwOn('simEnable'); }

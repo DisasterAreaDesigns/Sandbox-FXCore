@@ -1564,6 +1564,21 @@ body.dark-mode .opcode-description {
    the number changes. */
 .sim-slider-row .sim-value { flex: 0 0 4.8em; text-align: right; }
 
+.sim-slider-row .sim-reset {
+    flex: 0 0 auto;
+    width: auto;          /* the flyout's buttons are full width otherwise */
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.6;
+    cursor: pointer;
+}
+.sim-slider-row .sim-reset:hover { opacity: 1; }
+
 /* Two selects share one row with an 88px label, and the shared
    .flyout-content select padding leaves so little room that "OUT0" is clipped
    behind the dropdown arrow. Tighten them to fit the panel. */
