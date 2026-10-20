@@ -161,6 +161,11 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
     text-align: right; white-space: nowrap; }
 .row .more { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
 .row .more:empty { display: none; }
+.row .more.flags { display: flex; flex-direction: column; gap: 2px; }
+.flag-row { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.flag { padding: 0 4px; border-radius: 3px; opacity: 0.35; white-space: nowrap; }
+.flag.on { opacity: 1; color: var(--fg); background: rgba(127,127,127,0.22); }
+.flag.clip.on { color: #fff; background: #c62828; }
 .bar { position: relative; height: 8px; background: rgba(127,127,127,0.18);
     border-radius: 2px; overflow: hidden; }
 .bar::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
@@ -211,8 +216,21 @@ function regsRowHtml(key, name, opts) {
         '<span class="hex" id="hex-' + key + '"></span>' +
         '<span class="val" id="val-' + key + '"></span>' +
         '<div class="' + bar + '"><div class="fill" id="fill-' + key + '"></div></div>' +
-        '<span class="more" id="more-' + key + '"></span>' +
+        (opts && opts.flags ? regsFlagsHtml() : '<span class="more" id="more-' + key + '"></span>') +
         '</div>';
+}
+
+// FLAGS gets every bit's name drawn all the time, lit when it is set, so the
+// row -- and everything below it -- keeps its size as flags come and go.
+const REGS_FLAG_BITS = [0].concat(Object.keys(REGS_FLAG_NAMES).map(Number));
+
+// Drawn as two lines: the tap tempo's six, then the eight clip detectors.
+function regsFlagsHtml() {
+    const chips = (bits) => '<span class="flag-row">' + bits.map(bit =>
+        '<span class="flag' + (bit >= 8 ? ' clip' : '') + '" id="flag-' + bit + '">' +
+        (bit ? REGS_FLAG_NAMES[bit] : 'TAP down') + '</span>').join('') + '</span>';
+    return '<span class="more flags">' + chips(REGS_FLAG_BITS.filter(b => b < 8)) +
+        chips(REGS_FLAG_BITS.filter(b => b >= 8)) + '</span>';
 }
 
 function regsLfoHtml(id, name, labels) {
@@ -250,7 +268,7 @@ function regsDocument() {
         '<h2>Accumulators</h2><div class="rows">' +
         regsRowHtml('c16', 'ACC32') +
         regsRowHtml('acc64u', 'ACC64 upper') + regsRowHtml('acc64l', 'ACC64 lower', {uni: true}) +
-        regsRowHtml('c17', 'FLAGS', {uni: true}) + '</div>' +
+        regsRowHtml('c17', 'FLAGS', {uni: true, flags: true}) + '</div>' +
         '<div id="scopes-head"><h2>Scopes</h2><label for="scope-window">Window</label>' +
         '<select id="scope-window">' +
         REGS_WINDOWS.map(w => '<option value="' + w.s + '">' + w.label + '</option>').join('') +
@@ -483,7 +501,8 @@ function regsCollectEls() {
     const get = (id) => d.getElementById(id);
     const els = {
         body: d.body, status: get('status'), rate: get('rate'),
-        rows: {}, lfo: {}, kv: {}
+        rows: {}, lfo: {}, kv: {},
+        flags: REGS_FLAG_BITS.map(bit => ({bit, el: get('flag-' + bit)}))
     };
     const addRow = (key) => {
         els.rows[key] = {row: get('row-' + key), name: get('name-' + key),
@@ -757,7 +776,10 @@ function regsPaint(s) {
         const v = s.creg[17];
         regsSet(r.hex, regsHex(v));
         regsSet(r.val, regsFormat === 'int' ? String(v) : '');
-        regsSet(r.more, regsFlagText(v));
+        // TAPDB is high while the pin is up, so its chip is lit when it is low.
+        for (const f of els.flags) {
+            if (f.el) f.el.classList.toggle('on', !!((v >>> f.bit) & 1) !== (f.bit === 0));
+        }
         if (r.fill) r.fill.parentNode.style.display = 'none';
     }
     for (const r of REGS_AUDIO) regsPaintRow(els.rows[r.key], regsWordOf(s, r.key));
